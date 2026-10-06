@@ -169,7 +169,7 @@ export const MODULES: ModuleDef[] = [
 
   // ───────────── Placement ─────────────
   { slug: "placement-board", title: "Placement Readiness Board", description: "Every student’s readiness total, gaps and status — filter, shortlist and export for drives.", group: "Placement", roles: ["placement", "hod", "institution", "admin"], template: "bespoke", icon: "target", phase: "MVP" },
-  { slug: "drives", title: "Placement Drives", description: "Schedule and manage campus recruitment drives.", group: "Placement", roles: ["placement"], template: "list", icon: "briefcase", phase: "Phase 2" },
+  { slug: "drives", title: "Placement Drives", description: "Schedule and manage campus recruitment drives.", group: "Placement", roles: ["placement"], template: "bespoke", icon: "briefcase", phase: "MVP" },
   { slug: "jobs", title: "Job Matching", description: "Open roles matched to verified student profiles and eligibility.", group: "Placement", roles: ["placement", "student"], template: "list", icon: "handshake", phase: "Phase 2" },
   { slug: "employers", title: "Employers", description: "Recruiter relationships, history and hiring outcomes.", group: "Placement", roles: ["placement"], template: "list", icon: "building", phase: "Phase 2" },
   { slug: "placement-analytics", title: "Placement Analytics", description: "Readiness, resume completion, mock-interview participation and offers.", group: "Placement", roles: ["placement", "hod", "institution"], template: "dashboard", icon: "chart", phase: "Phase 2" },

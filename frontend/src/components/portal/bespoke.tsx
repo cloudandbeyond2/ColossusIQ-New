@@ -11,6 +11,7 @@ import { HandwrittenModule } from "./bespoke/handwritten";
 import { EvaluationReviewModule } from "./bespoke/evaluation-review";
 import { ResumeModule } from "./bespoke/resume";
 import { InterviewModule } from "./bespoke/interview";
+import { DrivesModule } from "./bespoke/drives";
 import { ProjectsModule } from "./bespoke/projects";
 import { RolesPermissionsModule } from "./bespoke/roles-permissions";
 import { CollegeWebsiteModule } from "./bespoke/college-website";
@@ -66,6 +67,7 @@ const BESPOKE: Record<string, (props: { role: Role }) => React.ReactNode> = {
   evaluation: () => <EvaluationReviewModule />,
   resume: () => <ResumeModule />,
   interview: () => <InterviewModule />,
+  drives: () => <DrivesModule />,
   projects: ({ role }) => <ProjectsModule role={role} />,
   "roles-permissions": () => <RolesPermissionsModule />,
   "college-website": () => <CollegeWebsiteModule />,
