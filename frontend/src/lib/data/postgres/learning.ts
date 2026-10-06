@@ -72,7 +72,7 @@ async function toCourse(r: CourseRow): Promise<LearningCourse> {
             ...opt("practice", arr<{ q: string; a: string }>(l.practice)),
             ...opt("videos", l.lessonVideos.map((v) => ({ title: v.title, url: v.url }))),
             ...opt("links", arr<{ label: string; url: string }>(l.links)),
-            ...opt("figures", figuresOf(l.figures)),
+            ...opt("figures", figuresOf((l as { figures?: Prisma.JsonValue }).figures ?? [])),
             ...opt("images", l.lessonImages.map((i) => ({ ref: refOf(i.imageMedia, i.imageBuiltin), caption: i.caption }))),
           };
         }),

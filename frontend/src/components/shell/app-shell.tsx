@@ -9,6 +9,7 @@ import type { IconName } from "@/config/modules";
 import type { Role } from "@/lib/auth/roles";
 import { cn } from "@/lib/utils";
 import { usePrefs } from "@/components/providers";
+import { tGroup, tModule, tRole } from "@/lib/i18n/dict";
 import { Topbar } from "./topbar";
 import { IdleGuard } from "./idle-guard";
 import { MentorDrawer } from "./mentor-drawer";
@@ -123,7 +124,7 @@ function SidebarContent({
   nav: NavGroup[];
   pathname: string;
 }) {
-  const { t } = usePrefs();
+  const { t, lang } = usePrefs();
   const home = `/${role}`;
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
 
@@ -144,7 +145,7 @@ function SidebarContent({
             <p className="truncate text-[11px] text-white/60" title={universityName}>
               {universityName}
             </p>
-            <p className="mt-0.5 text-[10px] uppercase tracking-wider text-gold/90">{roleLabel}</p>
+            <p className="mt-0.5 text-[10px] uppercase tracking-wider text-gold/90">{tRole(role, lang, roleLabel)}</p>
           </div>
         </div>
       </div>
@@ -161,7 +162,7 @@ function SidebarContent({
                 aria-expanded={!isCollapsed}
                 aria-controls={id}
               >
-                {g.group}
+                {tGroup(g.group, lang)}
                 <Fi name="angle-small-down" className={cn("text-sm transition-transform", isCollapsed && "-rotate-90")} />
               </button>
               {!isCollapsed ? (
@@ -170,7 +171,7 @@ function SidebarContent({
                     const href = `/${role}/${m.slug}`;
                     return (
                       <li key={m.slug}>
-                        <NavLink href={href} active={pathname === href || pathname.startsWith(`${href}/`)} icon={m.icon} label={m.title} />
+                        <NavLink href={href} active={pathname === href || pathname.startsWith(`${href}/`)} icon={m.icon} label={tModule(m.slug, m.title, lang)} />
                       </li>
                     );
                   })}
