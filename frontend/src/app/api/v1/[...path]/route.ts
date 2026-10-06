@@ -18,6 +18,7 @@ import { prefetchKnowledgeAi } from "@/lib/api/mock/knowledge-base";
 import { prefetchQuestionAi } from "@/lib/api/mock/question-ai";
 import { prefetchQuizAi } from "@/lib/api/mock/quiz-ai";
 import { prefetchVivaAi } from "@/lib/api/mock/viva";
+import { prefetchInterviewAi } from "@/lib/api/mock/interview";
 import { prefetchMentorAi } from "@/lib/api/mock/mentor";
 import { prefetchStudyPlanAi } from "@/lib/api/mock/study-planner";
 import { prefetchLanguageAi } from "@/lib/api/mock/languages";
@@ -278,6 +279,9 @@ async function handle(req: NextRequest, ctx: { params: Promise<{ path: string[] 
   // Viva examiner questions and marks are written before the transaction too.
   const vEarly = await prefetchVivaAi(method, segs, body, session);
   if (vEarly) return json(vEarly.body, vEarly.status);
+  // Mock interview questions and marks are written before the transaction too.
+  const ivEarly = await prefetchInterviewAi(method, segs, body, session);
+  if (ivEarly) return json(ivEarly.body, ivEarly.status);
   try {
     return await withRequestContext({ scope: session.college, sub: session.sub }, () => handleSession(req, method, segs, route, body, session));
   } catch (e) {
