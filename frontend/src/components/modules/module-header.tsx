@@ -1,9 +1,13 @@
+"use client";
+
 import Link from "next/link";
 import type { ReactNode } from "react";
 import type { ModuleDef } from "@/config/modules";
 import type { Role } from "@/lib/auth/roles";
 import { Notice } from "@/components/ui/notices";
 import { Fi, ModuleIcon } from "@/components/ui/icon";
+import { usePrefs } from "@/components/providers";
+import { tGroup, tModule } from "@/lib/i18n/dict";
 
 export function ModuleHeader({
   mod,
@@ -21,7 +25,16 @@ export function ModuleHeader({
   title?: string;
   description?: string;
 }) {
-  const trail = [{ label: "Home", href: `/${role}` }, { label: mod.group }, { label: mod.title, href: crumbs.length ? `/${role}/${mod.slug}` : undefined }, ...crumbs];
+  const { t, lang } = usePrefs();
+  const localizedGroup = tGroup(mod.group, lang);
+  const localizedTitle = title ?? tModule(mod.slug, mod.title, lang);
+  const trail = [
+    { label: t("nav.home"), href: `/${role}` },
+    { label: localizedGroup },
+    { label: localizedTitle, href: crumbs.length ? `/${role}/${mod.slug}` : undefined },
+    ...crumbs,
+  ];
+
   return (
     <>
       <section className="bg-hero-glow relative mb-6 overflow-hidden rounded-3xl px-5 py-6 text-white shadow-lg shadow-brand/20 sm:px-8 sm:py-7">
@@ -50,12 +63,12 @@ export function ModuleHeader({
             </span>
             <div className="min-w-0">
               <div className="mb-1 flex flex-wrap items-center gap-2">
-                <span className="rounded-full bg-white/15 px-2.5 py-0.5 text-[11px] font-medium uppercase tracking-wider text-white/85">{mod.group}</span>
+                <span className="rounded-full bg-white/15 px-2.5 py-0.5 text-[11px] font-medium uppercase tracking-wider text-white/85">{localizedGroup}</span>
                 <span className={mod.phase === "MVP" ? "rounded-full bg-teal/90 px-2.5 py-0.5 text-[11px] font-semibold text-white" : "rounded-full bg-gold/90 px-2.5 py-0.5 text-[11px] font-semibold text-[#1b2233]"}>
                   {mod.phase}
                 </span>
               </div>
-              <h1 className="text-2xl font-semibold leading-tight sm:text-[28px]">{title ?? mod.title}</h1>
+              <h1 className="text-2xl font-semibold leading-tight sm:text-[28px]">{localizedTitle}</h1>
               <p className="mt-1.5 max-w-3xl text-sm text-white/75 sm:text-[15px]">{description ?? mod.description}</p>
             </div>
           </div>
