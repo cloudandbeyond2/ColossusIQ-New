@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Logo } from "@/components/ui/logo";
 import { LinkButton } from "@/components/ui/primitives";
-import { MarketingNav } from "@/components/marketing/nav";
+import { MarketingDesktopNav, MarketingNav } from "@/components/marketing/nav";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 
 const LINKS = [
@@ -22,13 +22,7 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
           <Link href="/" aria-label="CollossusIQ home">
             <Logo />
           </Link>
-          <nav className="hidden items-center gap-1 xl:flex" aria-label="Main">
-            {LINKS.map((l) => (
-              <Link key={l.href} href={l.href} className="whitespace-nowrap rounded-lg px-3 py-2 text-sm text-ink-2 hover:bg-surface-2 hover:text-ink">
-                {l.label}
-              </Link>
-            ))}
-          </nav>
+          <MarketingDesktopNav links={LINKS} />
           <div className="flex items-center gap-2">
             <ThemeToggle />
             <LinkButton href="/login" variant="ghost" size="sm" className="max-sm:hidden">
@@ -82,10 +76,7 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
           </div>
         </div>
         <p className="border-t border-line py-5 text-center text-xs text-ink-3">
-          © {new Date().getFullYear()} CollossusIQ.ai · Made for Indian higher education · Icons by{" "}
-          <a href="https://www.flaticon.com/uicons" target="_blank" rel="noopener noreferrer" className="underline hover:text-brand">
-            Flaticon
-          </a>
+          © {new Date().getFullYear()} CollossusIQ.ai · Made for Indian higher education
         </p>
       </footer>
     </div>

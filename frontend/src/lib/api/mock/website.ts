@@ -62,8 +62,7 @@ async function defaultSite(collegeId: string): Promise<Site | undefined> {
 export async function getSite(collegeId: string): Promise<Site | undefined> {
   const s = await getStore().sites.get(collegeId);
   if (s) return s;
-  const d = await defaultSite(collegeId);
-  return d ? getStore().sites.save(collegeId, d) : undefined;
+  return defaultSite(collegeId);
 }
 
 export async function saveSite(collegeId: string, data: Record<string, RecordValue>): Promise<Site> {

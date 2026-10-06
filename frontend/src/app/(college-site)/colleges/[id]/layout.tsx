@@ -86,10 +86,7 @@ export default async function CollegeSiteLayout({ children, params }: { children
               </Link>
             </p>
             <p className="mt-4 text-xs text-white/40">
-              Powered by CollossusIQ.ai · Icons by{" "}
-              <a href="https://www.flaticon.com/uicons" target="_blank" rel="noopener noreferrer" className="underline">
-                Flaticon
-              </a>
+              Powered by CollossusIQ.ai
             </p>
           </div>
         </div>

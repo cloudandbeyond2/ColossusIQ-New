@@ -98,10 +98,7 @@ export function AppShell({
           {children}
         </main>
         <footer className="border-t border-line px-4 py-4 text-center text-xs text-ink-3 sm:px-6">
-          {universityName} · {collegeName} · Powered by CollossusIQ.ai · AI suggestions are reviewed by people for high-impact decisions · Icons by{" "}
-          <a href="https://www.flaticon.com/uicons" target="_blank" rel="noopener noreferrer" className="underline hover:text-brand">
-            Flaticon
-          </a>
+          {universityName} · {collegeName} · Powered by CollossusIQ.ai · AI suggestions are reviewed by people for high-impact decisions
         </footer>
       </div>
 

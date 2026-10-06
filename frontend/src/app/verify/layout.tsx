@@ -18,11 +18,7 @@ export default function VerifyLayout({ children }: { children: React.ReactNode }
         {children}
       </main>
       <footer className="border-t border-line py-4 text-center text-xs text-ink-3 print:hidden">
-        Certificates are signed by the university and can be checked here at any time. Icons by{" "}
-        <a href="https://www.flaticon.com/uicons" target="_blank" rel="noopener noreferrer" className="underline">
-          Flaticon
-        </a>
-        .
+        Certificates are signed by the university and can be checked here at any time.
       </footer>
     </div>
   );
