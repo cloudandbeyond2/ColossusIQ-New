@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { z } from "zod";
 import { apiFetch, ApiError } from "@/lib/api/client";
 import { GeneratedQuiz, LearningContext, QUIZ_DIFFICULTY, QuizResults, StaffQuizDetail, StaffQuizRow, type BankQuestion } from "@/lib/api/learning-schemas";
@@ -76,6 +76,27 @@ function QuizList({ onNew, onEdit, onResults }: { onNew: () => void; onEdit: (id
   if (list.isError) return <LoadError error={list.error} onRetry={() => void list.refetch()} />;
   if (list.isLoading || !list.data) return <TemplateSkeleton />;
   const rows = list.data;
+  const [search, setSearch] = useState("");
+  const [deptFilter, setDeptFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
+
+  const departments = useMemo(() => Array.from(new Set(rows.map((r) => r.department))).sort(), [rows]);
+
+  const filteredRows = useMemo(() => {
+    return rows.filter((r) => {
+      if (deptFilter !== "all" && r.department !== deptFilter) return false;
+      if (statusFilter !== "all" && r.status !== statusFilter) return false;
+      if (search.trim()) {
+        const q = search.trim().toLowerCase();
+        const matchTitle = r.title.toLowerCase().includes(q);
+        const matchDept = r.department.toLowerCase().includes(q);
+        const matchCourse = r.course.toLowerCase().includes(q);
+        if (!matchTitle && !matchDept && !matchCourse) return false;
+      }
+      return true;
+    });
+  }, [rows, deptFilter, statusFilter, search]);
+
   const totals = {
     published: rows.filter((r) => r.status === "Published").length,
     attempts: rows.reduce((s, r) => s + r.attempts, 0),
@@ -108,69 +129,153 @@ function QuizList({ onNew, onEdit, onResults }: { onNew: () => void; onEdit: (id
         <CardHeader
           title="Department quizzes"
           subtitle="Server-scored · students never receive the answer key"
+          className="pb-5"
           action={
             <Button onClick={onNew}>
               <Fi name="sparkles" /> New AI quiz
             </Button>
           }
         />
-        <CardBody className="overflow-x-auto">
-          <table className="w-full min-w-[760px] text-sm">
-            <thead>
-              <tr className="border-b border-line text-left text-xs uppercase tracking-wide text-ink-3">
-                <th className="py-2 pr-3 font-medium">Quiz</th>
-                <th className="py-2 pr-3 font-medium">Questions</th>
-                <th className="py-2 pr-3 font-medium">Pass mark</th>
-                <th className="py-2 pr-3 font-medium">Students</th>
-                <th className="py-2 pr-3 font-medium">Average</th>
-                <th className="py-2 pr-3 font-medium">Pass rate</th>
-                <th className="py-2 pr-3 font-medium">Status</th>
-                <th className="py-2 text-right font-medium">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((r) => (
-                <tr key={r.id} className="border-b border-line/60 last:border-0">
-                  <td className="py-3 pr-3">
-                    <p className="font-medium text-ink">{r.title}</p>
-                    <p className="text-xs text-ink-3">
-                      {r.department} · {r.durationMin} min {r.certificateEnabled ? "· certificate" : ""}
-                    </p>
-                  </td>
-                  <td className="py-3 pr-3">{r.questions}</td>
-                  <td className="py-3 pr-3">{r.passMark}%</td>
-                  <td className="py-3 pr-3">{r.students}</td>
-                  <td className="py-3 pr-3">{r.attempts ? <Badge tone={toneForScore(r.average)}>{r.average}%</Badge> : "—"}</td>
-                  <td className="py-3 pr-3">{r.students ? `${r.passRate}%` : "—"}</td>
-                  <td className="py-3 pr-3">
-                    <Badge tone={toneForStatus(r.status)}>{r.status}</Badge>
-                  </td>
-                  <td className="py-3 text-right">
-                    <div className="flex items-center justify-end gap-1.5">
-                      <Button size="sm" variant="secondary" onClick={() => onResults(r.id)}>
-                        <Fi name="chart-histogram" /> Results
-                      </Button>
-                      <Button size="sm" variant="secondary" onClick={() => onEdit(r.id)}>
-                        <Fi name="pencil" /> Edit
-                      </Button>
-                      {r.status !== "Published" ? (
-                        <Button size="sm" variant="secondary" onClick={() => setStatus.mutate({ id: r.id, status: "Published" })}>
-                          Publish
-                        </Button>
-                      ) : (
-                        <Button size="sm" variant="secondary" onClick={() => setStatus.mutate({ id: r.id, status: "Closed" })}>
-                          Close
-                        </Button>
-                      )}
-                      <Button size="sm" variant="ghost" className="text-rose hover:bg-rose-soft" aria-label={`Delete ${r.title}`} onClick={() => setToDelete(r)}>
-                        <Fi name="trash" />
-                      </Button>
-                    </div>
-                  </td>
-                </tr>
+        <div className="flex flex-wrap items-center justify-between gap-3 border-y border-line bg-surface-2/40 px-6 py-3">
+          <div className="flex flex-1 flex-wrap items-center gap-3">
+            {/* Search */}
+            <div className="relative min-w-[200px] flex-1 sm:max-w-xs">
+              <input
+                type="text"
+                placeholder="Search quizzes..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="h-10 w-full rounded-xl border border-line bg-surface pl-9 pr-3 text-sm text-ink placeholder:text-ink-3 transition-colors hover:border-brand/40 focus:border-brand focus:outline-none focus:ring-4 focus:ring-brand/10"
+              />
+              <span className="pointer-events-none absolute left-3 top-3 text-ink-3">
+                <Fi name="search" />
+              </span>
+            </div>
+
+            {/* Department Filter */}
+            <div className="w-full sm:w-auto">
+              <select
+                value={deptFilter}
+                onChange={(e) => setDeptFilter(e.target.value)}
+                className="h-10 min-w-[240px] rounded-xl border border-line bg-surface px-3 py-2 text-sm font-medium leading-normal text-ink shadow-2xs transition-colors hover:border-brand/40 focus:border-brand focus:outline-none focus:ring-4 focus:ring-brand/10 cursor-pointer"
+              >
+                <option value="all">All departments ({rows.length})</option>
+                {departments.map((d) => (
+                  <option key={d} value={d}>
+                    {d} ({rows.filter((r) => r.department === d).length})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Status Pills */}
+            <div className="flex h-10 items-center gap-1 rounded-xl border border-line bg-surface p-1 text-xs">
+              {["all", "Published", "Draft", "Closed"].map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() => setStatusFilter(s)}
+                  className={cn(
+                    "h-full rounded-lg px-3 py-1 font-medium transition-colors",
+                    statusFilter === s ? "bg-brand text-white shadow-xs" : "text-ink-2 hover:text-ink",
+                  )}
+                >
+                  {s === "all" ? "All" : s}
+                </button>
               ))}
-            </tbody>
-          </table>
+            </div>
+          </div>
+
+          {search || deptFilter !== "all" || statusFilter !== "all" ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setSearch("");
+                setDeptFilter("all");
+                setStatusFilter("all");
+              }}
+              className="text-xs text-ink-3 hover:text-ink"
+            >
+              Reset filters
+            </Button>
+          ) : null}
+        </div>
+        <CardBody className="overflow-x-auto">
+          {!filteredRows.length ? (
+            <div className="py-12 text-center text-sm text-ink-3">
+              <p>No quizzes match your selected filters.</p>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="mt-2 text-brand"
+                onClick={() => {
+                  setSearch("");
+                  setDeptFilter("all");
+                  setStatusFilter("all");
+                }}
+              >
+                Reset filters
+              </Button>
+            </div>
+          ) : (
+            <table className="w-full min-w-[760px] text-sm">
+              <thead>
+                <tr className="border-b border-line text-left text-xs uppercase tracking-wide text-ink-3">
+                  <th className="py-2 pr-3 font-medium">Quiz</th>
+                  <th className="py-2 pr-3 font-medium">Questions</th>
+                  <th className="py-2 pr-3 font-medium">Pass mark</th>
+                  <th className="py-2 pr-3 font-medium">Students</th>
+                  <th className="py-2 pr-3 font-medium">Average</th>
+                  <th className="py-2 pr-3 font-medium">Pass rate</th>
+                  <th className="py-2 pr-3 font-medium">Status</th>
+                  <th className="py-2 text-right font-medium">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredRows.map((r) => (
+                  <tr key={r.id} className="border-b border-line/60 last:border-0">
+                    <td className="py-3 pr-3">
+                      <p className="font-medium text-ink">{r.title}</p>
+                      <p className="text-xs text-ink-3">
+                        {r.department} · {r.durationMin} min {r.certificateEnabled ? "· certificate" : ""}
+                      </p>
+                    </td>
+                    <td className="py-3 pr-3">{r.questions}</td>
+                    <td className="py-3 pr-3">{r.passMark}%</td>
+                    <td className="py-3 pr-3">{r.students}</td>
+                    <td className="py-3 pr-3">{r.attempts ? <Badge tone={toneForScore(r.average)}>{r.average}%</Badge> : "—"}</td>
+                    <td className="py-3 pr-3">{r.students ? `${r.passRate}%` : "—"}</td>
+                    <td className="py-3 pr-3">
+                      <Badge tone={toneForStatus(r.status)}>{r.status}</Badge>
+                    </td>
+                    <td className="py-3 text-right">
+                      <div className="flex items-center justify-end gap-1.5">
+                        <Button size="sm" variant="secondary" onClick={() => onResults(r.id)}>
+                          <Fi name="chart-histogram" /> Results
+                        </Button>
+                        <Button size="sm" variant="secondary" onClick={() => onEdit(r.id)}>
+                          <Fi name="pencil" /> Edit
+                        </Button>
+                        {r.status !== "Published" ? (
+                          <Button size="sm" variant="secondary" onClick={() => setStatus.mutate({ id: r.id, status: "Published" })}>
+                            Publish
+                          </Button>
+                        ) : (
+                          <Button size="sm" variant="secondary" onClick={() => setStatus.mutate({ id: r.id, status: "Closed" })}>
+                            Close
+                          </Button>
+                        )}
+                        <Button size="sm" variant="ghost" className="text-rose hover:bg-rose-soft" aria-label={`Delete ${r.title}`} onClick={() => setToDelete(r)}>
+                          <Fi name="trash" />
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </CardBody>
       </Card>
 

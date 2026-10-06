@@ -5,6 +5,7 @@ import type { ScorecardData, DashboardData, CalendarData, GalleryData, ListData,
 import { dataBackend } from "@/lib/data";
 import { db, isUuid } from "@/lib/data/postgres/db";
 import { collegeStream } from "./records";
+import { personName, seeded, hashString } from "./fixtures";
 
 export interface EnrolledSubject {
   code: string;
@@ -1386,6 +1387,28 @@ export async function generateDynamicAlumni(
   session: SessionPayload | { sub: string; name?: string; college: string }
 ): Promise<ListData> {
   const profile = await getStudentAcademicProfile(session);
+  const baseSeed = hashString(session.sub + session.college);
+  const r = seeded(baseSeed);
+  
+  const COMPANIES = ["Microsoft", "Amazon", "Freshworks", "Google", "Zoho", "TCS", "Infosys", "Wipro", "Cognizant", "IBM"];
+  const ROLES = ["Senior Software Engineer", "Data Scientist", "Product Manager", "Tech Lead", "System Analyst", "Consultant"];
+  const MENTOR_TOPICS = ["Mock Interviews & System Design", "ML & Analytics Career Guidance", "Resume Review & Startups", "Core Engineering & Higher Studies", "Placement Prep"];
+  
+  const count = 3 + Math.floor(r() * 4);
+  const rows = Array.from({ length: count }, (_, i) => {
+    const idx = Math.floor(r() * 100) + i * 13;
+    const batchYear = 2018 + Math.floor(r() * 5);
+    const match = 70 + Math.floor(r() * 26);
+    return {
+      name: personName(idx),
+      batch: `Batch ${batchYear}`,
+      role: ROLES[Math.floor(r() * ROLES.length)]!,
+      company: COMPANIES[Math.floor(r() * COMPANIES.length)]!,
+      offers: MENTOR_TOPICS[Math.floor(r() * MENTOR_TOPICS.length)]!,
+      match,
+    };
+  }).sort((a, b) => b.match - a.match);
+
   return {
     template: "list",
     columns: [
@@ -1396,11 +1419,7 @@ export async function generateDynamicAlumni(
       { key: "offers", label: "Can Mentor In", kind: "badge" },
       { key: "match", label: "Match Score", kind: "progress" },
     ],
-    rows: [
-      { name: "Priya Sundaram", batch: "Batch 2021", role: "Senior Software Engineer", company: "Microsoft", offers: "Mock Interviews & System Design", match: 94 },
-      { name: "Karthik Narayanan", batch: "Batch 2020", role: "Data Scientist", company: "Amazon", offers: "ML & Analytics Career Guidance", match: 89 },
-      { name: "Arun Prakash", batch: "Batch 2019", role: "Product Manager", company: "Freshworks", offers: "Resume Review & Startups", match: 84 },
-    ],
+    rows,
     filterKey: "offers",
     primaryAction: "Request mentorship",
   };
