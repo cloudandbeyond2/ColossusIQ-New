@@ -2,6 +2,7 @@ import "server-only";
 import { z } from "zod";
 import { geminiJson } from "@/lib/ai/gemini";
 import { cleanText } from "@/lib/security/sanitize";
+import { Figure, mapFigureText } from "@/lib/api/figure-schemas";
 
 /*
  * Gemini-backed drafting for the AI Course Studio: chapter outline → chapter content → final assessment.
@@ -21,6 +22,8 @@ export interface AiTopic {
   intro: string;
   keyPoints: string[];
   terms: Array<[term: string, meaning: string]>;
+  /** Labelled diagrams (flow, hierarchy, comparison …) for faculty to review. */
+  figures: Figure[];
 }
 export interface ChapterContent {
   topics: AiTopic[];
@@ -96,6 +99,8 @@ const Content = z.object({
         intro: str(20),
         keyPoints: z.array(str(15)).min(3).max(8),
         terms: z.array(z.object({ term: str(1), meaning: str(8) })).min(2).max(10),
+        // Checked one by one afterwards: a malformed diagram is dropped without losing the chapter.
+        figures: z.array(z.unknown()).max(6).optional(),
       }),
     )
     .min(1)
@@ -110,8 +115,8 @@ async function writeChapter(b: CourseBrief, ch: ChapterPlan, syllabus: string | 
   const r = await geminiJson(Content, {
     system: SYSTEM,
     temperature: 0.4,
-    maxOutputTokens: 8192,
-    timeoutMs: 60_000,
+    maxOutputTokens: 14_336,
+    timeoutMs: 90_000,
     prompt: [
       brief(b),
       `Chapter ${chapterNo} of ${total}: ${ch.title}`,
@@ -120,11 +125,20 @@ async function writeChapter(b: CourseBrief, ch: ChapterPlan, syllabus: string | 
       "",
       "Write the teaching content for this chapter:",
       '- "topics": for each topic: "title", "intro" (2 to 4 sentences, plain explanation), "keyPoints" (4 or 5 complete, self-contained, factual sentences a student could be examined on), "terms" (4 to 6 {"term","meaning"} with a one-sentence meaning).',
+      `- "figures": for each topic, exactly ${ch.topics.length > 2 ? "1 labelled diagram" : "2 labelled diagrams of different kinds"}, the ones a good lecturer would draw on the board to make THIS topic click. Each is one of:`,
+      '    {"kind":"flow","title","caption","steps":[{"label","detail"}]}  (3 to 7 steps of a real process)',
+      '    {"kind":"cycle","title","caption","steps":[{"label","detail"}]}  (3 to 6 stages that repeat)',
+      '    {"kind":"layers","title","caption","layers":[{"label","detail"}]}  (3 to 6 layers, top first)',
+      '    {"kind":"tree","title","caption","root":{"label","children":[{"label","children":[{"label"}]}]}}  (a classification, 2 to 5 branches)',
+      '    {"kind":"compare","title","caption","columns":["A","B"],"rows":[{"label","cells":["",""]}]}  (2 to 4 columns, 2 to 6 rows, one cell per column)',
+      '    {"kind":"timeline","title","caption","events":[{"when","label","detail"}]}  (3 to 7 dated or ordered events)',
+      '    {"kind":"parts","title","caption","center","parts":[{"label","detail"}]}  (a central idea and its 3 to 8 components)',
+      '  Rules for figures: use the real, specific names from this subject (actual stages, components, algorithms, laws), never placeholders like "Step 1" or "Part A"; labels are at most 6 words and "detail" is one short factual sentence; "caption" is 1 or 2 sentences telling the student how to read the figure and what to take from it. Only draw what you are sure is correct; a smaller accurate figure is better than a bigger doubtful one.',
       '- "example": one concrete worked example in Markdown (a small scenario with the steps and the result), 900 to 1600 characters.',
       '- "mistakes": exactly 2 common student mistakes, one sentence each, each saying what is wrong and the fix.',
       '- "practice": 3 {"q","a"} exam-style questions with model answers of 1 to 3 sentences.',
       "Use terminology consistent with Indian university textbooks for this subject.",
-      'Return JSON: {"topics":[{"title","intro","keyPoints":[],"terms":[{"term","meaning"}]}],"example":"","mistakes":["",""],"practice":[{"q","a"}]}',
+      'Return JSON: {"topics":[{"title","intro","keyPoints":[],"terms":[{"term","meaning"}],"figures":[]}],"example":"","mistakes":["",""],"practice":[{"q","a"}]}',
     ]
       .filter(Boolean)
       .join("\n"),
@@ -137,6 +151,7 @@ async function writeChapter(b: CourseBrief, ch: ChapterPlan, syllabus: string | 
     intro: clean(t.intro, 700),
     keyPoints: t.keyPoints.map((k) => clean(k, 300)).filter((k) => k.length >= 15).slice(0, 6),
     terms: dedupeTerms(t.terms.map((x) => [clean(x.term, 80), clean(x.meaning, 300)] as [string, string])).slice(0, 6),
+    figures: tidyFigures(t.figures),
   }));
   if (topics.some((t) => t.keyPoints.length < 3)) return null;
   const mistakes = d.mistakes.map((m) => clean(m, 300)).filter(Boolean);
@@ -147,6 +162,24 @@ async function writeChapter(b: CourseBrief, ch: ChapterPlan, syllabus: string | 
     mistakes: [mistakes[0]!, mistakes[1]!],
     practice: d.practice.map((p) => [clean(p.q, 400), clean(p.a, 600)] as [string, string]).filter(([q, a]) => q && a).slice(0, 4),
   };
+}
+
+/** Keeps only diagrams that are complete and well-formed, with every label cleaned; at most two per topic. */
+export function tidyFigures(raw: unknown[] | undefined): Figure[] {
+  const out: Figure[] = [];
+  const seen = new Set<string>();
+  for (const r of raw ?? []) {
+    const first = Figure.safeParse(r);
+    if (!first.success) continue;
+    const cleaned = Figure.safeParse(mapFigureText(first.data, (s) => clean(s, 300)));
+    if (!cleaned.success) continue;
+    const key = cleaned.data.title.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(cleaned.data);
+    if (out.length >= 2) break;
+  }
+  return out;
 }
 
 function dedupeTerms(terms: Array<[string, string]>): Array<[string, string]> {

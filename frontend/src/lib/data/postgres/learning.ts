@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import type { CourseUnit, LearningCourse, Lesson } from "@/lib/api/mock/course-state";
 import type { Certificate, Quiz, ReadinessBase } from "@/lib/api/mock/learning";
+import { Figure, MAX_FIGURES } from "@/lib/api/figure-schemas";
 import { parseVideoUrl } from "@/lib/video";
 import type { Attempt, AttemptStore, CertificateStore, CourseStore, ProgressStore, QuizStore, ReadinessStore } from "../store";
 import { db, isUuid, recall, remember } from "./db";
@@ -35,6 +36,8 @@ const COURSE_INCLUDE = {
 type CourseRow = Prisma.LearningCourseGetPayload<{ include: typeof COURSE_INCLUDE }>;
 
 const arr = <T,>(v: Prisma.JsonValue): T[] => (Array.isArray(v) ? (v as T[]) : []);
+/** Stored diagrams, re-checked on the way out so one damaged entry cannot break a lesson. */
+const figuresOf = (v: Prisma.JsonValue): Figure[] => arr<unknown>(v).flatMap((x) => (Figure.safeParse(x).success ? [Figure.parse(x)] : []));
 
 async function toCourse(r: CourseRow): Promise<LearningCourse> {
   return {
@@ -69,6 +72,7 @@ async function toCourse(r: CourseRow): Promise<LearningCourse> {
             ...opt("practice", arr<{ q: string; a: string }>(l.practice)),
             ...opt("videos", l.lessonVideos.map((v) => ({ title: v.title, url: v.url }))),
             ...opt("links", arr<{ label: string; url: string }>(l.links)),
+            ...opt("figures", figuresOf(l.figures)),
             ...opt("images", l.lessonImages.map((i) => ({ ref: refOf(i.imageMedia, i.imageBuiltin), caption: i.caption }))),
           };
         }),
@@ -118,6 +122,7 @@ async function saveLessons(t: Prisma.TransactionClient, courseUuid: string, cour
         terms: (l.terms ?? []).slice(0, 8),
         practice: (l.practice ?? []).slice(0, 6),
         links: (l.links ?? []).slice(0, 6),
+        figures: (l.figures ?? []).slice(0, MAX_FIGURES) as unknown as Prisma.InputJsonValue,
       };
       const id = existing.get(l.id);
       const lessonId = id

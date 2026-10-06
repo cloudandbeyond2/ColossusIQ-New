@@ -98,10 +98,7 @@ export function AppShell({
           {children}
         </main>
         <footer className="border-t border-line px-4 py-4 text-center text-xs text-ink-3 sm:px-6">
-          {universityName} · {collegeName} · Powered by CollossusIQ.ai · AI suggestions are reviewed by people for high-impact decisions · Icons by{" "}
-          <a href="https://www.flaticon.com/uicons" target="_blank" rel="noopener noreferrer" className="underline hover:text-brand">
-            Flaticon
-          </a>
+          {universityName} · {collegeName} · Powered by CollossusIQ.ai · AI suggestions are reviewed by people for high-impact decisions
         </footer>
       </div>
 
@@ -173,7 +170,7 @@ function SidebarContent({
                     const href = `/${role}/${m.slug}`;
                     return (
                       <li key={m.slug}>
-                        <NavLink href={href} active={pathname === href || pathname.startsWith(`${href}/`)} icon={m.icon} label={m.title} phase={m.phase} />
+                        <NavLink href={href} active={pathname === href || pathname.startsWith(`${href}/`)} icon={m.icon} label={m.title} />
                       </li>
                     );
                   })}
@@ -187,7 +184,7 @@ function SidebarContent({
   );
 }
 
-function NavLink({ href, active, icon, label, phase }: { href: string; active: boolean; icon: IconName; label: string; phase?: string }) {
+function NavLink({ href, active, icon, label }: { href: string; active: boolean; icon: IconName; label: string }) {
   return (
     <Link
       href={href}
@@ -200,9 +197,6 @@ function NavLink({ href, active, icon, label, phase }: { href: string; active: b
       {active ? <span className="absolute inset-y-2 left-0 w-1 rounded-r-full bg-gold" aria-hidden /> : null}
       <ModuleIcon name={icon} solid={active} className={cn("text-[15px]", active ? "text-gold" : "text-white/55 group-hover:text-white")} />
       <span className="min-w-0 flex-1 truncate">{label}</span>
-      {phase && phase !== "MVP" ? (
-        <span className="rounded-md bg-white/10 px-1.5 py-px text-[10px] font-medium text-white/60">{phase.replace("Phase ", "P")}</span>
-      ) : null}
     </Link>
   );
 }

@@ -335,6 +335,7 @@ model College {
   studyPlans            StudyPlan[]
   studentStates         StudentState[]
   assignmentSubmissions AssignmentSubmission[]
+  studentExperiences    StudentExperience[]
 
   @@unique([universityId, code])
   @@unique([universityId, name])
@@ -656,6 +657,7 @@ model Lesson {
   terms          Json             @default("[]")
   practice       Json             @default("[]")
   links          Json             @default("[]")
+  figures        Json             @default("[]")
   lessonImages   LessonImage[]
   lessonProgress LessonProgress[]
   lessonVideos   LessonVideo[]
@@ -879,6 +881,34 @@ model AssignmentSubmission {
   @@index([collegeId])
   @@index([userId])
   @@map("assignment_submissions")
+}
+
+model StudentExperience {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  collegeId    String    @map("college_id") @db.Uuid
+  userId       String    @map("user_id") @db.Uuid
+  studentName  String    @map("student_name")
+  rollNo       String    @default("") @map("roll_no")
+  title        String
+  category     String
+  organisation String    @default("")
+  roleTitle    String    @default("") @map("role_title")
+  startMonth   String    @map("start_month")
+  endMonth     String?   @map("end_month")
+  description  String    @default("")
+  link         String    @default("")
+  status       String    @default("Pending")
+  reviewNote   String    @default("") @map("review_note")
+  reviewerName String    @default("") @map("reviewer_name")
+  reviewerRole String    @default("") @map("reviewer_role")
+  reviewedAt   DateTime? @map("reviewed_at") @db.Timestamptz(6)
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
+  college      College   @relation(fields: [collegeId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([collegeId, status])
+  @@index([userId])
+  @@map("student_experiences")
 }
 
 

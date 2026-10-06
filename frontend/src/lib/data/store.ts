@@ -76,6 +76,7 @@ export interface AuditEntry {
   actor: string;
   action: string;
   target: string;
+  collegeId?: string | null;
 }
 export interface AuditStore {
   add(entry: { actor: string; action: string; target: string; collegeId?: string | null; actorSub?: string | null }): Promise<void>;

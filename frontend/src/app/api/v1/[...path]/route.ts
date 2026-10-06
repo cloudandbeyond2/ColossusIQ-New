@@ -17,6 +17,7 @@ import { prefetchCourseAi } from "@/lib/api/mock/course-builder";
 import { prefetchKnowledgeAi } from "@/lib/api/mock/knowledge-base";
 import { prefetchQuestionAi } from "@/lib/api/mock/question-ai";
 import { prefetchQuizAi } from "@/lib/api/mock/quiz-ai";
+import { prefetchVivaAi } from "@/lib/api/mock/viva";
 import { prefetchMentorAi } from "@/lib/api/mock/mentor";
 import { prefetchStudyPlanAi } from "@/lib/api/mock/study-planner";
 import { prefetchLanguageAi } from "@/lib/api/mock/languages";
@@ -50,6 +51,8 @@ export const dynamic = "force-dynamic";
 
 const MAX_BODY_BYTES = 64 * 1024;
 const MAX_MEDIA_BODY_BYTES = 3 * 1024 * 1024; // 2 MB image as base64 + envelope
+// A course is saved whole (up to 24 units x 15 lessons of up to 8,000 characters each), so it needs far more than the default.
+const COURSE_MAX_BODY_BYTES = 4 * 1024 * 1024;
 const isProd = process.env.NODE_ENV === "production";
 
 const cookieBase = { httpOnly: true, secure: isProd, sameSite: "strict" as const, path: "/" };
@@ -158,7 +161,7 @@ async function handle(req: NextRequest, ctx: { params: Promise<{ path: string[] 
     if (!csrfValid(req)) return error(403, "csrf", "Security token missing or invalid. Refresh the page and try again.");
   }
 
-  const parsedBody = method === "GET" ? { ok: true as const, body: undefined } : await readJson(req, route === "media" ? MAX_MEDIA_BODY_BYTES : route === "knowledge/documents" ? KB_MAX_BODY_BYTES : MAX_BODY_BYTES);
+  const parsedBody = method === "GET" ? { ok: true as const, body: undefined } : await readJson(req, route === "media" ? MAX_MEDIA_BODY_BYTES : route === "knowledge/documents" ? KB_MAX_BODY_BYTES : method === "PUT" && /^learning-courses\/[^/]+$/.test(route) ? COURSE_MAX_BODY_BYTES : MAX_BODY_BYTES);
   if (!parsedBody.ok) return parsedBody.res;
   const body = parsedBody.body;
 
@@ -272,6 +275,9 @@ async function handle(req: NextRequest, ctx: { params: Promise<{ path: string[] 
   // Quiz Builder questions are written before the transaction too.
   const qzEarly = await prefetchQuizAi(method, segs, body, session);
   if (qzEarly) return json(qzEarly.body, qzEarly.status);
+  // Viva examiner questions and marks are written before the transaction too.
+  const vEarly = await prefetchVivaAi(method, segs, body, session);
+  if (vEarly) return json(vEarly.body, vEarly.status);
   try {
     return await withRequestContext({ scope: session.college, sub: session.sub }, () => handleSession(req, method, segs, route, body, session));
   } catch (e) {

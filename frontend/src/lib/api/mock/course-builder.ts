@@ -14,6 +14,7 @@ import { TOPIC_EXTRA, type TopicExtra } from "./course-library-extra";
 import { allLessons, completedLessons, courseCompleted, type CourseUnit, type LearningCourse, type Lesson } from "./course-state";
 import { aiQuestions, planChapters, writeChapters, type AiTopic, type ChapterContent, type ChapterPlan, type CourseBrief } from "./course-ai";
 import { geminiEnabled } from "@/lib/ai/gemini";
+import { Figure, MAX_FIGURES, mapFigureText } from "@/lib/api/figure-schemas";
 import { rateLimit } from "./rate-limit";
 import { getStore, withRequestContext } from "@/lib/data";
 import { recordFacultyEvent } from "./faculty-activity";
@@ -99,6 +100,9 @@ const ROMAN = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "XI"
 const ORIENTATION = "Getting started";
 const REVISION = "Course revision";
 
+/** What the template lessons take, plus the diagrams the AI drew for the topic. */
+type LessonExtra = TopicExtra & { figures?: Figure[] };
+
 interface GenCtx {
   course: string;
   department: string;
@@ -144,7 +148,7 @@ function overviewLesson(ctx: GenCtx, chapters: string[]): Lesson {
   };
 }
 
-function conceptsLesson(ctx: GenCtx, topic: string, facts: readonly string[], extra?: TopicExtra): Lesson {
+function conceptsLesson(ctx: GenCtx, topic: string, facts: readonly string[], extra?: LessonExtra): Lesson {
   const keyPoints = facts.length
     ? [...facts]
     : [
@@ -173,6 +177,7 @@ function conceptsLesson(ctx: GenCtx, topic: string, facts: readonly string[], ex
     keyPoints,
     terms: extra?.terms.map(([term, meaning]) => ({ term, meaning })) ?? [],
     links: referenceLinks(topic, ctx.course),
+    ...(extra?.figures?.length ? { figures: extra.figures } : {}),
   };
 }
 
@@ -328,7 +333,7 @@ function templateChapter(ctx: GenCtx, ch: ChapterPlan, mode: "title" | "syllabus
 }
 
 function aiChapter(ctx: GenCtx, ch: ChapterPlan, c: ChapterContent, mode: "title" | "syllabus", part: string | undefined): CourseUnit {
-  const extra = (t: AiTopic): TopicExtra => ({ intro: t.intro, terms: t.terms, example: c.example, mistakes: c.mistakes, practice: c.practice });
+  const extra = (t: AiTopic): LessonExtra => ({ intro: t.intro, terms: t.terms, example: c.example, mistakes: c.mistakes, practice: c.practice, figures: t.figures });
   const lead = c.topics[0]!;
   if (mode === "syllabus") {
     // Syllabus topics keep their own lesson names; one worked example and one practice lesson close the unit.
@@ -703,6 +708,7 @@ const LessonBody = z
       .optional(),
     links: z.array(z.object({ label: Text(1, 120), url: z.string().max(400).refine(isReferenceUrl, "Unsupported link") }).strict()).max(6).optional(),
     images: z.array(z.object({ ref: z.string().regex(MEDIA_REF_RE), caption: z.string().trim().max(160) }).strict()).max(6).optional(),
+    figures: z.array(Figure).max(MAX_FIGURES).optional(),
   })
   .strict();
 const UpdateBody = z
@@ -923,6 +929,7 @@ export async function dispatchCourses(method: string, segs: string[], rawBody: u
           videos: (l.videos ?? []).map((v) => ({ title: cleanText(v.title, 120), url: parseVideoUrl(v.url)!.url })),
           links: (l.links ?? []).map((x) => ({ label: cleanText(x.label, 120), url: x.url })),
           images: (l.images ?? []).map((i) => ({ ref: i.ref, caption: cleanText(i.caption, 160) })),
+          figures: (l.figures ?? []).map((f) => mapFigureText(f, (x) => cleanText(x, 300))),
         };
       }),
     }));

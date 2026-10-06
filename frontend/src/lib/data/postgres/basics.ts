@@ -101,6 +101,6 @@ export const pgAudit: AuditStore = {
   async recent(limit, scope) {
     const college = scope && scope !== "all" ? await collegeByPublic(scope) : undefined;
     const rows = await db().auditLog.findMany({ where: college ? { collegeId: college.id } : {}, orderBy: { at: "desc" }, take: limit });
-    return rows.map((r) => ({ at: r.at.toISOString(), actor: r.actorName, action: r.action, target: r.targetId ?? "" }));
+    return rows.map((r) => ({ at: r.at.toISOString(), actor: r.actorName, action: r.action, target: r.targetId ?? "", collegeId: scope }));
   },
 };

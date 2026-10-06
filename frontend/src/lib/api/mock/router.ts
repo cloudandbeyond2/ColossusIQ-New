@@ -45,6 +45,9 @@ import { dispatchLanguages, languageChat } from "./languages";
 import { dispatchMissionPlanner } from "./mission-planner";
 import { dispatchResearch, researchChat } from "./research";
 import { dispatchAchievements } from "./achievements";
+import { dispatchRefreshZone } from "./refresh-zone";
+import { dispatchExperience, experienceNotifications } from "./experience";
+import { dispatchViva } from "./viva";
 import { ChatBodySchema } from "@/lib/api/mentor-schemas";
 import { audit, recentAudit } from "./audit";
 import { createStudent, deleteStudent, getStudentsList, importStudents, updateStudent } from "./students-store";
@@ -236,6 +239,9 @@ export async function dispatch(method: string, segs: string[], rawBody: unknown,
   if (segs[0] === "mission-planner") return dispatchMissionPlanner(method, segs, rawBody, session);
   if (segs[0] === "research") return dispatchResearch(method, segs, rawBody, session);
   if (segs[0] === "achievements") return dispatchAchievements(method, segs, session);
+  if (segs[0] === "refresh-zone") return dispatchRefreshZone(method, segs, rawBody, session);
+  if (segs[0] === "experience") return dispatchExperience(method, segs, rawBody, session);
+  if (segs[0] === "viva") return dispatchViva(method, segs, rawBody, session);
   if (LEARNING_AREAS.has(segs[0] ?? "")) return dispatchLearning(method, segs, rawBody, session, query);
   if (segs[0] === "students" && segs[1] !== "me") return dispatchStudents(method, segs, rawBody, session, query);
   if (segs[0] === "faculty") return dispatchFaculty(method, segs, rawBody, session, query);
@@ -339,7 +345,7 @@ export async function dispatch(method: string, segs: string[], rawBody: unknown,
 
     /* ── session & shell ── */
     case "GET notifications": {
-      const rawList = [...(await assignmentNotifications(session)), ...(await getStore().notifications.forUser(session))];
+      const rawList = [...(await assignmentNotifications(session)), ...(await experienceNotifications(session)), ...(await getStore().notifications.forUser(session))];
       const cfg = (await getStore().settings.get(session.college, "notifications-config"))
         ?? (session.college !== "all" ? await getStore().settings.get("all", "notifications-config") : undefined);
       if (!cfg) return ok(rawList);

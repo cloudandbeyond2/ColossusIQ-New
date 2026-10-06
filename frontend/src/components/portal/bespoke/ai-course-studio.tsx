@@ -16,6 +16,8 @@ import { Badge, Button, Card, CardBody, CardHeader, EmptyState, Field, Spinner, 
 import { ConfirmDelete } from "@/components/crud/confirm-delete";
 import { LessonContent } from "@/components/learning/lesson-content";
 import { ImageField } from "@/components/crud/image-field";
+import { LessonFigure } from "@/components/learning/figure";
+import { KIND_LABEL, type Figure } from "@/lib/api/figure-schemas";
 import { parseVideoUrl } from "@/lib/video";
 import { cn } from "@/lib/utils";
 
@@ -685,6 +687,38 @@ function shortTitle(title: string, chapter: string): string {
   return rest.charAt(0).toUpperCase() + rest.slice(1);
 }
 
+/** The diagrams the AI drew for a lesson: faculty check each one, fix its title or caption, or remove it. */
+function FiguresEditor({ figures, onChange }: { figures: Figure[]; onChange: (f: Figure[]) => void }) {
+  if (!figures.length) return null;
+  const set = (i: number, p: Partial<Pick<Figure, "title" | "caption">>) => onChange(figures.map((f, j) => (j === i ? { ...f, ...p } : f)));
+  return (
+    <div>
+      <p className="flex items-center gap-2 text-sm font-semibold text-ink">
+        <Fi name="chart-network" className="text-brand" /> Diagrams
+      </p>
+      <p className="mt-1 text-xs text-ink-3">Drawn for this lesson by the AI. Check that every label is correct before you publish; remove any diagram that is wrong.</p>
+      <div className="mt-3 space-y-3">
+        {figures.map((f, i) => (
+          <div key={i} className="rounded-xl bg-surface-2/60 p-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="rounded-full bg-brand-soft px-2.5 py-0.5 text-xs font-medium text-brand">{KIND_LABEL[f.kind]}</span>
+              <input aria-label={`Diagram ${i + 1} title`} className={cn(inputClass, "min-w-48 flex-1")} maxLength={80} value={f.title} onChange={(e) => set(i, { title: e.target.value })} />
+              <Button size="sm" variant="ghost" aria-label={`Remove diagram ${i + 1}`} onClick={() => onChange(figures.filter((_, j) => j !== i))}>
+                <Fi name="trash" />
+              </Button>
+            </div>
+            <textarea aria-label={`Diagram ${i + 1} caption`} className={cn(inputClass, "mt-2 min-h-16")} maxLength={300} value={f.caption} placeholder="Caption: how to read this diagram" onChange={(e) => set(i, { caption: e.target.value })} />
+            <details className="mt-2">
+              <summary className="cursor-pointer text-xs font-medium text-brand">Preview</summary>
+              <LessonFigure figure={f} className="mt-2" />
+            </details>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 /** Videos (YouTube embeds, NPTEL / SWAYAM links) and images with captions for one lesson. */
 function MediaEditor({ lesson, patch }: { lesson: Lesson; patch: (p: Partial<Lesson>) => void }) {
   const videos = lesson.videos ?? [];
@@ -693,6 +727,7 @@ function MediaEditor({ lesson, patch }: { lesson: Lesson; patch: (p: Partial<Les
   const setImage = (i: number, v: Partial<{ ref: string; caption: string }>) => patch({ images: images.map((x, j) => (j === i ? { ...x, ...v } : x)) });
   return (
     <div className="space-y-5 rounded-2xl border border-line p-4 sm:p-5">
+      <FiguresEditor figures={lesson.figures ?? []} onChange={(figures) => patch({ figures })} />
       <div>
         <div className="flex items-center justify-between gap-2">
           <p className="flex items-center gap-2 text-sm font-semibold text-ink">

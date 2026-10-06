@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { Figure } from "./figure-schemas";
 
 /* Response schemas for AI Course Studio, quizzes, certificates and placement readiness. */
 
@@ -238,6 +239,7 @@ export const Lesson = z.object({
   videos: z.array(z.object({ title: z.string(), url: z.string() })).optional(),
   links: z.array(z.object({ label: z.string(), url: z.string() })).optional(),
   images: z.array(z.object({ ref: z.string(), caption: z.string() })).optional(),
+  figures: z.array(Figure).optional(),
 });
 export type Lesson = z.infer<typeof Lesson>;
 export const CourseUnit = z.object({ title: z.string(), part: z.string().optional(), lessons: z.array(Lesson) });

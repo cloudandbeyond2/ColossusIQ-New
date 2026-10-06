@@ -1,6 +1,7 @@
 import "server-only";
 import { getStore } from "@/lib/data";
 import { memoryState } from "@/lib/data/memory";
+import type { Figure } from "@/lib/api/figure-schemas";
 
 /* Stores for department courses (AI Course Studio → students) and each student's lesson progress. */
 
@@ -23,6 +24,8 @@ export interface Lesson {
   links?: Array<{ label: string; url: string }>;
   /** Uploaded or bundled images with captions. */
   images?: Array<{ ref: string; caption: string }>;
+  /** Labelled diagrams (process, hierarchy, comparison …) drawn by the AI or the author. */
+  figures?: Figure[];
 }
 
 export interface CourseUnit {

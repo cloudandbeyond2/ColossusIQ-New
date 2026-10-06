@@ -247,8 +247,11 @@ export const memoryStore: DataStore = {
       auditTrail.unshift({ at: new Date().toISOString(), actor, action, target, collegeId: collegeId ?? null });
       if (auditTrail.length > 500) auditTrail.length = 500;
     },
-    async recent(limit) {
-      return auditTrail.slice(0, limit).map(({ at, actor, action, target }) => ({ at, actor, action, target }));
+    async recent(limit, scope) {
+      const filtered = scope && scope !== ALL_COLLEGES
+        ? auditTrail.filter((e) => e.collegeId === scope)
+        : auditTrail;
+      return filtered.slice(0, limit).map(({ at, actor, action, target, collegeId }) => ({ at, actor, action, target, collegeId }));
     },
   },
 

@@ -40,6 +40,9 @@ import { LanguagesModule } from "./bespoke/languages";
 import { MissionPlannerModule } from "./bespoke/mission-planner";
 import { ResearchModule } from "./bespoke/research";
 import { AchievementsModule } from "./bespoke/achievements";
+import { RefreshZoneModule } from "./bespoke/refresh-zone";
+import { ExperienceModule } from "./bespoke/experience";
+import { VivaModule } from "./bespoke/viva";
 
 const BESPOKE: Record<string, (props: { role: Role }) => React.ReactNode> = {
   "aicte-compliance": ({ role }) => <AicteComplianceModule role={role} />,
@@ -81,6 +84,9 @@ const BESPOKE: Record<string, (props: { role: Role }) => React.ReactNode> = {
   "mission-planner": () => <MissionPlannerModule />,
   research: () => <ResearchModule />,
   achievements: () => <AchievementsModule />,
+  "refresh-zone": () => <RefreshZoneModule />,
+  experience: () => <ExperienceModule />,
+  viva: () => <VivaModule />,
 };
 
 

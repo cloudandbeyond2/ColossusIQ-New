@@ -8,6 +8,7 @@ import { Fi } from "@/components/ui/icon";
 import { SafeMarkdown } from "@/components/ui/safe-markdown";
 import { cn } from "@/lib/utils";
 import { TopicIllustration } from "./illustration";
+import { FigureGallery } from "./figure";
 
 /* Chapter colour pairs (gradient start → end). Chosen to stay legible under white text in both themes. */
 const PALETTE: Array<[string, string]> = [
@@ -373,6 +374,8 @@ export function LessonContent({ lesson, units, chapterIndex }: { lesson: Lesson;
           <TopicIllustration title={chapter?.title ?? lesson.title} points={chapterPoints} kind={(["flow", "layers", "cycle"] as const)[chapterIndex % 3]!} />
         </Section>
       ) : null}
+
+      <FigureGallery figures={lesson.figures} />
 
       {body}
 

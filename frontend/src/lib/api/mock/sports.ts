@@ -4,103 +4,13 @@ import type { SessionPayload } from "@/lib/auth/session";
 import type { CreateSportInput, SportItem, SportsOverview } from "@/lib/api/schemas";
 import { getStore } from "@/lib/data";
 
-const sportsStore = sharedState("campus.sports.map", () => new Map<string, SportItem[]>());
+const sportsStore = sharedState("campus.sports.map.v2", () => new Map<string, SportItem[]>());
+// Ensure old in-memory mock cache is purged
+sportsStore.clear();
 const registeredSportsByUser = sharedState("campus.sports.userRegistrations", () => new Map<string, Set<string>>());
 
-function defaultSports(collegeId: string): SportItem[] {
-  return [
-    {
-      id: "sport-cricket",
-      sport: "Cricket",
-      team: "AIT Titans",
-      coach: "Coach Sanjay",
-      captain: "Karthik Raja",
-      event: "Zonal meet · Oct 10",
-      venue: "Ground A (Main Oval)",
-      squadSize: 18,
-      status: "Trials open",
-      isRegistered: false,
-      createdAt: "2026-08-01T10:00:00Z",
-    },
-    {
-      id: "sport-football",
-      sport: "Football",
-      team: "AIT Strikers",
-      coach: "Coach Lakshmi",
-      captain: "Rohan Varma",
-      event: "Zonal meet · Oct 12",
-      venue: "Main Football Field",
-      squadSize: 22,
-      status: "Active",
-      isRegistered: false,
-      createdAt: "2026-08-03T10:00:00Z",
-    },
-    {
-      id: "sport-basketball",
-      sport: "Basketball",
-      team: "Hoopers",
-      coach: "Coach Rohan",
-      captain: "Aditya Nair",
-      event: "Zonal meet · Oct 14",
-      venue: "Outdoor Court 1",
-      squadSize: 12,
-      status: "Active",
-      isRegistered: false,
-      createdAt: "2026-08-05T10:00:00Z",
-    },
-    {
-      id: "sport-volleyball",
-      sport: "Volleyball",
-      team: "Spikers",
-      coach: "Coach Nandini",
-      captain: "Pooja Hegde",
-      event: "Zonal meet · Oct 16",
-      venue: "Court B (Indoor)",
-      squadSize: 14,
-      status: "Trials open",
-      isRegistered: false,
-      createdAt: "2026-08-07T10:00:00Z",
-    },
-    {
-      id: "sport-athletics",
-      sport: "Athletics",
-      team: "Track squad",
-      coach: "Coach Suresh",
-      captain: "Vignesh Kumar",
-      event: "Zonal meet · Oct 18",
-      venue: "400m Synthetic Track Oval",
-      squadSize: 25,
-      status: "Active",
-      isRegistered: false,
-      createdAt: "2026-08-09T10:00:00Z",
-    },
-    {
-      id: "sport-chess",
-      sport: "Chess",
-      team: "Grandmasters",
-      coach: "Coach Fathima",
-      captain: "Divya Balan",
-      event: "Zonal meet · Oct 20",
-      venue: "Recreation Center Hall 3",
-      squadSize: 8,
-      status: "Active",
-      isRegistered: false,
-      createdAt: "2026-08-11T10:00:00Z",
-    },
-    {
-      id: "sport-kabaddi",
-      sport: "Kabaddi",
-      team: "Raiders",
-      coach: "Coach Joseph",
-      captain: "Manikandan S.",
-      event: "Zonal meet · Oct 22",
-      venue: "Kabaddi Clay Court",
-      squadSize: 14,
-      status: "Trials open",
-      isRegistered: false,
-      createdAt: "2026-08-14T10:00:00Z",
-    },
-  ];
+function defaultSports(_collegeId: string): SportItem[] {
+  return [];
 }
 
 export function getCollegeSports(collegeId: string): SportItem[] {

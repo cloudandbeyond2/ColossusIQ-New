@@ -270,7 +270,7 @@ describe("Campus clubs API and live management", () => {
 });
 
 describe("Campus sports API and live management", () => {
-  it("fetches sports overview with KPIs and seeded teams", async () => {
+  it("fetches sports overview with clean slate KPIs initially", async () => {
     const instSession = session("institution");
     const res = await dispatch("GET", ["sports"], undefined, instSession, new URLSearchParams());
     expect(res.status).toBe(200);
@@ -279,10 +279,9 @@ describe("Campus sports API and live management", () => {
       kpis: { totalTeams: number; totalAthletes: number; openTrials: number; upcomingMeets: number };
       sports: Array<{ id: string; sport: string; team: string; status: string }>;
     };
-    expect(body.kpis.totalTeams).toBeGreaterThanOrEqual(7);
-    expect(body.kpis.totalAthletes).toBeGreaterThan(0);
-    expect(body.sports.some((s) => s.sport === "Cricket" && s.team === "AIT Titans")).toBe(true);
-    expect(body.sports.some((s) => s.sport === "Football" && s.team === "AIT Strikers")).toBe(true);
+    expect(body.kpis.totalTeams).toBe(0);
+    expect(body.kpis.totalAthletes).toBe(0);
+    expect(body.sports).toEqual([]);
   });
 
   it("allows institution to register a new sport and team", async () => {
@@ -311,15 +310,34 @@ describe("Campus sports API and live management", () => {
   });
 
   it("allows student to toggle trial registration for a sport", async () => {
+    const instSession = session("institution");
+    const createRes = await dispatch(
+      "POST",
+      ["sports"],
+      {
+        sport: "Cricket",
+        team: "AIT Titans",
+        coach: "Coach Sanjay",
+        captain: "Karthik",
+        event: "Zonal meet",
+        venue: "Ground A",
+        squadSize: 18,
+        status: "Trials open",
+      },
+      instSession,
+      new URLSearchParams(),
+    );
+    const sport = createRes.body as { id: string };
+
     const studentSession = session("student");
-    const regRes = await dispatch("POST", ["sports", "sport-cricket", "register"], undefined, studentSession, new URLSearchParams());
+    const regRes = await dispatch("POST", ["sports", sport.id, "register"], undefined, studentSession, new URLSearchParams());
     expect(regRes.status).toBe(200);
     const regBody = regRes.body as { isRegistered: boolean; squadSize: number };
     expect(regBody.isRegistered).toBe(true);
     expect(regBody.squadSize).toBe(19); // 18 + 1
 
     // Toggle again (withdraw)
-    const withdrawRes = await dispatch("POST", ["sports", "sport-cricket", "register"], undefined, studentSession, new URLSearchParams());
+    const withdrawRes = await dispatch("POST", ["sports", sport.id, "register"], undefined, studentSession, new URLSearchParams());
     expect(withdrawRes.status).toBe(200);
     const withdrawBody = withdrawRes.body as { isRegistered: boolean; squadSize: number };
     expect(withdrawBody.isRegistered).toBe(false);
@@ -337,7 +355,7 @@ describe("Campus sports API and live management", () => {
     );
     expect(createRes.status).toBe(403);
 
-    const deleteRes = await dispatch("DELETE", ["sports", "sport-cricket"], undefined, studentSession, new URLSearchParams());
+    const deleteRes = await dispatch("DELETE", ["sports", "some-sport-id"], undefined, studentSession, new URLSearchParams());
     expect(deleteRes.status).toBe(403);
   });
 

@@ -20,6 +20,7 @@ import { TENANTS, hashString, personName, seeded } from "./fixtures";
 import { ADMISSION_FLOW, RESOURCES } from "@/config/resources";
 import type { ResourceRecord } from "@/config/resources";
 import type { Stream } from "@/config/streams";
+import { ALL_COLLEGES } from "@/config/tenancy";
 import { getStore, dataBackend } from "@/lib/data";
 import { db } from "@/lib/data/postgres/db";
 import { collegeStream } from "./records";
@@ -758,10 +759,38 @@ const DATA: Record<string, (collegeScope: string, live: ScopeData) => ModuleData
     list([col("time", "Time"), col("tenant", "Tenant"), col("agent", "Agent", "badge"), col("model", "Model"), col("prompt", "Prompt ver."), col("tokens", "Tokens", "number"), col("latency", "Latency (ms)", "number"), col("confidence", "Confidence", "progress")],
       rows(14, "obs", (i, r) => ({ time: `14:${String(59 - i * 3).padStart(2, "0")}`, tenant: pick(["AIT", "TNTU", "Kaveri", "Malabar"], r), agent: pick(["Mentor", "Tutor", "Evaluation", "Interview", "Knowledge"], r), model: pick(["reasoning-large", "chat-fast", "vision-ocr", "embed-v3"], r), prompt: `v${10 + Math.floor(r() * 6)}`, tokens: Math.round(400 + r() * 4000), latency: Math.round(300 + r() * 2600), confidence: Math.round(60 + r() * 39) })),
       "agent"),
-  "audit-log": () =>
-    list([col("time", "Time"), col("actor", "Actor"), col("action", "Action", "badge"), col("target", "Target"), col("ip", "IP", "masked")],
-      rows(12, "aud", (i, r) => ({ time: `23 Sep 14:${String(58 - i * 4).padStart(2, "0")}`, actor: pick(["Dr. Meena Raghavan", "Platform Admin", "Registrar", "Dr. S. Venkatesh"], r), action: pick(["Score override", "Role changed", "Document approved", "Login (MFA)", "Policy updated", "Export generated"], r), target: pick(["IA1 · 21CS1014", "User: priya.n", "Regulations 2021", "AI policy: evaluation", "Placement report"], r), ip: `10.12.${Math.floor(r() * 255)}.${Math.floor(r() * 255)}` })),
-      "action"),
+  "audit-log": async (scope, live) => {
+    const isSuperAdmin = live.session?.role === "admin";
+    const effectiveScope = isSuperAdmin ? scope : (live.session?.college ?? scope);
+    const entries = await getStore().audit.recent(100, effectiveScope);
+
+    return list(
+      [
+        col("time", "Time"),
+        col("actor", "Actor"),
+        col("action", "Action", "badge"),
+        col("target", "Target"),
+        ...(isSuperAdmin && (effectiveScope === ALL_COLLEGES || effectiveScope === "all")
+          ? [col("college", "Scope", "badge")]
+          : []),
+      ],
+      entries.map((e) => ({
+        time: new Date(e.at).toLocaleString(undefined, {
+          month: "short",
+          day: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
+        actor: e.actor,
+        action: e.action,
+        target: e.target,
+        ...(isSuperAdmin && (effectiveScope === ALL_COLLEGES || effectiveScope === "all")
+          ? { college: e.collegeId ?? "University" }
+          : {}),
+      })),
+      "action",
+    );
+  },
   "developer-api": () =>
     list([col("name", "Key name"), col("scopes", "Scopes"), col("tenant", "Tenant"), col("created", "Created"), col("lastUsed", "Last used"), col("status", "Status", "badge")],
       [["ERP sync", "students:read courses:read"], ["LMS bridge", "courses:read assessments:write"], ["Attendance import", "attendance:write"], ["Analytics export", "analytics:read"]].map(([name, scopes], i) => ({ name: name!, scopes: scopes!, tenant: TENANTS[i]?.name ?? "", created: `${3 + i} Aug 2026`, lastUsed: `${i + 1}h ago`, status: i === 3 ? "Revoked" : "Active" })),

@@ -8,8 +8,9 @@ import type { AssignmentItem } from "@/lib/api/assignments-schemas";
 export const LIST_KEY = ["assignments-list"] as const;
 export const submissionsKey = (id: string) => ["assignment-submissions", id] as const;
 
-/** Server field errors, or one general message for anything else that went wrong. */
+/** Server field errors, or one general message for anything else that went wrong. Nothing at all while there is no error. */
 export function problemOf(e: unknown, fallback: string): { fields: Record<string, string>; message: string | null } {
+  if (e === null || e === undefined) return { fields: {}, message: null };
   if (e instanceof ApiError) {
     const fields = e.fields ?? {};
     return { fields, message: Object.keys(fields).length ? null : e.message };
