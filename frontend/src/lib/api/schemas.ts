@@ -232,6 +232,7 @@ export const StudentAcademicProfile = z.object({
   department: z.string(),
   departmentCode: z.string(),
   semester: z.number(),
+  year: z.string().optional(),
   section: z.string(),
   stream: z.string(),
   cgpa: z.number(),
@@ -245,6 +246,12 @@ export type StudentAcademicProfile = z.infer<typeof StudentAcademicProfile>;
 
 export const StudentDashboard = z.object({
   name: z.string(),
+  department: z.string().optional(),
+  departmentCode: z.string().optional(),
+  degree: z.string().optional(),
+  semester: z.number().optional(),
+  year: z.string().optional(),
+  rollNo: z.string().optional(),
   priorities: z.number(),
   academic: z.object({ semesterProgress: z.number(), examReadiness: z.number() }),
   skills: z.object({ technical: z.number(), communication: z.number(), interview: z.number() }),

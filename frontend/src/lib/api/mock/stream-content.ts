@@ -29,6 +29,12 @@ const DEPARTMENT_SHORT: Record<Stream, string[]> = {
 const STUDENT_OVERRIDES: Partial<Record<Stream, Partial<StudentDashboard>>> = {
   medical: {
     name: "Keerthana",
+    department: "Pathology & Pharmacology",
+    departmentCode: "MED",
+    degree: "MBBS (Phase II)",
+    semester: 4,
+    year: "2nd Year",
+    rollNo: "21MB1042",
     today: [
       { time: "08:00", title: "Clinical posting — General Medicine, Unit II", kind: "class" },
       { time: "11:00", title: "Pathology lecture — Neoplasia", kind: "class" },
@@ -52,6 +58,12 @@ const STUDENT_OVERRIDES: Partial<Record<Stream, Partial<StudentDashboard>>> = {
   },
   artsScience: {
     name: "Nandhini",
+    department: "Commerce & Accounting",
+    departmentCode: "COM",
+    degree: "B.Com Accounting & Finance",
+    semester: 5,
+    year: "3rd Year",
+    rollNo: "21CO2018",
     today: [
       { time: "09:30", title: "Financial Accounting — Depreciation methods", kind: "class" },
       { time: "11:30", title: "English Communication — group presentation", kind: "class" },

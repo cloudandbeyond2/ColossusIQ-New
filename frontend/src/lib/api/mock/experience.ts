@@ -108,9 +108,9 @@ export async function dispatchExperience(method: string, segs: string[], rawBody
   }
 
   if (method === "DELETE" && segs.length === 2) {
-    if (s.role !== "student") return err(403, "forbidden", "Only the student can remove their own activity.");
+    if (s.role !== "student" && !isStaff(s)) return err(403, "forbidden", "You cannot remove this activity.");
     const old = await store.get(s, id);
-    if (!old || !old.mine) return err(404, "not_found", "Activity not found.");
+    if (!old || (!isStaff(s) && !old.mine)) return err(404, "not_found", "Activity not found.");
     await store.remove(s, id);
     return ok({ ok: true });
   }
