@@ -429,7 +429,17 @@ export async function dispatch(method: string, segs: string[], rawBody: unknown,
       }
       const home = ROLE_HOMES[role as Exclude<typeof session.role, "student">];
       const inCollege = session.college !== ALL_COLLEGES;
-      return ok(roleHomeFor(home, role, inCollege ? await collegeStream(session.college) : null, inCollege ? String((await getCollege(session.college))?.name ?? "College") : null));
+      const res = { ...roleHomeFor(home, role, inCollege ? await collegeStream(session.college) : null, inCollege ? String((await getCollege(session.college))?.name ?? "College") : null) };
+      if (session.name) {
+        if (role === "faculty") {
+          const hour = new Date().getHours();
+          const greet = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
+          res.greeting = `${greet}, ${session.name}`;
+        } else if (role === "recruiter") {
+          res.greeting = `Welcome, ${session.name} — Talent workspace`;
+        }
+      }
+      return ok(res);
     }
     case "GET modules/:id": {
       const mod = b ? findModule(b) : undefined;
