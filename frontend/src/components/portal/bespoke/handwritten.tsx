@@ -96,10 +96,14 @@ export function HandwrittenModule({ role = "faculty" }: { role?: Role } = {}) {
   const [selectedSubjectFilter, setSelectedSubjectFilter] = useState("all");
   const [inspectedItem, setInspectedItem] = useState<EvaluationQueueItem | null>(null);
 
-  // Query: Evaluation History Queue
+  // Query: Evaluation History Queue (Students view their own evaluations, faculty/admin view full queue)
   const historyQuery = useQuery({
-    queryKey: ["evaluations-queue"],
-    queryFn: () => apiFetch("/api/v1/evaluations/queue", z.array(EvaluationQueueItem)),
+    queryKey: ["evaluations-queue", role],
+    queryFn: () =>
+      apiFetch(
+        role === "student" ? "/api/v1/evaluations/mine" : "/api/v1/evaluations/queue",
+        z.array(EvaluationQueueItem)
+      ),
   });
 
   // Mutation: Run AI Evaluation on answer sheet
