@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Check, CheckCircle2, ChevronLeft, ChevronRight, Circle, Copy, Filter, Layers, RotateCw, Search, Sparkles, X } from "lucide-react";
+import { Check, CheckCircle2, ChevronLeft, ChevronRight, Circle, Copy, Download, Filter, Layers, RotateCw, Search, Sparkles, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import type {
   CalendarData,
@@ -80,6 +80,40 @@ export function ListTemplate({ data, mod }: { data: ListData; mod: ModuleDef }) 
     });
   }, [data, q, filter]);
 
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+
+  // Reset page to 1 when search or filter changes
+  useEffect(() => {
+    setPage(1);
+  }, [q, filter]);
+
+  const totalPages = Math.max(1, Math.ceil(rows.length / pageSize));
+  const pagedRows = useMemo(() => {
+    const start = (page - 1) * pageSize;
+    return rows.slice(start, start + pageSize);
+  }, [rows, page, pageSize]);
+
+  const handleExportCsv = () => {
+    if (!rows.length) return;
+    const headers = data.columns.map((c) => `"${c.label.replace(/"/g, '""')}"`);
+    const csvRows = rows.map((r) =>
+      data.columns.map((c) => {
+        const val = r[c.key];
+        return `"${String(val ?? "").replace(/"/g, '""')}"`;
+      }).join(",")
+    );
+    const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...csvRows].join("\n");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `${mod.slug}_export_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    setToast(`Exported ${rows.length} records to CSV.`);
+  };
+
   const titleKey = data.columns[0]?.key ?? "";
 
   return (
@@ -108,6 +142,9 @@ export function ListTemplate({ data, mod }: { data: ListData; mod: ModuleDef }) 
             </select>
           </div>
         ) : null}
+        <Button variant="secondary" onClick={handleExportCsv} disabled={rows.length === 0} title="Export current records to CSV">
+          <Download className="size-4" /> Export CSV
+        </Button>
         {data.primaryAction ? (
           <Button onClick={() => setToast(`"${data.primaryAction}" opens a form once connected to your institution's live backend.`)}>{data.primaryAction}</Button>
         ) : null}
@@ -140,7 +177,7 @@ export function ListTemplate({ data, mod }: { data: ListData; mod: ModuleDef }) 
                 </tr>
               </thead>
               <tbody>
-                {rows.map((r, i) => (
+                {pagedRows.map((r, i) => (
                   <tr key={i} className="cursor-pointer border-b border-line last:border-0 hover:bg-surface-2/60" onClick={() => setSelected(r)}>
                     {data.columns.map((c, j) => (
                       <td key={c.key} className={cn("px-4 py-3 align-middle", j === 0 && "font-medium text-ink")}>
@@ -160,7 +197,7 @@ export function ListTemplate({ data, mod }: { data: ListData; mod: ModuleDef }) 
           </div>
           {/* Mobile cards */}
           <ul className="divide-y divide-line md:hidden">
-            {rows.map((r, i) => (
+            {pagedRows.map((r, i) => (
               <li key={i}>
                 <button className="w-full px-4 py-3 text-left" onClick={() => setSelected(r)}>
                   <p className="font-medium text-ink">{String(r[titleKey] ?? "")}</p>
@@ -175,9 +212,55 @@ export function ListTemplate({ data, mod }: { data: ListData; mod: ModuleDef }) 
               </li>
             ))}
           </ul>
-          <p className="border-t border-line px-4 py-3 text-xs text-ink-3">
-            Showing {rows.length} of {data.rows.length}
-          </p>
+          {/* Pagination bar */}
+          <div className="flex flex-col items-center justify-between gap-3 border-t border-line px-4 py-3 text-xs text-ink-3 sm:flex-row">
+            <div className="flex items-center gap-3">
+              <span>
+                Showing {Math.min((page - 1) * pageSize + 1, rows.length)}–{Math.min(page * pageSize, rows.length)} of {rows.length} records
+                {rows.length !== data.rows.length ? ` (filtered from ${data.rows.length})` : ""}
+              </span>
+              <div className="flex items-center gap-1.5">
+                <span>Rows:</span>
+                <select
+                  value={pageSize}
+                  onChange={(e) => {
+                    setPageSize(Number(e.target.value));
+                    setPage(1);
+                  }}
+                  className="rounded border border-line bg-surface px-1.5 py-0.5 text-xs text-ink"
+                >
+                  <option value={10}>10</option>
+                  <option value={25}>25</option>
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-1.5">
+              <span className="mr-2">
+                Page {page} of {totalPages}
+              </span>
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={page <= 1}
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                aria-label="Previous page"
+              >
+                <ChevronLeft className="size-3.5" /> Prev
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={page >= totalPages}
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                aria-label="Next page"
+              >
+                Next <ChevronRight className="size-3.5" />
+              </Button>
+            </div>
+          </div>
         </>
       )}
 
