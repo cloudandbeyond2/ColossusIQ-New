@@ -153,7 +153,7 @@ export const MODULES: ModuleDef[] = [
 
   // ───────────── Faculty ─────────────
   { slug: "copilot", title: "Faculty AI Copilot", description: "Lesson plans, notes, PPT outlines, assignments, rubrics and lab manuals.", group: "Faculty", roles: ["faculty"], template: "generator", icon: "bot", phase: "MVP", agent: "faculty-copilot" },
-  { slug: "my-classes", title: "My Classes", description: "Sections, timetable, attendance and class performance.", group: "Faculty", roles: ["faculty"], template: "list", icon: "school", phase: "MVP" },
+  { slug: "my-classes", title: "My Classes", description: "Sections, timetable, attendance and class performance.", group: "Faculty", roles: ["faculty"], template: "bespoke", icon: "school", phase: "MVP" },
   { slug: "students", title: "Students", description: "Profiles, performance, skills and support recommendations.", group: "Faculty", roles: ["faculty", "hod", "placement"], template: "list", icon: "users", phase: "MVP" },
   { slug: "question-generator", title: "Question Paper Generator", description: "Generate blueprint-aligned question papers mapped to course outcomes.", group: "Faculty", roles: ["faculty", "hod"], template: "generator", icon: "wand", phase: "MVP", agent: "exam" },
   { slug: "teaching-studio", title: "Teaching Studio", description: "Topic basics, a timed lesson outline, a semester roadmap, an infographic handout, smart-board slides and a class summary to share — for any chapter or topic.", group: "Faculty", roles: ["faculty", "hod"], template: "bespoke", icon: "board", phase: "MVP", notice: "AI drafts the teaching pack from your course content. Review it before class; you decide what students see." },
