@@ -6,6 +6,7 @@ import { dataBackend } from "@/lib/data";
 import { db, isUuid } from "@/lib/data/postgres/db";
 import { collegeStream } from "./records";
 import { personName, seeded, hashString } from "./fixtures";
+import { alumniStore } from "./alumni-store";
 
 export interface EnrolledSubject {
   code: string;
@@ -1387,25 +1388,32 @@ export async function generateDynamicAlumni(
   session: SessionPayload | { sub: string; name?: string; college: string }
 ): Promise<ListData> {
   const profile = await getStudentAcademicProfile(session);
-  const baseSeed = hashString(session.sub + session.college);
-  const r = seeded(baseSeed);
-  
-  const COMPANIES = ["Microsoft", "Amazon", "Freshworks", "Google", "Zoho", "TCS", "Infosys", "Wipro", "Cognizant", "IBM"];
-  const ROLES = ["Senior Software Engineer", "Data Scientist", "Product Manager", "Tech Lead", "System Analyst", "Consultant"];
-  const MENTOR_TOPICS = ["Mock Interviews & System Design", "ML & Analytics Career Guidance", "Resume Review & Startups", "Core Engineering & Higher Studies", "Placement Prep"];
-  
-  const count = 3 + Math.floor(r() * 4);
-  const rows = Array.from({ length: count }, (_, i) => {
-    const idx = Math.floor(r() * 100) + i * 13;
-    const batchYear = 2018 + Math.floor(r() * 5);
-    const match = 70 + Math.floor(r() * 26);
+  const studentDept = profile.department.toLowerCase();
+  const studentSubjs = profile.enrolledSubjects.map((s) => s.shortName.toLowerCase());
+
+  const members = await alumniStore().listMembers(session.college);
+
+  const rows = members.map((m) => {
+    let score = 70;
+    if (m.department && (m.department.toLowerCase() === studentDept || studentDept.includes(m.department.toLowerCase()))) {
+      score += 12;
+    }
+    if (m.mentorshipTopics.some((t) => t.includes("Placement") || t.includes("Interview"))) {
+      score += 6;
+    }
+    const overlap = m.skills.filter((sk) => studentSubjs.some((sub) => sk.toLowerCase().includes(sub) || sub.includes(sk.toLowerCase()))).length;
+    score += Math.min(10, overlap * 4);
+    if (m.isAvailable && m.activeMentees < m.maxMentees) {
+      score += 2;
+    }
+
     return {
-      name: personName(idx),
-      batch: `Batch ${batchYear}`,
-      role: ROLES[Math.floor(r() * ROLES.length)]!,
-      company: COMPANIES[Math.floor(r() * COMPANIES.length)]!,
-      offers: MENTOR_TOPICS[Math.floor(r() * MENTOR_TOPICS.length)]!,
-      match,
+      name: m.name,
+      batch: m.batch,
+      role: m.currentPosition,
+      company: m.company,
+      offers: m.mentorshipTopics[0] || "General Career Mentorship",
+      match: Math.min(96, Math.max(72, score)),
     };
   }).sort((a, b) => b.match - a.match);
 
