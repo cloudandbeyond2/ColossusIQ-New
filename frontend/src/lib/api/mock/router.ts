@@ -49,6 +49,8 @@ import { dispatchRefreshZone } from "./refresh-zone";
 import { dispatchExamPrep } from "./exam-prep";
 import { dispatchCurrentAffairs } from "./current-affairs";
 import { dispatchPrepContent } from "./prep-content";
+import { dispatchAiProviders } from "./ai-providers";
+import { dispatchCertificateDesk } from "./certificate-desk";
 import { dispatchExperience, experienceNotifications } from "./experience";
 import { dispatchViva } from "./viva";
 import { dispatchResume } from "./resume";
@@ -61,7 +63,13 @@ import { audit, recentAudit } from "./audit";
 import { createStudent, deleteStudent, getStudentsList, importStudents, updateStudent } from "./students-store";
 import { createFaculty, deleteFaculty, getFacultyList, updateFaculty } from "./faculty-store";
 import { generateDynamicStudentDashboard, getStudentAcademicProfile } from "./student-profile";
-import { getFacultyAllocationProfile } from "./faculty-allocation";
+import {
+  getFacultyAllocationProfile,
+  getSectionRoster,
+  getAttendanceHistory,
+  saveAttendanceSession,
+  scheduleExtraClass,
+} from "./faculty-allocation";
 
 export interface MockResult {
   status: number;
@@ -251,6 +259,8 @@ export async function dispatch(method: string, segs: string[], rawBody: unknown,
   if (segs[0] === "exam-prep") return dispatchExamPrep(method, segs, rawBody, session);
   if (segs[0] === "current-affairs") return dispatchCurrentAffairs(method, segs, rawBody, session);
   if (segs[0] === "prep-content") return dispatchPrepContent(method, segs, rawBody, session);
+  if (segs[0] === "ai-providers") return dispatchAiProviders(method, segs, rawBody, session);
+  if (segs[0] === "certificate-desk") return dispatchCertificateDesk(method, segs, rawBody, session);
   if (segs[0] === "experience") return dispatchExperience(method, segs, rawBody, session);
   if (segs[0] === "viva") return dispatchViva(method, segs, rawBody, session);
   if (segs[0] === "resume") return dispatchResume(method, segs, rawBody, session);
@@ -425,7 +435,17 @@ export async function dispatch(method: string, segs: string[], rawBody: unknown,
       }
       const home = ROLE_HOMES[role as Exclude<typeof session.role, "student">];
       const inCollege = session.college !== ALL_COLLEGES;
-      return ok(roleHomeFor(home, role, inCollege ? await collegeStream(session.college) : null, inCollege ? String((await getCollege(session.college))?.name ?? "College") : null));
+      const res = { ...roleHomeFor(home, role, inCollege ? await collegeStream(session.college) : null, inCollege ? String((await getCollege(session.college))?.name ?? "College") : null) };
+      if (session.name) {
+        if (role === "faculty") {
+          const hour = new Date().getHours();
+          const greet = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
+          res.greeting = `${greet}, ${session.name}`;
+        } else if (role === "recruiter") {
+          res.greeting = `Welcome, ${session.name} — Talent workspace`;
+        }
+      }
+      return ok(res);
     }
     case "GET modules/:id": {
       const mod = b ? findModule(b) : undefined;
@@ -933,9 +953,59 @@ async function dispatchFaculty(
   session: SessionPayload,
   query: URLSearchParams
 ): Promise<MockResult> {
-  // GET /faculty/me/allocations — faculty subject & section allocations
-  if (method === "GET" && segs.length === 3 && segs[1] === "me" && segs[2] === "allocations") {
+  // GET /faculty/me/allocations or GET /faculty/classes — faculty subject & section allocations
+  if (
+    (method === "GET" && segs.length === 3 && segs[1] === "me" && segs[2] === "allocations") ||
+    (method === "GET" && segs.length === 2 && segs[1] === "classes")
+  ) {
     return ok(await getFacultyAllocationProfile(session));
+  }
+
+  // GET /faculty/classes/:id/roster — student roster for section
+  if (method === "GET" && segs.length === 4 && segs[1] === "classes" && segs[3] === "roster" && segs[2]) {
+    const students = await getSectionRoster(segs[2], session.college);
+    return ok({ students });
+  }
+
+  // GET /faculty/attendance — attendance history logs
+  if (method === "GET" && segs.length === 2 && segs[1] === "attendance") {
+    const sectionId = query.get("sectionId") || undefined;
+    return ok({ sessions: getAttendanceHistory(sectionId) });
+  }
+
+  // POST /faculty/attendance — record attendance session
+  if (method === "POST" && segs.length === 2 && segs[1] === "attendance") {
+    const rec = rawBody as any;
+    if (!rec?.sectionId || !rec?.date) {
+      return err(400, "invalid_body", "sectionId and date are required");
+    }
+    const saved = saveAttendanceSession({
+      sectionId: String(rec.sectionId),
+      courseCode: String(rec.courseCode || ""),
+      courseTitle: String(rec.courseTitle || ""),
+      section: String(rec.section || ""),
+      date: String(rec.date),
+      timeSlot: String(rec.timeSlot || "09:00 - 10:00"),
+      period: Number(rec.period || 1),
+      topicTaught: String(rec.topicTaught || "Lecture Topic"),
+      totalStudents: Number(rec.totalStudents || 60),
+      presentCount: Number(rec.presentCount || 0),
+      absentCount: Number(rec.absentCount || 0),
+      lateCount: Number(rec.lateCount || 0),
+      odCount: Number(rec.odCount || 0),
+      attendancePercent: Number(rec.attendancePercent || 0),
+      absentRolls: Array.isArray(rec.absentRolls) ? rec.absentRolls : [],
+      records: Array.isArray(rec.records) ? rec.records : [],
+    });
+    return ok({ ok: true, session: saved });
+  }
+
+  // POST /faculty/classes/extra — schedule compensatory class
+  if (method === "POST" && segs.length === 3 && segs[1] === "classes" && segs[2] === "extra") {
+    const slot = rawBody as any;
+    const stream = (await collegeStream(session.college)) || "engineering";
+    const added = scheduleExtraClass(slot, stream);
+    return ok({ ok: true, slot: added });
   }
 
   // Only roles with department:manage or users:manage may manage faculty

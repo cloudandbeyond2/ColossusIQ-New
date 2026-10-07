@@ -6,6 +6,9 @@ import { useMemo, useState } from "react";
 import { z } from "zod";
 import { apiFetch } from "@/lib/api/client";
 import { CertificateRow } from "@/lib/api/learning-schemas";
+import { KIND_INFO, MyAwards } from "@/lib/api/certificate-schemas";
+import { CertificateSheet } from "@/components/certificate/certificate-sheet";
+import { useOrigin } from "./certificate-authority";
 import { TemplateSkeleton } from "@/components/modules/shared";
 import { LoadError } from "@/components/ui/load-error";
 import { Fi } from "@/components/ui/icon";
@@ -15,47 +18,58 @@ import { GradeScale } from "./my-quizzes";
 const fmtDate = (iso: string) => new Date(iso).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
 
 export function MyCertificatesModule() {
-  const certs = useQuery({ queryKey: ["my-certificates"], queryFn: () => apiFetch("/api/v1/certificates", z.array(CertificateRow)) });
+  const certs = useQuery({ queryKey: ["my-certificates-sheets"], queryFn: () => apiFetch("/api/v1/certificate-desk/mine", MyAwards) });
+  const origin = useOrigin();
+  const [kind, setKind] = useState<string>("All");
   if (certs.isError) return <LoadError error={certs.error} onRetry={() => void certs.refetch()} />;
   if (certs.isLoading || !certs.data) return <TemplateSkeleton />;
+  const kinds = ["All", ...new Set(certs.data.map((c) => KIND_INFO[c.kind].label))];
+  const shown = certs.data.filter((c) => kind === "All" || KIND_INFO[c.kind].label === kind);
 
   return (
     <div className="grid gap-6 xl:grid-cols-[1fr_300px]">
-      {!certs.data.length ? (
-        <EmptyState title="No certificates yet" body="Pass a certificate-enabled quiz in My Quizzes to earn your first certificate." />
-      ) : (
-        <div className="grid gap-5 md:grid-cols-2">
-          {certs.data.map((c) => (
-            <Card key={c.id} className="card-hover overflow-hidden">
-              <div className="bg-brand-gradient relative px-5 py-5 text-white">
-                <Fi name="diploma" className="absolute right-4 top-4 text-4xl text-gold/70" />
-                <p className="text-[11px] uppercase tracking-widest text-white/70">Certificate of achievement</p>
-                <h3 className="mt-1 pr-10 text-lg font-semibold leading-snug">{c.title}</h3>
-                <p className="mt-0.5 text-xs text-white/80">{c.department}</p>
-              </div>
-              <div className="flex items-center gap-4 p-5">
-                <div className="flex size-14 shrink-0 flex-col items-center justify-center rounded-xl bg-gold-soft text-gold">
-                  <span className="text-xl font-bold">{c.grade}</span>
-                </div>
-                <div className="min-w-0 flex-1 text-sm">
-                  <p className="font-medium text-ink">
-                    {c.marks}/{c.total} · {c.percentage}% · {c.gradeLabel}
-                  </p>
-                  <p className="text-xs text-ink-3">
-                    {c.id} · {fmtDate(c.issuedAt)}
-                  </p>
-                </div>
-              </div>
-              <div className="flex gap-3 border-t border-line px-5 py-3 text-sm">
-                <Link href={`/verify/${c.id}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 font-medium text-brand hover:underline">
-                  <Fi name="print" /> View &amp; print
+      <div className="space-y-4">
+        {certs.data.length ? (
+          <div className="flex flex-wrap gap-1.5" role="tablist" aria-label="Certificate type">
+            {kinds.map((k) => (
+              <button key={k} role="tab" aria-selected={kind === k} onClick={() => setKind(k)} className={`rounded-full px-3 py-1 text-xs font-medium ${kind === k ? "bg-brand text-white" : "bg-surface-2 text-ink-2 hover:bg-line"}`}>
+                {k}
+              </button>
+            ))}
+          </div>
+        ) : null}
+        {!certs.data.length ? (
+          <EmptyState title="No certificates yet" body="Pass a certificate-enabled quiz or course, or receive one from your Principal, and it appears here." />
+        ) : (
+          <div className="grid gap-5 md:grid-cols-2">
+            {shown.map((c) => (
+              <Card key={c.id} className="card-hover overflow-hidden">
+                <Link href={`/verify/${c.id}`} target="_blank" rel="noopener noreferrer" aria-label={`Open certificate ${c.id}`} className="block bg-surface-2 p-3">
+                  <div className="overflow-hidden rounded-lg shadow-md ring-1 ring-black/5">
+                    <CertificateSheet data={c} verifyUrl={`${origin || "https://your-college"}/verify/${c.id}`} />
+                  </div>
                 </Link>
-                <CopyLink id={c.id} />
-              </div>
-            </Card>
-          ))}
-        </div>
-      )}
+                <div className="flex items-start justify-between gap-3 px-5 pt-4">
+                  <div className="min-w-0">
+                    <p className="text-xs uppercase tracking-widest text-ink-3">
+                      {KIND_INFO[c.kind].heading} {KIND_INFO[c.kind].subtitle}
+                    </p>
+                    <p className="mt-0.5 line-clamp-2 text-sm text-ink-2">{c.statement}</p>
+                  </div>
+                  {c.status === "revoked" ? <Badge tone="rose">Revoked</Badge> : <Badge tone="teal">Verified</Badge>}
+                </div>
+                <div className="mt-3 flex flex-wrap gap-3 border-t border-line px-5 py-3 text-sm">
+                  <Link href={`/verify/${c.id}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 font-medium text-brand hover:underline">
+                    <Fi name="print" /> View &amp; print
+                  </Link>
+                  <CopyLink id={c.id} />
+                  <span className="ml-auto font-mono text-xs text-ink-3">{c.id}</span>
+                </div>
+              </Card>
+            ))}
+          </div>
+        )}
+      </div>
       <GradeScale />
     </div>
   );
@@ -108,7 +122,7 @@ export function IssuedCertificatesModule() {
         ))}
       </div>
       <Card>
-        <CardHeader title="Certificates" subtitle="Signed by the university · verifiable at /verify" />
+        <CardHeader title="Course & quiz certificates" subtitle="Issued automatically when students pass · signed under the Principal's authority · verifiable by QR at /verify" />
         <CardBody>
           <div className="mb-4 flex flex-wrap gap-3">
             <label htmlFor="cert-search" className="sr-only">

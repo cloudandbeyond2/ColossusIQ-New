@@ -84,7 +84,8 @@ export type Permission =
   | "clinical:manage"
   | "website:manage"
   | "knowledge:manage"
-  | "prep:publish";
+  | "prep:publish"
+  | "certificates:authorize";
 
 export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
   student: ["ai:chat", "assessment:attempt", "student:read-own"],
@@ -108,6 +109,7 @@ export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     "website:manage",
     "knowledge:manage",
     "prep:publish",
+    "certificates:authorize",
   ],
   recruiter: ["talent:search"],
   admin: [
