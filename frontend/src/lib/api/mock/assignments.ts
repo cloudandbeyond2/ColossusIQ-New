@@ -69,7 +69,9 @@ function item(r: AssignmentRow, s: SessionPayload, extra: Pick<AssignmentItem, "
 
 async function staffItem(s: SessionPayload, r: AssignmentRow): Promise<AssignmentItem> {
   const store = assignmentStore();
-  const [counts, enrolled] = await Promise.all([store.counts(s, [r.id]), store.enrolled(s)]);
+  // Sequential to avoid concurrent queries on the same Prisma transaction client.
+  const counts = await store.counts(s, [r.id]);
+  const enrolled = await store.enrolled(s);
   const c = counts.get(r.id) ?? { submitted: 0, graded: 0 };
   return item(r, s, { stats: { ...c, enrolled }, mine: null });
 }
@@ -78,7 +80,11 @@ async function listFor(s: SessionPayload): Promise<AssignmentItem[]> {
   const store = assignmentStore();
   if (isStaff(s)) {
     const rows = await store.list(s, false);
-    const [counts, enrolled] = await Promise.all([store.counts(s, rows.map((r) => r.id)), store.enrolled(s)]);
+    // Run sequentially: Prisma's TransactionClient does not support concurrent
+    // queries on the same transaction — parallel Promise.all calls cause one
+    // query to roll back the transaction and crash the other.
+    const counts = await store.counts(s, rows.map((r) => r.id));
+    const enrolled = await store.enrolled(s);
     return rows.map((r) => item(r, s, { stats: { ...(counts.get(r.id) ?? { submitted: 0, graded: 0 }), enrolled }, mine: null }));
   }
   const rows = await store.list(s, true);
