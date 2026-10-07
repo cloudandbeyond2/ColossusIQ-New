@@ -437,12 +437,20 @@ export async function dispatch(method: string, segs: string[], rawBody: unknown,
       const inCollege = session.college !== ALL_COLLEGES;
       const res = { ...roleHomeFor(home, role, inCollege ? await collegeStream(session.college) : null, inCollege ? String((await getCollege(session.college))?.name ?? "College") : null) };
       if (session.name) {
+        const hour = new Date().getHours();
+        const greet = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
         if (role === "faculty") {
-          const hour = new Date().getHours();
-          const greet = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
           res.greeting = `${greet}, ${session.name}`;
+        } else if (role === "hod") {
+          res.greeting = `${greet}, ${session.name} · Department Intelligence`;
+        } else if (role === "placement") {
+          res.greeting = `${greet}, ${session.name} · Training & Placement`;
+        } else if (role === "incubation") {
+          res.greeting = `${greet}, ${session.name} · Innovation & Incubation`;
         } else if (role === "recruiter") {
-          res.greeting = `Welcome, ${session.name} — Talent workspace`;
+          res.greeting = `Welcome, ${session.name} — Talent Workspace`;
+        } else if (role === "admin") {
+          res.greeting = `${greet}, ${session.name} · Central University Operations`;
         }
       }
       return ok(res);
