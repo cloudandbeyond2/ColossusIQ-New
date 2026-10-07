@@ -96,6 +96,10 @@ export const API_AREAS: Record<string, string[]> = {
   knowledge: ["knowledge-base"],
   "ai-providers": ["ai-providers"],
   clubs: ["clubs"],
+  "notice-board": ["notice-board"],
+  "content-desk": ["content-desk"],
+  curriculum: ["curriculum", "course-roadmap"],
+  "course-roadmap": ["course-roadmap"],
   sports: ["sports"],
 };
 

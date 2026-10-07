@@ -9,13 +9,15 @@ import { PlatformHealth } from "@/lib/api/module-control-schemas";
 import { cn } from "@/lib/utils";
 
 const LINKS: Array<[string, string, string]> = [
+  ["content-desk", "Content Desk", "newspaper"],
+  ["curriculum", "Curriculum Studio", "diploma"],
+  ["notice-board", "Notice Board", "megaphone"],
   ["module-control", "Module Control", "apps"],
   ["ai-providers", "AI Providers", "microchip-ai"],
   ["users", "Users", "users"],
   ["roles-permissions", "Roles & Permissions", "lock"],
   ["security-settings", "Security", "shield-check"],
   ["ai-governance", "AI Governance", "chart-line-up"],
-  ["integrations", "Integrations", "plug-connection"],
   ["audit-log", "Audit log", "time-past"],
 ];
 

@@ -25,6 +25,8 @@ import { prefetchLanguageAi } from "@/lib/api/mock/languages";
 import { prefetchMissionAi } from "@/lib/api/mock/mission-planner";
 import { prefetchResearchAi } from "@/lib/api/mock/research";
 import { prefetchExamPrepAi } from "@/lib/api/mock/exam-prep-ai";
+import { prefetchContentAi } from "@/lib/api/mock/content-desk-ai";
+import { prefetchCurriculumAi } from "@/lib/api/mock/curriculum";
 import { refreshAiConfig } from "@/lib/ai/ai-config";
 import { KB_MAX_BODY_BYTES } from "@/lib/api/knowledge-schemas";
 import { rateLimit } from "@/lib/api/mock/rate-limit";
@@ -277,6 +279,11 @@ async function handle(req: NextRequest, ctx: { params: Promise<{ path: string[] 
   // Research Assistant tools and chat are written before the transaction too.
   const rEarly = await prefetchResearchAi(method, segs, body, session);
   if (rEarly) return json(rEarly.body, rEarly.status);
+  // University Content Desk drafts are written before the transaction too.
+  const cdEarly = await prefetchContentAi(method, segs, body, session);
+  if (cdEarly) return json(cdEarly.body, cdEarly.status);
+  const curEarly = await prefetchCurriculumAi(method, segs, body, session);
+  if (curEarly) return json(curEarly.body, curEarly.status);
   // Quiz Builder questions are written before the transaction too.
   const qzEarly = await prefetchQuizAi(method, segs, body, session);
   if (qzEarly) return json(qzEarly.body, qzEarly.status);

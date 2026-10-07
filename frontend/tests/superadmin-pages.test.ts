@@ -47,8 +47,13 @@ const BESPOKE_API: Record<string, string[]> = {
   "aicte-compliance": ["aicte-compliance"],
   "ai-providers": ["ai-providers"],
   "module-control": ["module-control"],
+  "notice-board": ["notice-board"],
+  "content-desk": ["content-desk"],
+  curriculum: ["curriculum"],
+  "course-roadmap": ["course-roadmap"],
 };
 /** Pages without a dispatcher GET (static, or served by the route handler itself, like the college website). */
+const UNIVERSITY_ONLY = new Set(["content-desk"]);
 const NO_API = new Set(["roles-permissions", "reports", "college-website"]);
 
 const adminModules = MODULES.filter((m) => m.roles.includes("admin"));
@@ -78,7 +83,8 @@ describe("the Super Admin", () => {
         for (const p of paths!) {
           const r = await get(s, p);
           // At "All colleges" a college-scoped desk may ask the Super Admin to pick a college first.
-          const okStatuses = scope === "all" ? [200, 409] : [200];
+          // University-level desks (writing to every college) ask to switch back to All colleges instead.
+          const okStatuses = scope === "all" || UNIVERSITY_ONLY.has(slug) ? [200, 409] : [200];
           expect(okStatuses, `${slug} → GET ${p} answered ${r.status}: ${JSON.stringify(r.body).slice(0, 160)}`).toContain(r.status);
         }
       });

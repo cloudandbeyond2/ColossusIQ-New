@@ -1829,3 +1829,74 @@ model ModuleAccess {
   @@id([moduleSlug, role])
   @@map("module_access")
 }
+
+model UniversityContent {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  kind        String
+  status      String    @default("Draft")
+  source      String    @default("Manual")
+  title       String
+  data        Json
+  targets     String[]  @default([])
+  copies      Json      @default("{}")
+  createdBy   String    @default("") @map("created_by")
+  verifiedBy  String    @default("") @map("verified_by")
+  reviewNote  String    @default("") @map("review_note")
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
+  publishedAt DateTime? @map("published_at") @db.Timestamptz(6)
+
+  @@index([kind, status], map: "university_content_kind_status_idx")
+  @@map("university_content")
+}
+
+model Curriculum {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  programme   String
+  regulation  String
+  status      String    @default("Draft")
+  version     Int       @default(1)
+  data        Json
+  updatedBy   String    @default("") @map("updated_by")
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
+  publishedAt DateTime? @map("published_at") @db.Timestamptz(6)
+
+  @@unique([programme, regulation])
+  @@map("curricula")
+}
+
+model Notice {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  collegeId   String?  @map("college_id") @db.Uuid
+  authorSub   String   @map("author_sub")
+  authorName  String   @map("author_name")
+  authorRole  String   @map("author_role")
+  title       String
+  body        String
+  category    String
+  priority    String   @default("Normal")
+  audience    String   @default("students")
+  department  String   @default("")
+  year        Int      @default(0)
+  pinned      Boolean  @default(false)
+  requiresAck Boolean  @default(false) @map("requires_ack")
+  linkUrl     String   @default("") @map("link_url")
+  expiresOn   String?  @map("expires_on")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([collegeId, createdAt(sort: Desc)], map: "notices_college_created_idx")
+  @@map("notices")
+}
+
+model NoticeRead {
+  noticeId       String    @map("notice_id") @db.Uuid
+  userSub        String    @map("user_sub")
+  collegeId      String?   @map("college_id") @db.Uuid
+  readAt         DateTime  @default(now()) @map("read_at") @db.Timestamptz(6)
+  acknowledgedAt DateTime? @map("acknowledged_at") @db.Timestamptz(6)
+
+  @@id([noticeId, userSub])
+  @@index([userSub], map: "notice_reads_user_idx")
+  @@map("notice_reads")
+}

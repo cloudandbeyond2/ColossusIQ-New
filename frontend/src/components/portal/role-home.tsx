@@ -11,6 +11,7 @@ import { InsightList, KpiGrid, TemplateSkeleton } from "@/components/modules/sha
 import { Card, CardHeader, PageHeader, toneBar } from "@/components/ui/primitives";
 import { safeNextPath } from "@/lib/security/redirect";
 import { cn } from "@/lib/utils";
+import { NoticeStrip } from "./notice-strip";
 
 export function RoleHomeView({ role }: { role: Exclude<Role, "student"> }) {
   const { data, isLoading } = useQuery({
@@ -23,6 +24,7 @@ export function RoleHomeView({ role }: { role: Exclude<Role, "student"> }) {
   return (
     <div className="space-y-6">
       <PageHeader eyebrow={ROLE_META[role].label} title={data.greeting} description={ROLE_META[role].description} />
+      <NoticeStrip role={role} />
       <KpiGrid kpis={data.kpis} />
       <div className="grid gap-6 xl:grid-cols-[1fr_380px]">
         <div className="grid gap-6 lg:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">

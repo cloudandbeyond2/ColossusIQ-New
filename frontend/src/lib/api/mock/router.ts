@@ -52,6 +52,10 @@ import { dispatchPrepContent } from "./prep-content";
 import { dispatchAiProviders } from "./ai-providers";
 import { dispatchCertificateDesk } from "./certificate-desk";
 import { dispatchModuleControl } from "./module-control";
+import { dispatchNotices, noticeNotifications } from "./notices";
+import { dispatchContentDesk } from "./content-desk";
+import { dispatchCurriculum } from "./curriculum";
+import { dispatchCourseRoadmap } from "./course-roadmap";
 import { platformHealth } from "./platform-pages";
 import { API_AREAS, apiAreaOpen, disabledPairs, pairKey } from "@/lib/module-access";
 import { dispatchExperience, experienceNotifications } from "./experience";
@@ -249,6 +253,10 @@ export async function dispatch(method: string, segs: string[], rawBody: unknown,
   // Module Control: an API area switched off (for every module it serves) for this role is closed.
   if (API_AREAS[segs[0] ?? ""] && !apiAreaOpen(segs[0]!, session.role, await disabledPairs())) return { status: 403, body: { error: { code: "module_disabled", message: "This module has been switched off for your role." } } };
   if (segs[0] === "module-control") return dispatchModuleControl(method, segs, rawBody, session);
+  if (segs[0] === "notice-board") return dispatchNotices(method, segs, rawBody, session);
+  if (segs[0] === "content-desk") return dispatchContentDesk(method, segs, rawBody, session);
+  if (segs[0] === "curriculum") return dispatchCurriculum(method, segs, rawBody, session);
+  if (segs[0] === "course-roadmap") return dispatchCourseRoadmap(method, segs, rawBody, session);
   if (segs[0] === "platform-health") {
     if (session.role !== "admin") return { status: 403, body: { error: { code: "forbidden", message: "Only the University Super Admin can view platform health." } } };
     if (method !== "GET" || segs.length !== 1) return { status: 404, body: { error: { code: "not_found", message: "Not found." } } };
@@ -383,7 +391,7 @@ export async function dispatch(method: string, segs: string[], rawBody: unknown,
 
     /* ── session & shell ── */
     case "GET notifications": {
-      const rawList = [...(await assignmentNotifications(session)), ...(await experienceNotifications(session)), ...(await getStore().notifications.forUser(session))];
+      const rawList = [...(await noticeNotifications(session)), ...(await assignmentNotifications(session)), ...(await experienceNotifications(session)), ...(await getStore().notifications.forUser(session))];
       const cfg = (await getStore().settings.get(session.college, "notifications-config"))
         ?? (session.college !== "all" ? await getStore().settings.get("all", "notifications-config") : undefined);
       if (!cfg) return ok(rawList);

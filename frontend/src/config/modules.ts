@@ -72,6 +72,8 @@ export const MODULE_GROUPS = [
 ] as const;
 
 export const MODULES: ModuleDef[] = [
+  // ───────────── Overview ─────────────
+  { slug: "notice-board", title: "Notice Board", description: "Important announcements from your faculty, HOD, Principal and the University, with read and acknowledgement tracking.", group: "Overview", roles: ["student", "faculty", "hod", "placement", "incubation", "institution", "admin"], template: "bespoke", icon: "bell", phase: "MVP" },
   // ───────────── Student Success ─────────────
   { slug: "mentor", title: "AI Mentor", description: "Your persistent academic & career mentor that knows your progress, goals and weak areas.", group: "Student Success", roles: ["student"], template: "bespoke", icon: "bot", phase: "MVP", agent: "mentor" },
   { slug: "study-planner", title: "AI Study Planner", description: "Tell the planner your deadline — get a day-by-day schedule with revision slots and mock tests.", group: "Student Success", roles: ["student"], template: "bespoke", icon: "calendar", phase: "MVP", agent: "study-planner" },
@@ -157,6 +159,7 @@ export const MODULES: ModuleDef[] = [
 
   // ───────────── Faculty ─────────────
   { slug: "copilot", title: "Faculty AI Copilot", description: "Lesson plans, notes, PPT outlines, assignments, rubrics and lab manuals.", group: "Faculty", roles: ["faculty"], template: "generator", icon: "bot", phase: "MVP", agent: "faculty-copilot" },
+  { slug: "course-roadmap", title: "Course Roadmap", description: "Turn a course's syllabus into a dated, session-by-session teaching plan and track what you have covered.", group: "Faculty", roles: ["faculty", "hod"], template: "bespoke", icon: "compass", phase: "MVP" },
   { slug: "my-classes", title: "My Classes", description: "Sections, timetable, attendance and class performance.", group: "Faculty", roles: ["faculty"], template: "bespoke", icon: "school", phase: "MVP" },
   { slug: "students", title: "Students", description: "Profiles, performance, skills and support recommendations.", group: "Faculty", roles: ["faculty", "hod", "placement"], template: "list", icon: "users", phase: "MVP" },
   { slug: "question-generator", title: "Question Paper Generator", description: "Generate blueprint-aligned question papers mapped to course outcomes.", group: "Faculty", roles: ["faculty", "hod"], template: "generator", icon: "wand", phase: "MVP", agent: "exam" },
@@ -214,6 +217,8 @@ export const MODULES: ModuleDef[] = [
   { slug: "recruiter-interviews", title: "Interview Schedule", description: "Upcoming candidate interviews and panels.", group: "Recruiter", roles: ["recruiter"], template: "calendar", icon: "calendar", phase: "Phase 4" },
 
   // ───────────── Platform ─────────────
+  { slug: "content-desk", title: "University Content Desk", description: "Draft current affairs, question sets and university events with AI or by hand, verify them, and publish to every college or the ones you choose.", group: "University", roles: ["admin"], template: "bespoke", icon: "clipboard", phase: "MVP", notice: "AI drafts are suggestions. Nothing reaches students until you verify and publish it; every publish is audit-logged and can be withdrawn." },
+  { slug: "curriculum", title: "Curriculum Studio", description: "Prepare programme curricula: semesters, courses, credits, L-T-P, syllabus units and course outcomes, drafted with AI and published to every college.", group: "University", roles: ["admin", "institution", "hod", "faculty"], template: "bespoke", icon: "layers", phase: "MVP" },
   { slug: "colleges", title: "Colleges", description: "Onboard, configure, suspend and remove colleges; switch module areas on or off per college.", group: "University", roles: ["admin"], template: "crud", resource: "colleges", icon: "building", phase: "MVP" },
   { slug: "users", title: "User Management", description: "Create accounts, assign roles, suspend access and enforce MFA.", group: "Staff & Users", roles: ["admin", "institution"], template: "crud", resource: "users", icon: "userlock", phase: "MVP" },
   { slug: "billing", title: "Subscriptions & Billing", description: "Plans, seats and AI consumption metering.", group: "Platform", roles: ["admin"], template: "list", icon: "credit", phase: "Phase 4" },

@@ -11,6 +11,7 @@ import { AiLabel } from "@/components/ui/notices";
 import { Badge, Card, CardBody, CardHeader, LinkButton, Progress, toneForScore } from "@/components/ui/primitives";
 import { TemplateSkeleton } from "@/components/modules/shared";
 import { cn } from "@/lib/utils";
+import { NoticeStrip } from "./notice-strip";
 
 const KIND_TONE: Record<string, string> = { class: "bg-brand", study: "bg-sky", project: "bg-gold", career: "bg-teal" };
 
@@ -91,6 +92,8 @@ export function StudentHome() {
           </div>
         </div>
       </section>
+
+      <NoticeStrip role="student" />
 
       {/* Readiness */}
       <div className="grid gap-6 md:grid-cols-3">

@@ -169,6 +169,10 @@ export async function integrationsPage(): Promise<GalleryData> {
 const AREAS: Array<[string, string, string]> = [
   ["records", "Records (courses, events, admissions, staff, users …)", "GET · POST · PUT · DELETE"],
   ["module-control", "Module Control", "GET · PUT"],
+  ["notice-board", "Notice Board", "GET · POST · DELETE"],
+  ["content-desk", "University Content Desk", "GET · POST · PUT · DELETE"],
+  ["curriculum", "Curriculum Studio", "GET · POST · PUT · DELETE"],
+  ["course-roadmap", "Course Roadmap", "GET · POST · PATCH · DELETE"],
   ["ai-providers", "AI Providers", "GET · PUT · POST"],
   ["learning-courses", "AI Course Studio", "GET · POST · PUT"],
   ["teaching", "Teaching Studio & Skill Booster", "GET · POST"],

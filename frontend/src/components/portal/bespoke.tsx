@@ -49,6 +49,10 @@ import { CurrentAffairsDeskModule } from "./bespoke/current-affairs-desk";
 import { ExamPrepStudioModule } from "./bespoke/exam-prep-studio";
 import { AiProvidersModule } from "./bespoke/ai-providers";
 import { ModuleControlModule } from "./bespoke/module-control";
+import { NoticeBoardModule } from "./bespoke/notice-board";
+import { ContentDeskModule } from "./bespoke/content-desk";
+import { CurriculumModule } from "./bespoke/curriculum";
+import { CourseRoadmapModule } from "./bespoke/course-roadmap";
 import { CertificateAuthorityModule } from "./bespoke/certificate-authority";
 import { CertificateRequestsModule } from "./bespoke/certificate-requests";
 import { JobsModule } from "./bespoke/jobs";
@@ -104,6 +108,10 @@ const BESPOKE: Record<string, (props: { role: Role }) => React.ReactNode> = {
   "exam-prep-studio": () => <ExamPrepStudioModule />,
   "ai-providers": () => <AiProvidersModule />,
   "module-control": () => <ModuleControlModule />,
+  "notice-board": () => <NoticeBoardModule />,
+  "content-desk": () => <ContentDeskModule />,
+  curriculum: ({ role }) => <CurriculumModule role={role} />,
+  "course-roadmap": () => <CourseRoadmapModule />,
   "certificate-authority": () => <CertificateAuthorityModule />,
   "certificate-requests": () => <CertificateRequestsModule />,
   jobs: ({ role }) => <JobsModule role={role} />,
