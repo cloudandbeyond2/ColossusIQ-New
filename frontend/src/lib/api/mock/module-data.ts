@@ -16,7 +16,7 @@ import type {
   WorkflowData,
 } from "@/lib/api/schemas";
 import { findModule, type ModuleDef } from "@/config/modules";
-import { TENANTS, hashString, personName, seeded } from "./fixtures";
+import { hashString, personName, seeded } from "./fixtures";
 import { ADMISSION_FLOW, RESOURCES } from "@/config/resources";
 import type { ResourceRecord } from "@/config/resources";
 import type { Stream } from "@/config/streams";
@@ -30,6 +30,7 @@ import { getCollegeSports } from "./sports";
 import { getCollegeCalendar } from "./academic-calendar";
 import { getStudentsList } from "./students-store";
 import { kbStore } from "./knowledge-store";
+import { agentStorePage, aiGovernancePage, aiObservabilityPage, billingPage, developerApiPage, integrationsPage } from "./platform-pages";
 import type { SessionPayload } from "@/lib/auth/session";
 import type { ReadinessBase } from "./learning";
 import {
@@ -353,15 +354,7 @@ const DATA: Record<string, (collegeScope: string, live: ScopeData) => ModuleData
       [],
     );
   },
-  "ai-governance": () =>
-    dashboard(
-      [k("Registered models", "0", undefined, "brand"), k("Prompt versions", "0", undefined, "sky"), k("Human reviews pending", "0", undefined, "amber"), k("Groundedness", "100%", undefined, "teal")],
-      [
-        chart("line", "Quality metrics", [{ category: "Safety", Groundedness: 100, Relevance: 100, Safety: 100 }], ["Groundedness", "Relevance", "Safety"]),
-        chart("bar", "Monthly AI cost (₹ '000)", [{ category: "Core", Cost: 0 }], ["Cost"]),
-      ],
-      [],
-    ),
+  "ai-governance": () => aiGovernancePage(),
 
   /* ── lists ── */
   "course-management": async (collegeScope) => {
@@ -736,14 +729,8 @@ const DATA: Record<string, (collegeScope: string, live: ScopeData) => ModuleData
       "Invite user",
     );
   },
-  billing: () =>
-    list([col("tenant", "Tenant"), col("plan", "Plan", "badge"), col("seats", "Active seats", "number"), col("ai", "AI usage (₹)", "number"), col("renewal", "Renewal"), col("status", "Status", "badge")],
-      TENANTS.map((t, i) => ({ tenant: t.name, plan: t.plan, seats: t.students, ai: 18000 + i * 7300, renewal: `Jun ${2027}`, status: t.status === "Pilot" ? "Trial" : "Paid" })),
-      "plan"),
-  "ai-observability": () =>
-    list([col("time", "Time"), col("tenant", "Tenant"), col("agent", "Agent", "badge"), col("model", "Model"), col("prompt", "Prompt ver."), col("tokens", "Tokens", "number"), col("latency", "Latency (ms)", "number"), col("confidence", "Confidence", "progress")],
-      rows(14, "obs", (i, r) => ({ time: `14:${String(59 - i * 3).padStart(2, "0")}`, tenant: pick(["AIT", "TNTU", "Kaveri", "Malabar"], r), agent: pick(["Mentor", "Tutor", "Evaluation", "Interview", "Knowledge"], r), model: pick(["reasoning-large", "chat-fast", "vision-ocr", "embed-v3"], r), prompt: `v${10 + Math.floor(r() * 6)}`, tokens: Math.round(400 + r() * 4000), latency: Math.round(300 + r() * 2600), confidence: Math.round(60 + r() * 39) })),
-      "agent"),
+  billing: () => billingPage(),
+  "ai-observability": () => aiObservabilityPage(),
   "audit-log": async (scope, live) => {
     const isSuperAdmin = live.session?.role === "admin";
     const effectiveScope = isSuperAdmin ? scope : (live.session?.college ?? scope);
@@ -776,10 +763,7 @@ const DATA: Record<string, (collegeScope: string, live: ScopeData) => ModuleData
       "action",
     );
   },
-  "developer-api": () =>
-    list([col("name", "Key name"), col("scopes", "Scopes"), col("tenant", "Tenant"), col("created", "Created"), col("lastUsed", "Last used"), col("status", "Status", "badge")],
-      [["ERP sync", "students:read courses:read"], ["LMS bridge", "courses:read assessments:write"], ["Attendance import", "attendance:write"], ["Analytics export", "analytics:read"]].map(([name, scopes], i) => ({ name: name!, scopes: scopes!, tenant: TENANTS[i]?.name ?? "", created: `${3 + i} Aug 2026`, lastUsed: `${i + 1}h ago`, status: i === 3 ? "Revoked" : "Active" })),
-      "status", "Create API key"),
+  "developer-api": () => developerApiPage(),
 
   /* ── workflows ── */
   "mission-planner": (scope, live) => generateDynamicMissionPlanner(live.session ?? { college: scope, sub: "demo-student" }),
@@ -1003,27 +987,8 @@ const DATA: Record<string, (collegeScope: string, live: ScopeData) => ModuleData
       ["Research & Analytics Lab", "Data analysis, case studies and reporting", "Department", "Active", "sky"],
     ]);
   },
-  integrations: () =>
-    gallery([
-      ["Student Information System", "Sync students, programs and enrolments", "SIS", "Connected", "teal"],
-      ["College ERP", "Fees, timetable and HR", "ERP", "Connected", "teal"],
-      ["LMS (Moodle / Canvas)", "Courses, content and grades", "LMS", "Available", "brand"],
-      ["Attendance platform", "Biometric / app attendance", "Attendance", "Available", "brand"],
-      ["Examination system", "Hall tickets and results", "Exams", "Available", "brand"],
-      ["Identity provider (SAML / OIDC)", "Enterprise SSO with MFA", "Identity", "Connected", "teal"],
-      ["Email & SMS gateway", "Institution-approved messaging", "Communication", "Connected", "teal"],
-    ]),
-  "agent-store": () =>
-    gallery([
-      ["AI GATE Agent", "GATE-specific plans, PYQs and adaptive mocks", "Exam", "Enabled for 3 tenants", "brand"],
-      ["AI NEET Preparation Agent", "Biology, chemistry and physics prep", "Exam", "Available", "teal"],
-      ["AI Coding Agent", "Code review, hints and debugging", "Skills", "Enabled", "sky"],
-      ["AI Accounting Agent", "Tally, GST and accounting practice", "Commerce", "Available", "gold"],
-      ["AI Mechanical Design Agent", "CAD and design reasoning", "Engineering", "Beta", "amber"],
-      ["AI Civil Engineering Agent", "Estimation, structural basics", "Engineering", "Beta", "amber"],
-      ["AI Law Preparation Agent", "CLAT and legal reasoning", "Exam", "Available", "rose"],
-      ["AI Entrepreneurship Agent", "Business models and pitch coaching", "Innovation", "Enabled", "teal"],
-    ]),
+  integrations: () => integrationsPage(),
+  "agent-store": () => agentStorePage(),
 
   /* ── settings ── */
   branding: (): SettingsData => ({
@@ -1061,25 +1026,6 @@ const DATA: Record<string, (collegeScope: string, live: ScopeData) => ModuleData
           { id: "exam", label: "Exam reminders", type: "select", value: "7 days and 1 day before", options: ["Off", "1 day before", "7 days and 1 day before"] },
           { id: "quiet", label: "Quiet hours", type: "select", value: "22:00–07:00", options: ["None", "22:00–07:00", "21:00–08:00"] },
           { id: "digest", label: "Weekly faculty digest", type: "toggle", value: true },
-        ]
-      },
-    ],
-  }),
-  "feature-flags": (): SettingsData => ({
-    template: "settings",
-    sections: [
-      {
-        title: "Phase 2 modules", description: "Roll out per tenant.", fields: [
-          { id: "handwritten", label: "Handwritten evaluation", type: "toggle", value: true },
-          { id: "voice", label: "Voice AI", type: "toggle", value: false },
-          { id: "gd", label: "GD simulation", type: "toggle", value: true },
-        ]
-      },
-      {
-        title: "Phase 3–4 modules", description: "Early access.", fields: [
-          { id: "command", label: "Institution command center", type: "toggle", value: true },
-          { id: "market", label: "Recruiter marketplace", type: "toggle", value: false },
-          { id: "store", label: "Agent store", type: "toggle", value: false },
         ]
       },
     ],
