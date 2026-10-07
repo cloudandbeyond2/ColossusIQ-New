@@ -9,7 +9,6 @@ import {
   Clock,
   ExternalLink,
   GraduationCap,
-  Linkedin,
   Mail,
   MapPin,
   MessageSquare,
@@ -382,10 +381,11 @@ export function AlumniModule({ role }: { role: Role }) {
                                       href={m.linkedinUrl}
                                       target="_blank"
                                       rel="noreferrer"
-                                      className="text-brand hover:underline"
-                                      aria-label={`LinkedIn for ${m.name}`}
+                                      className="text-brand hover:underline inline-flex items-center gap-0.5"
+                                      aria-label={`Profile for ${m.name}`}
                                     >
-                                      <Linkedin className="size-3" />
+                                      <span>LinkedIn</span>
+                                      <ExternalLink className="size-2.5" />
                                     </a>
                                   )}
                                 </div>
