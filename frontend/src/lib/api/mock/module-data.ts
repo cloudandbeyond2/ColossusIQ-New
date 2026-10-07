@@ -903,19 +903,6 @@ const DATA: Record<string, (collegeScope: string, live: ScopeData) => ModuleData
 
   /* ── galleries ── */
   passport: (scope, live) => generateDynamicPassport(live.session ?? { college: scope, sub: "demo-student" }),
-  "competitive-exams": () =>
-    gallery([
-      ["GATE CSE", "Topic-wise plan, PYQs and full-length mocks", "Engineering", "Next exam: Feb 2027", "brand", 34],
-      ["UPSC CSE", "Prelims GS, CSAT and daily current affairs", "Civil services", "Prelims: May 2027", "gold"],
-      ["TNPSC Group 2", "Tamil & English, aptitude and GS", "State", "Notification awaited", "teal"],
-      ["Banking (IBPS / SBI)", "Quant, reasoning, English, banking awareness", "Banking", "PO prelims: Oct", "sky"],
-      ["SSC CGL", "Tier 1 & 2 preparation", "Central govt.", "Tier 1: Nov", "amber"],
-      ["Railway (RRB NTPC)", "CBT 1 & 2", "Railways", "Upcoming", "rose"],
-      ["UGC-NET", "Paper 1 + subject paper", "Teaching", "Dec cycle", "brand"],
-      ["CAT / MBA entrance", "QA, DILR, VARC", "Management", "CAT: Nov 30", "gold"],
-      ["Law entrance (CLAT)", "Legal reasoning, GK, English", "Law", "Dec", "teal"],
-      ["Defence (CDS / AFCAT)", "Maths, English, GK", "Defence", "Feb", "sky"],
-    ]),
   opportunities: () =>
     gallery([
       ["Data Analyst Intern — Tiger Analytics", "SQL, Python, dashboards · Chennai", "Internship", "92% match", "teal", 92],

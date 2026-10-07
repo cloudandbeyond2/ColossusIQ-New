@@ -10,6 +10,7 @@ import { ChatBodySchema, type ChatBodyInput, type MentorProfile } from "@/lib/ap
 import type { ChatReply } from "@/lib/api/schemas";
 import { chatReply, looksLikeInjection } from "./ai";
 import { stillActive } from "./ai-guard";
+import { prepSummaryFor } from "./exam-prep";
 import { rateLimit } from "./rate-limit";
 import { generateDynamicStudentDashboard, getStudentAcademicProfile, type StudentAcademicProfile } from "./student-profile";
 import type { MockResult } from "./router";
@@ -28,12 +29,15 @@ type Dashboard = Awaited<ReturnType<typeof generateDynamicStudentDashboard>>;
 export interface MentorContext {
   profile: StudentAcademicProfile;
   dash: Dashboard;
+  /** Competitive Exam Prep Hub summary, when the student has targets or practice. */
+  prep?: string | null;
 }
 
 export async function loadMentorContext(session: SessionPayload): Promise<MentorContext> {
   const profile = await getStudentAcademicProfile(session);
   const dash = await generateDynamicStudentDashboard(session);
-  return { profile, dash };
+  const prep = session.role === "student" ? await prepSummaryFor(session).catch(() => null) : null;
+  return { profile, dash, prep };
 }
 
 const mean = (xs: number[]) => (xs.length ? Math.round(xs.reduce((a, b) => a + b, 0) / xs.length) : 0);
@@ -106,7 +110,7 @@ const SYSTEM = [
 
 const Out = z.object({ message: z.string().trim().min(1).max(5000), confidence: z.number().min(0).max(1).optional() });
 
-export function recordText({ profile, dash }: MentorContext): string {
+export function recordText({ profile, dash, prep }: MentorContext): string {
   const lines = [
     `Student: ${profile.name}, ${profile.degree}, ${profile.department}, semester ${profile.semester}, section ${profile.section}. CGPA ${profile.cgpa}. Streak ${profile.streakDays} days. XP ${profile.xp}.`,
     "Subjects (attendance %, IA-1, IA-2, syllabus progress %, topic mastery %):",
@@ -120,6 +124,7 @@ export function recordText({ profile, dash }: MentorContext): string {
     `Project: ${dash.project.name} (${dash.project.progress}% done).`,
     `Upcoming: ${dash.upcoming.map((u) => `${u.title} (${u.when})`).join("; ")}.`,
     `Today: ${dash.today.map((t) => `${t.time} ${t.title}`).join("; ")}.`,
+    ...(prep ? [prep] : []),
   ];
   return lines.join("\n");
 }

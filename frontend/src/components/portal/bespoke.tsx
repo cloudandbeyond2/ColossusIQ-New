@@ -44,6 +44,9 @@ import { AchievementsModule } from "./bespoke/achievements";
 import { RefreshZoneModule } from "./bespoke/refresh-zone";
 import { ExperienceModule } from "./bespoke/experience";
 import { VivaModule } from "./bespoke/viva";
+import { ExamPrepHubModule } from "./bespoke/exam-prep";
+import { CurrentAffairsDeskModule } from "./bespoke/current-affairs-desk";
+import { ExamPrepStudioModule } from "./bespoke/exam-prep-studio";
 
 const BESPOKE: Record<string, (props: { role: Role }) => React.ReactNode> = {
   "aicte-compliance": ({ role }) => <AicteComplianceModule role={role} />,
@@ -89,6 +92,9 @@ const BESPOKE: Record<string, (props: { role: Role }) => React.ReactNode> = {
   "refresh-zone": () => <RefreshZoneModule />,
   experience: () => <ExperienceModule />,
   viva: () => <VivaModule />,
+  "competitive-exams": () => <ExamPrepHubModule />,
+  "current-affairs-desk": () => <CurrentAffairsDeskModule />,
+  "exam-prep-studio": () => <ExamPrepStudioModule />,
 };
 
 

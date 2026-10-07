@@ -13,8 +13,8 @@ export interface Q {
 }
 export type Rng = () => number;
 
-const int = (rng: Rng, lo: number, hi: number) => lo + Math.floor(rng() * (hi - lo + 1));
-const pick = <T,>(rng: Rng, xs: readonly T[]): T => xs[Math.floor(rng() * xs.length)]!;
+export const int = (rng: Rng, lo: number, hi: number) => lo + Math.floor(rng() * (hi - lo + 1));
+export const pick = <T,>(rng: Rng, xs: readonly T[]): T => xs[Math.floor(rng() * xs.length)]!;
 export function shuffled<T>(rng: Rng, xs: readonly T[]): T[] {
   const a = [...xs];
   for (let i = a.length - 1; i > 0; i--) {
@@ -25,7 +25,7 @@ export function shuffled<T>(rng: Rng, xs: readonly T[]): T[] {
 }
 
 /** Four distinct options with the right one at a random place. `show` formats a number for display. */
-function numeric(rng: Rng, answer: number, show: (n: number) => string, prompt: string, explanation: string, step = Math.max(1, Math.round(Math.abs(answer) * 0.1))): Q {
+export function numeric(rng: Rng, answer: number, show: (n: number) => string, prompt: string, explanation: string, step = Math.max(1, Math.round(Math.abs(answer) * 0.1))): Q {
   const wrong = new Set<number>();
   const offsets = shuffled(rng, [1, -1, 2, -2, 3, -3, 4, 5]);
   for (const k of offsets) {
@@ -40,11 +40,11 @@ function numeric(rng: Rng, answer: number, show: (n: number) => string, prompt: 
   return { prompt, options: opts as Q["options"], answer: at, explanation };
 }
 
-const inr = (n: number) => `₹${n.toLocaleString("en-IN")}`;
-const plain = (n: number) => String(n);
+export const inr = (n: number) => `₹${n.toLocaleString("en-IN")}`;
+export const plain = (n: number) => String(n);
 
-type Gen = (rng: Rng) => Q;
-const GENERATORS: Record<string, Gen> = {
+export type Gen = (rng: Rng) => Q;
+export const GENERATORS: Record<string, Gen> = {
   percent(rng) {
     const p = 5 * int(rng, 1, 9);
     const n = 20 * int(rng, 3, 40);

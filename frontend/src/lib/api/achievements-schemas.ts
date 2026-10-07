@@ -2,7 +2,7 @@ import { z } from "zod";
 
 /** Shared by the browser and the server: a student's XP, level, streak, badges and class standing. */
 
-export const BADGE_GROUPS = ["Quizzes", "Courses", "Assignments", "Consistency", "Progress"] as const;
+export const BADGE_GROUPS = ["Quizzes", "Courses", "Assignments", "Exam prep", "Consistency", "Progress"] as const;
 export const BadgeGroup = z.enum(BADGE_GROUPS);
 export type BadgeGroup = z.infer<typeof BadgeGroup>;
 
