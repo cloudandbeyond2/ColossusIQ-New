@@ -54,6 +54,7 @@ import {
   generateDynamicStudyTwin,
   generateDynamicTeamFinder,
 } from "./student-profile";
+import { getFacultyAllocationProfile } from "./faculty-allocation";
 
 /** Live data a builder may need, fetched once per request. */
 interface ScopeData {
@@ -460,13 +461,32 @@ const DATA: Record<string, (collegeScope: string, live: ScopeData) => ModuleData
   },
   experience: (scope, live) => generateDynamicExperience(live.session ?? { college: scope, sub: "demo-student" }),
   alumni: (scope, live) => generateDynamicAlumni(live.session ?? { college: scope, sub: "demo-student" }),
-  "my-classes": () =>
-    list(
-      [col("section", "Section"), col("course", "Course"), col("students", "Students", "number"), col("attendance", "Attendance", "progress"), col("avg", "Avg. score", "progress"), col("next", "Next class")],
-      [],
-      undefined,
+  "my-classes": async (scope, live) => {
+    const alloc = await getFacultyAllocationProfile(live.session ?? { college: scope, sub: "demo-faculty" });
+    return list(
+      [
+        col("section", "Section"),
+        col("course", "Course"),
+        col("room", "Room"),
+        col("students", "Students", "number"),
+        col("attendance", "Attendance", "progress"),
+        col("avg", "Avg. score", "progress"),
+        col("next", "Next class"),
+      ],
+      alloc.assignedSections.map((s) => ({
+        id: s.id,
+        section: s.section,
+        course: `${s.courseCode} · ${s.courseTitle}`,
+        room: s.room,
+        students: s.studentsCount,
+        attendance: s.attendancePercent,
+        avg: s.averageScore,
+        next: s.nextClass,
+      })),
+      "section",
       "Take attendance"
-    ),
+    );
+  },
   students: async (collegeScope) => {
     const all = await getStudentsList({ collegeId: collegeScope });
     return list(

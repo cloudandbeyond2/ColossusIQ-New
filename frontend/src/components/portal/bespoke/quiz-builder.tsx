@@ -73,12 +73,11 @@ function QuizList({ onNew, onEdit, onResults }: { onNew: () => void; onEdit: (id
     onError: (e) => setError(e instanceof ApiError ? e.message : "Delete failed."),
   });
 
-  if (list.isError) return <LoadError error={list.error} onRetry={() => void list.refetch()} />;
-  if (list.isLoading || !list.data) return <TemplateSkeleton />;
-  const rows = list.data;
   const [search, setSearch] = useState("");
   const [deptFilter, setDeptFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
+
+  const rows = list.data ?? [];
 
   const departments = useMemo(() => Array.from(new Set(rows.map((r) => r.department))).sort(), [rows]);
 
@@ -97,11 +96,14 @@ function QuizList({ onNew, onEdit, onResults }: { onNew: () => void; onEdit: (id
     });
   }, [rows, deptFilter, statusFilter, search]);
 
-  const totals = {
+  const totals = useMemo(() => ({
     published: rows.filter((r) => r.status === "Published").length,
     attempts: rows.reduce((s, r) => s + r.attempts, 0),
     avg: rows.filter((r) => r.attempts).length ? Math.round(rows.filter((r) => r.attempts).reduce((s, r) => s + r.average, 0) / rows.filter((r) => r.attempts).length) : 0,
-  };
+  }), [rows]);
+
+  if (list.isError) return <LoadError error={list.error} onRetry={() => void list.refetch()} />;
+  if (list.isLoading || !list.data) return <TemplateSkeleton />;
 
   return (
     <div className="space-y-6">
