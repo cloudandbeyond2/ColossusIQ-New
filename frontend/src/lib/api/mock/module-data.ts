@@ -956,7 +956,7 @@ const DATA: Record<string, (collegeScope: string, live: ScopeData) => ModuleData
   "audit-log": async (scope, live) => {
     const isSuperAdmin = live.session?.role === "admin";
     const effectiveScope = isSuperAdmin ? scope : (live.session?.college ?? scope);
-    const entries = await getStore().audit.recent(100, effectiveScope);
+    const entries = await getStore().audit.recent(500, effectiveScope);
 
     return list(
       [
