@@ -401,3 +401,21 @@ h3 {
     margin: 10mm;
   }
 }
+
+/* Certificates print on one A4 landscape page with no margins (named page, so other sheets keep portrait). */
+@page certificate {
+  size: A4 landscape;
+  margin: 0;
+}
+@media print {
+  .certificate-print {
+    page: certificate;
+    width: 297mm !important;
+    max-width: none !important;
+    margin: 0 !important;
+  }
+  .certificate-print .certificate-sheet {
+    width: 297mm !important;
+    height: 210mm !important;
+  }
+}

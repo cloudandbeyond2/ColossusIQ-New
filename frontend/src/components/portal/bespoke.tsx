@@ -44,6 +44,12 @@ import { AchievementsModule } from "./bespoke/achievements";
 import { RefreshZoneModule } from "./bespoke/refresh-zone";
 import { ExperienceModule } from "./bespoke/experience";
 import { VivaModule } from "./bespoke/viva";
+import { ExamPrepHubModule } from "./bespoke/exam-prep";
+import { CurrentAffairsDeskModule } from "./bespoke/current-affairs-desk";
+import { ExamPrepStudioModule } from "./bespoke/exam-prep-studio";
+import { AiProvidersModule } from "./bespoke/ai-providers";
+import { CertificateAuthorityModule } from "./bespoke/certificate-authority";
+import { CertificateRequestsModule } from "./bespoke/certificate-requests";
 import { JobsModule } from "./bespoke/jobs";
 import { AlumniModule } from "./bespoke/alumni";
 import { MyClassesModule } from "./bespoke/my-classes";
@@ -92,6 +98,12 @@ const BESPOKE: Record<string, (props: { role: Role }) => React.ReactNode> = {
   "refresh-zone": () => <RefreshZoneModule />,
   experience: () => <ExperienceModule />,
   viva: () => <VivaModule />,
+  "competitive-exams": () => <ExamPrepHubModule />,
+  "current-affairs-desk": () => <CurrentAffairsDeskModule />,
+  "exam-prep-studio": () => <ExamPrepStudioModule />,
+  "ai-providers": () => <AiProvidersModule />,
+  "certificate-authority": () => <CertificateAuthorityModule />,
+  "certificate-requests": () => <CertificateRequestsModule />,
   jobs: ({ role }) => <JobsModule role={role} />,
   alumni: ({ role }) => <AlumniModule role={role} />,
   "my-classes": ({ role }) => <MyClassesModule role={role} />,

@@ -83,12 +83,14 @@ export type Permission =
   | "colleges:manage"
   | "clinical:manage"
   | "website:manage"
-  | "knowledge:manage";
+  | "knowledge:manage"
+  | "prep:publish"
+  | "certificates:authorize";
 
 export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
   student: ["ai:chat", "assessment:attempt", "student:read-own"],
-  faculty: ["ai:chat", "assessment:create", "assessment:override-score", "student:read-any", "events:manage", "clinical:manage"],
-  hod: ["ai:chat", "assessment:create", "assessment:override-score", "student:read-any", "department:manage", "courses:manage", "events:manage", "clinical:manage"],
+  faculty: ["ai:chat", "assessment:create", "assessment:override-score", "student:read-any", "events:manage", "clinical:manage", "prep:publish"],
+  hod: ["ai:chat", "assessment:create", "assessment:override-score", "student:read-any", "department:manage", "courses:manage", "events:manage", "clinical:manage", "prep:publish"],
   placement: ["ai:chat", "student:read-any", "placement:manage"],
   incubation: ["ai:chat", "student:read-any", "incubation:manage"],
   institution: [
@@ -106,6 +108,8 @@ export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     "clinical:manage",
     "website:manage",
     "knowledge:manage",
+    "prep:publish",
+    "certificates:authorize",
   ],
   recruiter: ["talent:search"],
   admin: [
@@ -127,6 +131,7 @@ export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     "student:read-any",
     "department:manage",
     "knowledge:manage",
+    "prep:publish",
   ],
 };
 

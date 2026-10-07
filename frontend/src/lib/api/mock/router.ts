@@ -46,6 +46,11 @@ import { dispatchMissionPlanner } from "./mission-planner";
 import { dispatchResearch, researchChat } from "./research";
 import { dispatchAchievements } from "./achievements";
 import { dispatchRefreshZone } from "./refresh-zone";
+import { dispatchExamPrep } from "./exam-prep";
+import { dispatchCurrentAffairs } from "./current-affairs";
+import { dispatchPrepContent } from "./prep-content";
+import { dispatchAiProviders } from "./ai-providers";
+import { dispatchCertificateDesk } from "./certificate-desk";
 import { dispatchExperience, experienceNotifications } from "./experience";
 import { dispatchViva } from "./viva";
 import { dispatchResume } from "./resume";
@@ -251,6 +256,11 @@ export async function dispatch(method: string, segs: string[], rawBody: unknown,
   if (segs[0] === "research") return dispatchResearch(method, segs, rawBody, session);
   if (segs[0] === "achievements") return dispatchAchievements(method, segs, session);
   if (segs[0] === "refresh-zone") return dispatchRefreshZone(method, segs, rawBody, session);
+  if (segs[0] === "exam-prep") return dispatchExamPrep(method, segs, rawBody, session);
+  if (segs[0] === "current-affairs") return dispatchCurrentAffairs(method, segs, rawBody, session);
+  if (segs[0] === "prep-content") return dispatchPrepContent(method, segs, rawBody, session);
+  if (segs[0] === "ai-providers") return dispatchAiProviders(method, segs, rawBody, session);
+  if (segs[0] === "certificate-desk") return dispatchCertificateDesk(method, segs, rawBody, session);
   if (segs[0] === "experience") return dispatchExperience(method, segs, rawBody, session);
   if (segs[0] === "viva") return dispatchViva(method, segs, rawBody, session);
   if (segs[0] === "resume") return dispatchResume(method, segs, rawBody, session);
@@ -425,7 +435,17 @@ export async function dispatch(method: string, segs: string[], rawBody: unknown,
       }
       const home = ROLE_HOMES[role as Exclude<typeof session.role, "student">];
       const inCollege = session.college !== ALL_COLLEGES;
-      return ok(roleHomeFor(home, role, inCollege ? await collegeStream(session.college) : null, inCollege ? String((await getCollege(session.college))?.name ?? "College") : null));
+      const res = { ...roleHomeFor(home, role, inCollege ? await collegeStream(session.college) : null, inCollege ? String((await getCollege(session.college))?.name ?? "College") : null) };
+      if (session.name) {
+        if (role === "faculty") {
+          const hour = new Date().getHours();
+          const greet = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
+          res.greeting = `${greet}, ${session.name}`;
+        } else if (role === "recruiter") {
+          res.greeting = `Welcome, ${session.name} — Talent workspace`;
+        }
+      }
+      return ok(res);
     }
     case "GET modules/:id": {
       const mod = b ? findModule(b) : undefined;

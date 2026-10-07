@@ -24,6 +24,8 @@ import { prefetchStudyPlanAi } from "@/lib/api/mock/study-planner";
 import { prefetchLanguageAi } from "@/lib/api/mock/languages";
 import { prefetchMissionAi } from "@/lib/api/mock/mission-planner";
 import { prefetchResearchAi } from "@/lib/api/mock/research";
+import { prefetchExamPrepAi } from "@/lib/api/mock/exam-prep-ai";
+import { refreshAiConfig } from "@/lib/ai/ai-config";
 import { KB_MAX_BODY_BYTES } from "@/lib/api/knowledge-schemas";
 import { rateLimit } from "@/lib/api/mock/rate-limit";
 import { RESOURCES, recordSchema } from "@/config/resources";
@@ -249,6 +251,8 @@ async function handle(req: NextRequest, ctx: { params: Promise<{ path: string[] 
   // Everything below requires a session.
   const session = await verifySession(req.cookies.get(SESSION_COOKIE)?.value);
   if (!session) return error(401, "unauthenticated", "Please sign in.");
+  // Which AI providers are on (AI Providers settings), re-read at most every 30 s, before any AI work starts.
+  await refreshAiConfig();
   // Slow AI drafting (AI Course Studio) runs here, before the request's database transaction opens and its 30 s clock starts.
   const early = await prefetchCourseAi(method, segs, body, session);
   if (early) return json(early.body, early.status);
@@ -282,6 +286,9 @@ async function handle(req: NextRequest, ctx: { params: Promise<{ path: string[] 
   // Mock interview questions and marks are written before the transaction too.
   const ivEarly = await prefetchInterviewAi(method, segs, body, session);
   if (ivEarly) return json(ivEarly.body, ivEarly.status);
+  // Exam Prep Hub study notes and Exam Prep Studio drafts are written before the transaction too.
+  const xpEarly = await prefetchExamPrepAi(method, segs, body, session);
+  if (xpEarly) return json(xpEarly.body, xpEarly.status);
   try {
     return await withRequestContext({ scope: session.college, sub: session.sub }, () => handleSession(req, method, segs, route, body, session));
   } catch (e) {
