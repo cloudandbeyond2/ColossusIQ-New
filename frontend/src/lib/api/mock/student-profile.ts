@@ -6,6 +6,7 @@ import { dataBackend } from "@/lib/data";
 import { db, isUuid } from "@/lib/data/postgres/db";
 import { collegeStream } from "./records";
 import { personName, seeded, hashString } from "./fixtures";
+import { alumniStore } from "./alumni-store";
 
 export interface EnrolledSubject {
   code: string;
@@ -35,6 +36,7 @@ export interface StudentAcademicProfile {
   department: string;
   departmentCode: string;
   semester: number;
+  year?: string;
   section: string;
   stream: Stream;
   cgpa: number;
@@ -43,6 +45,12 @@ export interface StudentAcademicProfile {
   streakDays: number;
   xp: number;
   enrolledSubjects: EnrolledSubject[];
+}
+
+export function toYearString(sem: number): string {
+  const y = Math.max(1, Math.min(5, Math.ceil(sem / 2)));
+  const suffix = y === 1 ? "1st" : y === 2 ? "2nd" : y === 3 ? "3rd" : `${y}th`;
+  return `${suffix} Year`;
 }
 
 const STREAM_CURRICULUM: Record<
@@ -487,11 +495,11 @@ export async function getStudentAcademicProfile(
   let departmentCode = curr.departmentCode;
   let semester = curr.semester;
   let subjects = curr.subjects;
-  let cgpa = 8.42;
-  let creditsEarned = 78;
-  let totalCredits = 132;
-  let streakDays = 12;
-  let xp = 4850;
+  let cgpa = 0.0;
+  let creditsEarned = 0;
+  let totalCredits = 120;
+  let streakDays = 0;
+  let xp = 0;
 
   if (dataBackend() === "postgres") {
     try {
@@ -499,10 +507,15 @@ export async function getStudentAcademicProfile(
       const collegePublicId = session.college && session.college !== "all" ? session.college : undefined;
       const userSub = session.sub;
 
-      // 1. Look up student record in DB if session.sub is a UUID or matches
+      // 1. Look up student record in DB if session.sub is a UUID or fallback to available student
       let studentRecord = isUuid(userSub)
         ? await t.student.findFirst({
-            where: { userId: userSub },
+            where: {
+              OR: [
+                { userId: userSub },
+                { id: userSub },
+              ],
+            },
             include: {
               department: true,
               programme: true,
@@ -516,10 +529,9 @@ export async function getStudentAcademicProfile(
           })
         : null;
 
-      // If no student record for userSub, check for any active student in this college
       if (!studentRecord && collegePublicId) {
         studentRecord = await t.student.findFirst({
-          where: { college: { publicId: collegePublicId }, status: "Active" },
+          where: { college: { publicId: collegePublicId } },
           include: {
             department: true,
             programme: true,
@@ -535,25 +547,48 @@ export async function getStudentAcademicProfile(
       }
 
       if (studentRecord) {
-        name = studentRecord.user?.fullName || name;
+        name = session.name && session.name !== "Student" ? session.name : (studentRecord.user?.fullName || name);
         rollNo = studentRecord.rollNo || rollNo;
         department = studentRecord.department?.name || department;
         degree = studentRecord.programme?.name || degree;
-        semester = studentRecord.term?.position || semester;
+        if (studentRecord.term?.position) {
+          semester = studentRecord.term.position;
+        } else if (studentRecord.batchYear) {
+          const currentYear = new Date().getFullYear();
+          const yearDiff = Math.max(1, currentYear - studentRecord.batchYear + 1);
+          semester = Math.min(8, yearDiff * 2 - 1);
+        }
         departmentCode = department.split(" ").map((w) => w[0]).join("").toUpperCase().slice(0, 4) || departmentCode;
       }
 
       // 2. Fetch real active courses from PostgreSQL for this college and department
-      const colCourses = await t.course.findMany({
-        where: {
-          ...(collegePublicId ? { college: { publicId: collegePublicId } } : {}),
-          status: "Active",
-        },
-        include: { department: true },
-        orderBy: { title: "asc" },
-      });
+      const deptCourses = studentRecord?.departmentId
+        ? await t.course.findMany({
+            where: {
+              ...(collegePublicId ? { college: { publicId: collegePublicId } } : {}),
+              departmentId: studentRecord.departmentId,
+              status: "Active",
+            },
+            include: { department: true },
+            orderBy: { title: "asc" },
+          })
+        : [];
 
-      const hasActivity = (studentRecord?.quizAttempts?.length || 0) > 0 || (studentRecord?.evaluationItems?.length || 0) > 0 || (studentRecord?.certificates?.length || 0) > 0;
+      const colCourses = deptCourses.length > 0
+        ? deptCourses
+        : await t.course.findMany({
+            where: {
+              ...(collegePublicId ? { college: { publicId: collegePublicId } } : {}),
+              status: "Active",
+            },
+            include: { department: true },
+            orderBy: { title: "asc" },
+          });
+
+      const quizCount = studentRecord?.quizAttempts?.length || 0;
+      const evalCount = studentRecord?.evaluationItems?.length || 0;
+      const certCount = studentRecord?.certificates?.length || 0;
+      const hasActivity = quizCount > 0 || evalCount > 0 || certCount > 0;
 
       if (colCourses.length > 0) {
         // Map database courses to EnrolledSubject format
@@ -561,7 +596,7 @@ export async function getStudentAcademicProfile(
           const matchingAttempts = studentRecord?.quizAttempts?.filter((q) => q.quiz?.title?.includes(c.title)) || [];
           const avgScore = matchingAttempts.length > 0
             ? Math.round(matchingAttempts.reduce((sum, a) => sum + (a.score !== null ? a.score : 0), 0) / matchingAttempts.length)
-            : hasActivity ? 68 + ((idx * 7) % 24) : 0;
+            : 0;
 
           return {
             code: c.code,
@@ -571,40 +606,52 @@ export async function getStudentAcademicProfile(
             facultyName: c.facultyName || `Prof. ${idx % 2 === 0 ? "Dr. Meena Raghavan" : "Prof. R. Balaji"}`,
             facultyDesignation: "Faculty",
             semester: semester,
-            attendancePercent: hasActivity ? Math.min(100, 82 + ((idx * 5) % 15)) : 0,
+            attendancePercent: hasActivity ? Math.min(100, 80 + ((idx * 5) % 18)) : 0,
             ia1Marks: avgScore,
             ia2Marks: avgScore > 0 ? Math.min(100, avgScore + 4) : 0,
-            semesterProgress: hasActivity ? Math.min(100, 60 + ((idx * 8) % 35)) : 0,
+            semesterProgress: hasActivity ? Math.min(100, 50 + ((idx * 8) % 40)) : 0,
             units: [
               { id: `${c.code.toLowerCase()}-u1`, unit: "Unit 1", title: "Core Principles & Architecture", mastery: avgScore > 0 ? Math.min(100, avgScore + 8) : 0 },
               { id: `${c.code.toLowerCase()}-u2`, unit: "Unit 2", title: "Design & Analysis Methodology", mastery: avgScore },
-              { id: `${c.code.toLowerCase()}-u3`, unit: "Unit 3", title: "Applications & Optimization", mastery: Math.max(0, avgScore - 15) },
-              { id: `${c.code.toLowerCase()}-u4`, unit: "Unit 4", title: "Advanced Implementations", mastery: Math.max(0, avgScore - 8) },
-              { id: `${c.code.toLowerCase()}-u5`, unit: "Unit 5", title: "Case Studies & Modern Trends", mastery: Math.max(0, avgScore - 20) },
+              { id: `${c.code.toLowerCase()}-u3`, unit: "Unit 3", title: "Applications & Optimization", mastery: avgScore > 15 ? avgScore - 15 : 0 },
+              { id: `${c.code.toLowerCase()}-u4`, unit: "Unit 4", title: "Advanced Implementations", mastery: avgScore > 8 ? avgScore - 8 : 0 },
+              { id: `${c.code.toLowerCase()}-u5`, unit: "Unit 5", title: "Case Studies & Modern Trends", mastery: avgScore > 20 ? avgScore - 20 : 0 },
             ],
           };
         });
       }
 
       // Calculate live CGPA and credits earned from database
-      const avgMarks = subjects.length > 0
+      const avgMarks = hasActivity && subjects.length > 0
         ? subjects.reduce((sum, s) => sum + (s.ia1Marks + s.ia2Marks) / 2, 0) / subjects.length
         : 0;
       cgpa = avgMarks > 0 ? Math.round((avgMarks / 10 + 1.2) * 100) / 100 : 0.00;
-      totalCredits = subjects.reduce((sum, s) => sum + s.credits, 0) + 76;
-      const certCount = studentRecord?.certificates?.length || 0;
+      totalCredits = subjects.reduce((sum, s) => sum + s.credits, 0) || 120;
       creditsEarned = certCount > 0 ? Math.round(totalCredits * 0.55) + certCount * 3 : 0;
-      streakDays = hasActivity ? 12 : 1;
-      xp = hasActivity ? 4200 + (studentRecord?.quizAttempts?.length || 0) * 150 + certCount * 500 : 100;
+      streakDays = hasActivity ? Math.max(1, quizCount + certCount) : 0;
+      xp = hasActivity ? (quizCount * 150 + certCount * 500) : 0;
     } catch {
-      // Fallback to stream curriculum if query context fails
+      // Fallback
+      cgpa = 0.00;
+      creditsEarned = 0;
+      streakDays = 0;
+      xp = 0;
     }
   } else {
-    // Memory backend: calculate from curr
-    const avgMarks = curr.subjects.reduce((sum, s) => sum + (s.ia1Marks + s.ia2Marks) / 2, 0) / (curr.subjects.length || 1);
-    cgpa = Math.round((avgMarks / 10 + 1.2) * 100) / 100;
-    totalCredits = curr.subjects.reduce((sum, s) => sum + s.credits, 0) + 76;
-    creditsEarned = Math.round(totalCredits * 0.6);
+    // Memory backend: zero state unless recorded
+    cgpa = 0.00;
+    creditsEarned = 0;
+    totalCredits = curr.subjects.reduce((sum, s) => sum + s.credits, 0) || 120;
+    streakDays = 0;
+    xp = 0;
+    subjects = curr.subjects.map((s) => ({
+      ...s,
+      attendancePercent: 0,
+      ia1Marks: 0,
+      ia2Marks: 0,
+      semesterProgress: 0,
+      units: s.units.map((u) => ({ ...u, mastery: 0 })),
+    }));
   }
 
   return {
@@ -615,6 +662,7 @@ export async function getStudentAcademicProfile(
     department,
     departmentCode,
     semester,
+    year: toYearString(semester),
     section: `${departmentCode}-A`,
     stream,
     cgpa,
@@ -743,12 +791,18 @@ export async function generateDynamicStudentDashboard(
   const isNewStudent = avgIa === 0 && profile.cgpa === 0;
 
   const recommendation = isNewStudent
-    ? `Welcome to **${profile.degree}**! Explore your enrolled courses and attempt your first practice quiz in **My Quizzes** to begin calculating your academic scorecard and mastery metrics.`
+    ? `Welcome to **${profile.degree}**! Revise **${weakest.topic} (${weakest.subject})** and attempt your first practice quiz in **My Quizzes** to begin calculating your academic scorecard and mastery metrics.`
     : `Revise **${weakest.topic} (${weakest.subject})** for 25 minutes and attempt the adaptive 10-question practice set — it is currently your lowest mastery topic (**${weakest.mastery}%**) and the **${examName}** is in 9 days.`;
 
   return {
     name: profile.name,
-    priorities: isNewStudent ? 0 : weakTopics.length,
+    department: profile.department,
+    departmentCode: profile.departmentCode,
+    degree: profile.degree,
+    semester: profile.semester,
+    year: toYearString(profile.semester),
+    rollNo: profile.rollNo,
+    priorities: weakTopics.length,
     academic: {
       semesterProgress,
       examReadiness: isNewStudent ? 0 : examReadiness,
@@ -771,7 +825,7 @@ export async function generateDynamicStudentDashboard(
     upcoming: upcomingMap[profile.stream] || upcomingMap.engineering,
     streak: profile.streakDays,
     xp: profile.xp,
-    weakTopics: isNewStudent ? [] : weakTopics,
+    weakTopics,
     examCountdown: {
       exam: examName,
       days: 9,
@@ -800,6 +854,8 @@ export async function generateDynamicAcademicTracker(
     Attendance: s.attendancePercent,
   }));
 
+  const isNew = avgIa === 0 && profile.cgpa === 0 && avgAttendance === 0;
+
   return {
     template: "dashboard",
     kpis: [
@@ -807,13 +863,13 @@ export async function generateDynamicAcademicTracker(
         label: "CGPA",
         value: profile.cgpa > 0 ? profile.cgpa.toFixed(2) : "0.00",
         delta: profile.cgpa > 0 ? `Rank in ${profile.section}` : `Enrolled in ${profile.section}`,
-        tone: profile.cgpa > 0 ? "teal" : "brand",
+        tone: profile.cgpa > 0 ? "teal" : "neutral",
       },
       {
         label: "Attendance",
         value: `${avgAttendance}%`,
-        delta: avgAttendance >= 75 ? "Exam eligible" : avgAttendance === 0 ? "New semester" : "Low attendance",
-        tone: avgAttendance >= 75 ? "teal" : avgAttendance === 0 ? "sky" : "rose",
+        delta: avgAttendance >= 75 ? "Exam eligible" : avgAttendance === 0 ? "Awaiting attendance" : "Low attendance",
+        tone: avgAttendance >= 75 ? "teal" : avgAttendance === 0 ? "neutral" : "rose",
       },
       {
         label: "Internal avg.",
@@ -825,7 +881,7 @@ export async function generateDynamicAcademicTracker(
         label: "Credits earned",
         value: `${profile.creditsEarned} / ${profile.totalCredits}`,
         delta: profile.creditsEarned > 0 ? "On track" : "First term",
-        tone: "sky",
+        tone: profile.creditsEarned > 0 ? "sky" : "neutral",
       },
     ],
     charts: [
@@ -841,12 +897,14 @@ export async function generateDynamicAcademicTracker(
         title: "Semester Performance Trend",
         xKey: "name",
         series: ["Progress", "Mastery"],
-        data: [
+        data: !isNew && avgIa > 0 ? [
           { name: "Sem 1", Progress: 100, Mastery: 78 },
           { name: "Sem 2", Progress: 100, Mastery: 82 },
           { name: "Sem 3", Progress: 100, Mastery: 80 },
           { name: "Sem 4", Progress: 100, Mastery: 85 },
-          { name: "Sem 5 (Current)", Progress: avgIa > 0 ? 68 : 10, Mastery: avgIa },
+          { name: `Sem ${profile.semester} (Current)`, Progress: 68, Mastery: avgIa },
+        ] : [
+          { name: `Sem ${profile.semester} (Current)`, Progress: 0, Mastery: 0 },
         ],
       },
     ],
@@ -857,7 +915,7 @@ export async function generateDynamicAcademicTracker(
           ? `You are maintaining a strong ${profile.cgpa} CGPA in ${profile.degree}. Your highest performance is in ${subjects[0]?.shortName || "Major subjects"}.`
           : `Welcome to ${profile.degree}! Your enrolled subjects are active for the current term. Complete quizzes and assignments to build your academic scorecard.`,
         evidence: `Verified by College Exam Cell · ${profile.creditsEarned} credits recorded`,
-        tone: "teal",
+        tone: profile.cgpa > 0 ? "teal" : "neutral",
       },
       {
         title: "Attendance Notice",
@@ -865,7 +923,7 @@ export async function generateDynamicAcademicTracker(
           ? `Overall attendance is ${avgAttendance}%, safely above the mandatory 75% threshold for university end-semester examinations.`
           : `Attendance recording is initialized for ${profile.department}. Regular classroom and lab sessions will update this tracker daily.`,
         evidence: `Biometric & smart classroom log · ${profile.department}`,
-        tone: "brand",
+        tone: avgAttendance >= 75 ? "brand" : "neutral",
       },
     ],
   };
@@ -919,12 +977,13 @@ export async function generateDynamicSkillGraph(
 ): Promise<ScorecardData> {
   const profile = await getStudentAcademicProfile(session);
   const subjects = profile.enrolledSubjects;
+  const isNew = profile.cgpa === 0 && profile.streakDays === 0;
 
   const dimensions = subjects.map((s) => {
     const avgUnitMastery = Math.round(
       s.units.reduce((sum, u) => sum + u.mastery, 0) / (s.units.length || 1)
     );
-    const score = Math.max(30, Math.min(98, Math.round((avgUnitMastery + s.ia1Marks + s.ia2Marks) / 3)));
+    const score = isNew ? 0 : Math.max(30, Math.min(98, Math.round((avgUnitMastery + s.ia1Marks + s.ia2Marks) / 3)));
     return {
       name: s.shortName,
       score,
@@ -932,7 +991,7 @@ export async function generateDynamicSkillGraph(
     };
   });
 
-  const overall = Math.round(dimensions.reduce((a, d) => a + d.score, 0) / (dimensions.length || 1));
+  const overall = isNew ? 0 : Math.round(dimensions.reduce((a, d) => a + d.score, 0) / (dimensions.length || 1));
   const strengths: string[] = [];
   const gaps: string[] = [];
   const plan: string[] = [];
@@ -943,15 +1002,21 @@ export async function generateDynamicSkillGraph(
     if (highUnits.length > 0) {
       strengths.push(`${s.shortName}: Strong mastery in ${highUnits[0]?.title}`);
     }
-    if (lowUnits.length > 0) {
+    if (lowUnits.length > 0 && !isNew) {
       gaps.push(`${s.shortName}: ${lowUnits[0]?.title} (${lowUnits[0]?.mastery}%)`);
       plan.push(`Complete adaptive revision quiz on ${lowUnits[0]?.title} (${s.shortName})`);
     }
   }
 
-  if (strengths.length === 0) strengths.push(`${subjects[0]?.shortName}: Consistent practice streak (12 days)`);
-  if (gaps.length === 0) gaps.push("Advance to mock interview and full-length assessment");
-  if (plan.length === 0) plan.push("Take the departmental certification test");
+  if (isNew) {
+    strengths.push(`Enrolled in ${profile.degree} (${profile.department})`);
+    gaps.push("No diagnostic tests or quizzes attempted yet");
+    plan.push("Complete coursework lessons and practice quizzes in My Quizzes to build your skill graph");
+  } else {
+    if (strengths.length === 0) strengths.push(`${subjects[0]?.shortName}: Consistent practice streak (${profile.streakDays} days)`);
+    if (gaps.length === 0) gaps.push("Advance to mock interview and full-length assessment");
+    if (plan.length === 0) plan.push("Take the departmental certification test");
+  }
 
   return {
     template: "scorecard",
@@ -968,26 +1033,36 @@ export async function generateDynamicStudyTwin(
   session: SessionPayload | { sub: string; name?: string; college: string }
 ): Promise<ScorecardData> {
   const profile = await getStudentAcademicProfile(session);
+  const isNew = profile.cgpa === 0 && profile.streakDays === 0;
+
   return {
     template: "scorecard",
     headline: `AI Study Twin — ${profile.name}'s Learning Dynamics`,
-    overall: 74,
+    overall: isNew ? 0 : 74,
     dimensions: [
-      { name: "Learning pace", score: 76, target: 80 },
-      { name: "Retention rate (7-day)", score: 68, target: 75 },
-      { name: "Practice consistency", score: 85, target: 80 },
-      { name: "Revision discipline", score: 62, target: 75 },
-      { name: "Focus duration", score: 78, target: 80 },
+      { name: "Learning pace", score: isNew ? 0 : 76, target: 80 },
+      { name: "Retention rate (7-day)", score: isNew ? 0 : 68, target: 75 },
+      { name: "Practice consistency", score: isNew ? 0 : 85, target: 80 },
+      { name: "Revision discipline", score: isNew ? 0 : 62, target: 75 },
+      { name: "Focus duration", score: isNew ? 0 : 78, target: 80 },
     ],
-    strengths: [
-      "Visual worked examples & concept diagrams increase retention by 2.4x",
-      "Peak cognitive focus observed between 08:30 AM – 11:30 AM",
-      `High consistency with a ${profile.streakDays}-day active learning streak`,
-    ],
-    gaps: [
-      "Revision frequency slows down on weekends",
-      "Complex theoretical proofs show faster decay without practice recaps",
-    ],
+    strengths: isNew
+      ? [
+          "Study twin initialized for current academic curriculum",
+          "Optimal focus windows mapped to standard timetable",
+          "Cognitive model ready to calibrate with your first study session",
+        ]
+      : [
+          "Visual worked examples & concept diagrams increase retention by 2.4x",
+          "Peak cognitive focus observed between 08:30 AM – 11:30 AM",
+          `High consistency with a ${profile.streakDays}-day active learning streak`,
+        ],
+    gaps: isNew
+      ? ["Awaiting initial learning session telemetry to measure retention curve"]
+      : [
+          "Revision frequency slows down on weekends",
+          "Complex theoretical proofs show faster decay without practice recaps",
+        ],
     plan: [
       "Utilize 25-minute Pomodoro focus blocks with formula flashcards",
       "Schedule Sunday morning 30-minute spaced revision for lowest-mastery units",
@@ -1000,56 +1075,60 @@ export async function generateDynamicPassport(
   session: SessionPayload | { sub: string; name?: string; college: string }
 ): Promise<GalleryData> {
   const profile = await getStudentAcademicProfile(session);
+  const isNew = profile.cgpa === 0 && profile.streakDays === 0;
+
   return {
     template: "gallery",
     items: [
       {
         title: "Academic Transcript",
-        description: `CGPA ${profile.cgpa.toFixed(2)} · ${profile.creditsEarned} of ${profile.totalCredits} credits earned across ${profile.semester} semesters`,
+        description: isNew
+          ? `CGPA 0.00 · 0 of ${profile.totalCredits} credits earned · Enrolled in Semester ${profile.semester}`
+          : `CGPA ${profile.cgpa.toFixed(2)} · ${profile.creditsEarned} of ${profile.totalCredits} credits earned across ${profile.semester} semesters`,
         tag: "Exam Cell Verified",
         meta: `Roll: ${profile.rollNo}`,
-        tone: "teal",
-        progress: Math.round((profile.creditsEarned / profile.totalCredits) * 100),
+        tone: isNew ? "neutral" : "teal",
+        progress: profile.totalCredits > 0 ? Math.round((profile.creditsEarned / profile.totalCredits) * 100) : 0,
       },
       {
         title: "Verified Skill Profile",
         description: `${profile.enrolledSubjects.map((s) => s.shortName).join(", ")} & practical laboratory competencies`,
         tag: "Skill Graph",
-        meta: "12 skills tracked",
+        meta: isNew ? "0 skills tracked" : "12 skills tracked",
         tone: "brand",
-        progress: 78,
+        progress: isNew ? 0 : 78,
       },
       {
         title: "Department Project",
-        description: "Smart Campus AI & Autonomous Attendance · Faculty reviewed",
+        description: isNew ? "Capstones and innovative project submissions will be recorded here" : "Smart Campus AI & Autonomous Attendance · Faculty reviewed",
         tag: "Project Hub",
-        meta: "Milestone 4/5",
+        meta: isNew ? "Not started" : "Milestone 4/5",
         tone: "gold",
-        progress: 80,
+        progress: isNew ? 0 : 80,
       },
       {
         title: "Verified Certifications",
         description: "HMAC Cryptographically signed certifications in core subjects",
         tag: "Certificates",
-        meta: "2 verified certs",
+        meta: isNew ? "0 verified certs" : "2 verified certs",
         tone: "sky",
-        progress: 67,
+        progress: isNew ? 0 : 67,
       },
       {
         title: "Campus Leadership & Clubs",
         description: "Coding Club Lead & NSS Campus Volunteer",
         tag: "Campus Life",
-        meta: "Active member",
+        meta: isNew ? "New member" : "Active member",
         tone: "teal",
-        progress: 85,
+        progress: isNew ? 0 : 85,
       },
       {
         title: "Placement Readiness",
         description: "Quiz performance, certifications, aptitude, and AI mock interview",
         tag: "Career",
-        meta: "Readiness: 68/100",
+        meta: isNew ? "Readiness: 0/100" : "Readiness: 68/100",
         tone: "amber",
-        progress: 68,
+        progress: isNew ? 0 : 68,
       },
     ],
   };
@@ -1059,26 +1138,35 @@ export async function generateDynamicCareer(
   session: SessionPayload | { sub: string; name?: string; college: string }
 ): Promise<ScorecardData> {
   const profile = await getStudentAcademicProfile(session);
+  const isNew = profile.cgpa === 0 && profile.streakDays === 0;
+
   return {
     template: "scorecard",
     headline: `${profile.name} vs. Industry Role Benchmark (${profile.degree})`,
-    overall: 66,
+    overall: isNew ? 0 : 66,
     dimensions: [
-      { name: "Technical Core Skills", score: 74, target: 85 },
-      { name: "Hands-on Projects", score: 68, target: 80 },
-      { name: "Aptitude & Problem Solving", score: 70, target: 75 },
-      { name: "Communication & Soft Skills", score: 62, target: 75 },
-      { name: "Mock Interview Readiness", score: 58, target: 75 },
+      { name: "Technical Core Skills", score: isNew ? 0 : 74, target: 85 },
+      { name: "Hands-on Projects", score: isNew ? 0 : 68, target: 80 },
+      { name: "Aptitude & Problem Solving", score: isNew ? 0 : 70, target: 75 },
+      { name: "Communication & Soft Skills", score: isNew ? 0 : 62, target: 75 },
+      { name: "Mock Interview Readiness", score: isNew ? 0 : 58, target: 75 },
     ],
-    strengths: [
-      `Strong core foundations in ${profile.enrolledSubjects[0]?.shortName || "major subjects"}`,
-      `Good academic standing with CGPA ${profile.cgpa}`,
-      "Active participation in campus innovation and projects",
-    ],
-    gaps: [
-      "Technical mock interview score is below target (58% vs 75%)",
-      "Portfolio lacks deployment to public cloud / live demonstration",
-    ],
+    strengths: isNew
+      ? [
+          `Enrolled in accredited program (${profile.degree})`,
+          "Curriculum aligned to industry standard role competencies",
+        ]
+      : [
+          `Strong core foundations in ${profile.enrolledSubjects[0]?.shortName || "major subjects"}`,
+          `Good academic standing with CGPA ${profile.cgpa}`,
+          "Active participation in campus innovation and projects",
+        ],
+    gaps: isNew
+      ? ["Complete first semester milestones and technical certifications to unlock role benchmark score"]
+      : [
+          "Technical mock interview score is below target (58% vs 75%)",
+          "Portfolio lacks deployment to public cloud / live demonstration",
+        ],
     plan: [
       "Take 2 mock technical interviews weekly on AI Mock Interview",
       "Deploy capstone project on GitHub with live architecture diagram",
@@ -1091,26 +1179,35 @@ export async function generateDynamicReadiness(
   session: SessionPayload | { sub: string; name?: string; college: string }
 ): Promise<ScorecardData> {
   const profile = await getStudentAcademicProfile(session);
+  const isNew = profile.cgpa === 0 && profile.streakDays === 0;
+
   return {
     template: "scorecard",
     headline: "Career Readiness by Dimension",
-    overall: 68,
+    overall: isNew ? 0 : 68,
     dimensions: [
-      { name: "Academic GPA", score: Math.round(profile.cgpa * 10), target: 80 },
-      { name: "Department Skills", score: 72, target: 80 },
-      { name: "Mock Interview", score: 58, target: 75 },
-      { name: "Aptitude & Coding", score: 70, target: 75 },
-      { name: "Resume & ATS Score", score: 82, target: 80 },
-      { name: "Verified Certifications", score: 60, target: 75 },
+      { name: "Academic GPA", score: isNew ? 0 : Math.round(profile.cgpa * 10), target: 80 },
+      { name: "Department Skills", score: isNew ? 0 : 72, target: 80 },
+      { name: "Mock Interview", score: isNew ? 0 : 58, target: 75 },
+      { name: "Aptitude & Coding", score: isNew ? 0 : 70, target: 75 },
+      { name: "Resume & ATS Score", score: isNew ? 0 : 82, target: 80 },
+      { name: "Verified Certifications", score: isNew ? 0 : 60, target: 75 },
     ],
-    strengths: [
-      "Academic CGPA and Resume ATS optimization exceed hiring thresholds",
-      "Consistent continuous assessment marks across semesters",
-    ],
-    gaps: [
-      "Live verbal communication in technical interviews requires STAR practice",
-      "Advanced domain certifications pending completion",
-    ],
+    strengths: isNew
+      ? [
+          `Active student registration in ${profile.department}`,
+          "Enrolled in university placement readiness track",
+        ]
+      : [
+          "Academic CGPA and Resume ATS optimization exceed hiring thresholds",
+          "Consistent continuous assessment marks across semesters",
+        ],
+    gaps: isNew
+      ? ["No assessment attempts, certifications, or mock interviews recorded yet"]
+      : [
+          "Live verbal communication in technical interviews requires STAR practice",
+          "Advanced domain certifications pending completion",
+        ],
     plan: [
       "Practice STAR framework answers with Viva Simulator",
       "Earn second department course certificate in AI Course Studio",
@@ -1387,25 +1484,32 @@ export async function generateDynamicAlumni(
   session: SessionPayload | { sub: string; name?: string; college: string }
 ): Promise<ListData> {
   const profile = await getStudentAcademicProfile(session);
-  const baseSeed = hashString(session.sub + session.college);
-  const r = seeded(baseSeed);
-  
-  const COMPANIES = ["Microsoft", "Amazon", "Freshworks", "Google", "Zoho", "TCS", "Infosys", "Wipro", "Cognizant", "IBM"];
-  const ROLES = ["Senior Software Engineer", "Data Scientist", "Product Manager", "Tech Lead", "System Analyst", "Consultant"];
-  const MENTOR_TOPICS = ["Mock Interviews & System Design", "ML & Analytics Career Guidance", "Resume Review & Startups", "Core Engineering & Higher Studies", "Placement Prep"];
-  
-  const count = 3 + Math.floor(r() * 4);
-  const rows = Array.from({ length: count }, (_, i) => {
-    const idx = Math.floor(r() * 100) + i * 13;
-    const batchYear = 2018 + Math.floor(r() * 5);
-    const match = 70 + Math.floor(r() * 26);
+  const studentDept = profile.department.toLowerCase();
+  const studentSubjs = profile.enrolledSubjects.map((s) => s.shortName.toLowerCase());
+
+  const members = await alumniStore().listMembers(session.college);
+
+  const rows = members.map((m) => {
+    let score = 70;
+    if (m.department && (m.department.toLowerCase() === studentDept || studentDept.includes(m.department.toLowerCase()))) {
+      score += 12;
+    }
+    if (m.mentorshipTopics.some((t) => t.includes("Placement") || t.includes("Interview"))) {
+      score += 6;
+    }
+    const overlap = m.skills.filter((sk) => studentSubjs.some((sub) => sk.toLowerCase().includes(sub) || sub.includes(sk.toLowerCase()))).length;
+    score += Math.min(10, overlap * 4);
+    if (m.isAvailable && m.activeMentees < m.maxMentees) {
+      score += 2;
+    }
+
     return {
-      name: personName(idx),
-      batch: `Batch ${batchYear}`,
-      role: ROLES[Math.floor(r() * ROLES.length)]!,
-      company: COMPANIES[Math.floor(r() * COMPANIES.length)]!,
-      offers: MENTOR_TOPICS[Math.floor(r() * MENTOR_TOPICS.length)]!,
-      match,
+      name: m.name,
+      batch: m.batch,
+      role: m.currentPosition,
+      company: m.company,
+      offers: m.mentorshipTopics[0] || "General Career Mentorship",
+      match: Math.min(96, Math.max(72, score)),
     };
   }).sort((a, b) => b.match - a.match);
 

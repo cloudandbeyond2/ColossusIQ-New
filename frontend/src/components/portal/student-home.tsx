@@ -2,7 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
-import { ArrowRight, CalendarClock, Flame, Sparkles, Target, Trophy } from "lucide-react";
+import { ArrowRight, Calendar, CalendarClock, Flame, GraduationCap, Sparkles, Target, Trophy } from "lucide-react";
 import { apiFetch } from "@/lib/api/client";
 import { StudentDashboard } from "@/lib/api/schemas";
 import { usePrefs } from "@/components/providers";
@@ -36,6 +36,36 @@ export function StudentHome() {
             <h1 className="mt-1 text-3xl font-semibold text-ink sm:text-4xl">
               {greet}, {data.name} 👋
             </h1>
+
+            {/* Department and Academic Year information */}
+            <div className="mt-2.5 flex flex-wrap items-center gap-2 text-sm text-ink-2">
+              <span className="inline-flex items-center gap-1.5 font-medium text-ink">
+                <GraduationCap className="size-4 text-brand" aria-hidden />
+                <span>{data.department || "Computer Science & Engineering"}</span>
+              </span>
+              <span className="text-line-2" aria-hidden>•</span>
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-line bg-surface-2 px-2.5 py-0.5 text-xs font-semibold text-ink">
+                <Calendar className="size-3 text-ink-3" aria-hidden />
+                <span>{data.year || "3rd Year"}</span>
+                {data.semester ? (
+                  <span className="font-normal text-ink-3">· Sem {data.semester}</span>
+                ) : null}
+              </span>
+              {data.degree && (
+                <>
+                  <span className="hidden text-line-2 sm:inline" aria-hidden>•</span>
+                  <span className="hidden text-xs text-ink-3 sm:inline">{data.degree}</span>
+                </>
+              )}
+              {data.rollNo && (
+                <>
+                  <span className="hidden text-line-2 md:inline" aria-hidden>•</span>
+                  <span className="hidden rounded bg-surface-3 px-1.5 py-0.5 font-mono text-[11px] text-ink-3 md:inline">
+                    {data.rollNo}
+                  </span>
+                </>
+              )}
+            </div>
             <div className="mt-4 rounded-xl border border-gold/30 bg-gold-soft/60 p-4">
               <p className="flex items-center gap-2 text-sm font-semibold text-amber">
                 <Sparkles className="size-4" aria-hidden /> Your AI Mentor · {t("home.priorities", { n: data.priorities })}
@@ -73,15 +103,19 @@ export function StudentHome() {
         <Card>
           <CardHeader title="Today" subtitle="Synced from your timetable and study plan" action={<LinkButton href="/student/daily-plan" variant="ghost" size="sm">Open planner</LinkButton>} />
           <CardBody>
-            <ol className="space-y-2">
-              {data.today.map((it, i) => (
-                <li key={`${it.time}-${i}`} className="flex items-center gap-4 rounded-lg border border-line px-4 py-3">
-                  <span className="w-12 text-sm font-semibold tabular-nums text-ink-2">{it.time}</span>
-                  <span className={cn("h-7 w-1 rounded-full", KIND_TONE[it.kind] ?? "bg-ink-3")} aria-hidden />
-                  <span className="text-sm text-ink">{it.title}</span>
-                </li>
-              ))}
-            </ol>
+            {data.today.length === 0 ? (
+              <p className="py-6 text-center text-sm text-ink-3">No classes scheduled for today.</p>
+            ) : (
+              <ol className="space-y-2">
+                {data.today.map((it, i) => (
+                  <li key={`${it.time}-${i}`} className="flex items-center gap-4 rounded-lg border border-line px-4 py-3">
+                    <span className="w-12 text-sm font-semibold tabular-nums text-ink-2">{it.time}</span>
+                    <span className={cn("h-7 w-1 rounded-full", KIND_TONE[it.kind] ?? "bg-ink-3")} aria-hidden />
+                    <span className="text-sm text-ink">{it.title}</span>
+                  </li>
+                ))}
+              </ol>
+            )}
           </CardBody>
         </Card>
 
@@ -102,14 +136,18 @@ export function StudentHome() {
           <Card>
             <CardHeader title="Upcoming" />
             <CardBody className="pt-3">
-              <ul className="divide-y divide-line">
-                {data.upcoming.map((u, i) => (
-                  <li key={`${u.title}-${i}`} className="flex items-center justify-between py-2.5 text-sm">
-                    <span className="text-ink">{u.title}</span>
-                    <span className="text-ink-3">{u.when}</span>
-                  </li>
-                ))}
-              </ul>
+              {data.upcoming.length === 0 ? (
+                <p className="py-4 text-center text-xs text-ink-3">No upcoming events or deadlines scheduled.</p>
+              ) : (
+                <ul className="divide-y divide-line">
+                  {data.upcoming.map((u, i) => (
+                    <li key={`${u.title}-${i}`} className="flex items-center justify-between py-2.5 text-sm">
+                      <span className="text-ink">{u.title}</span>
+                      <span className="text-ink-3">{u.when}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </CardBody>
           </Card>
         </div>
@@ -118,21 +156,30 @@ export function StudentHome() {
       <Card>
         <CardHeader title="Weak topics to fix" subtitle={`Exam in ${data.examCountdown.days} days · ${data.examCountdown.syllabusCovered}% of syllabus covered`} action={<LinkButton href="/student/mock-tests" size="sm">Take adaptive test</LinkButton>} />
         <CardBody>
-          <div className="grid gap-4 md:grid-cols-3">
-            {data.weakTopics.map((w, i) => (
-              <div key={`${w.subject}-${w.topic}-${i}`} className="rounded-xl border border-line p-4">
-                <div className="flex items-center gap-2">
-                  <Target className="size-4 text-rose" aria-hidden />
-                  <p className="text-xs font-medium uppercase tracking-wide text-ink-3">{w.subject}</p>
+          {data.weakTopics.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-line p-6 text-center">
+              <p className="text-sm font-medium text-ink">No weak topics identified yet</p>
+              <p className="mt-1 text-xs text-ink-3">
+                Complete course quizzes and module assessments to generate personalized diagnostic focus areas.
+              </p>
+            </div>
+          ) : (
+            <div className="grid gap-4 md:grid-cols-3">
+              {data.weakTopics.map((w, i) => (
+                <div key={`${w.subject}-${w.topic}-${i}`} className="rounded-xl border border-line p-4">
+                  <div className="flex items-center gap-2">
+                    <Target className="size-4 text-rose" aria-hidden />
+                    <p className="text-xs font-medium uppercase tracking-wide text-ink-3">{w.subject}</p>
+                  </div>
+                  <p className="mt-1 font-medium text-ink">{w.topic}</p>
+                  <div className="mt-3 flex items-center gap-2">
+                    <Progress value={w.mastery} tone={toneForScore(w.mastery)} label={`${w.topic} mastery`} />
+                    <span className="text-xs tabular-nums text-ink-2">{w.mastery}%</span>
+                  </div>
                 </div>
-                <p className="mt-1 font-medium text-ink">{w.topic}</p>
-                <div className="mt-3 flex items-center gap-2">
-                  <Progress value={w.mastery} tone={toneForScore(w.mastery)} label={`${w.topic} mastery`} />
-                  <span className="text-xs tabular-nums text-ink-2">{w.mastery}%</span>
-                </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </CardBody>
       </Card>
     </div>

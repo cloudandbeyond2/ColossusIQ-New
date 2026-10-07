@@ -1,5 +1,5 @@
 -- ════════════════════════════════════════════════════════════════════════════════════════════
---  0012 — competitive exam prep
+--  0013 — competitive exam prep
 --  current_affairs: daily current-affairs items a college's staff curate for students (with an optional question).
 --  prep_attempts:   one summary row per finished daily aptitude test, practice mock or weekly current-affairs quiz,
 --                   for the one-test-a-day rule, XP and peer percentiles (percentages only, never names).

@@ -6,7 +6,7 @@ import { db, isUuid } from "./db";
 import { collegeUuid } from "./lookups";
 
 /*
- * Current affairs on PostgreSQL: `current_affairs` (db/migrations/0012_exam_prep.sql). Row-level security limits every
+ * Current affairs on PostgreSQL: `current_affairs` (db/migrations/0013_exam_prep.sql). Row-level security limits every
  * query to the signed-in college.
  */
 

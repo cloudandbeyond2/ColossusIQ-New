@@ -340,6 +340,8 @@ model College {
   currentAffairs        CurrentAffair[]
   prepAttempts          PrepAttempt[]
   prepContent           PrepContent[]
+  alumniMembers         AlumniMember[]
+  alumniRequests        AlumniMentorshipRequest[]
 
   @@unique([universityId, code])
   @@unique([universityId, name])
@@ -1722,3 +1724,58 @@ model StudentState {
   @@index([collegeId])
   @@map("student_state")
 }
+
+model AlumniMember {
+  id                String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  collegeId         String                    @map("college_id") @db.Uuid
+  name              String
+  batch             String
+  currentPosition   String                    @map("current_position")
+  company           String
+  location          String                    @default("")
+  degree            String                    @default("B.E. Computer Science & Engineering")
+  department        String                    @default("Computer Science & Engineering")
+  mentorshipTopics  String[]                  @default([]) @map("mentorship_topics")
+  skills            String[]                  @default([])
+  linkedinUrl       String                    @default("") @map("linkedin_url")
+  email             String                    @default("")
+  bio               String                    @default("")
+  isAvailable       Boolean                   @default(true) @map("is_available")
+  activeMentees     Int                       @default(0) @map("active_mentees")
+  maxMentees        Int                       @default(5) @map("max_mentees")
+  createdAt         DateTime                  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime                  @default(now()) @map("updated_at") @db.Timestamptz(6)
+  college           College                   @relation(fields: [collegeId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  requests          AlumniMentorshipRequest[]
+
+  @@index([collegeId], map: "alumni_members_college_idx")
+  @@index([collegeId, isAvailable], map: "alumni_members_college_avail_idx")
+  @@map("alumni_members")
+}
+
+model AlumniMentorshipRequest {
+  id             String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  collegeId      String       @map("college_id") @db.Uuid
+  alumniId       String       @map("alumni_id") @db.Uuid
+  studentId      String       @map("student_id")
+  studentName    String       @map("student_name")
+  studentRollNo  String       @default("") @map("student_roll_no")
+  studentDept    String       @default("") @map("student_dept")
+  topic          String
+  preferredMode  String       @default("Virtual Call") @map("preferred_mode")
+  message        String       @default("")
+  status         String       @default("Pending")
+  responseNote   String       @default("") @map("response_note")
+  meetingLink    String       @default("") @map("meeting_link")
+  scheduledAt    DateTime?    @map("scheduled_at") @db.Timestamptz(6)
+  createdAt      DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime     @default(now()) @map("updated_at") @db.Timestamptz(6)
+  college        College      @relation(fields: [collegeId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  alumni         AlumniMember @relation(fields: [alumniId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([collegeId], map: "alumni_requests_college_idx")
+  @@index([alumniId], map: "alumni_requests_alumni_idx")
+  @@index([studentId], map: "alumni_requests_student_idx")
+  @@map("alumni_mentorship_requests")
+}
+

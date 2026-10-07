@@ -4,7 +4,7 @@ import { db, requestUser } from "./db";
 import { collegeUuid } from "./lookups";
 
 /*
- * Exam-prep attempt summaries on PostgreSQL: `prep_attempts` (db/migrations/0012_exam_prep.sql). Row-level security
+ * Exam-prep attempt summaries on PostgreSQL: `prep_attempts` (db/migrations/0013_exam_prep.sql). Row-level security
  * limits every query to the signed-in college. A student's own list filters on the signed-in user; peer figures read
  * percentages only.
  */

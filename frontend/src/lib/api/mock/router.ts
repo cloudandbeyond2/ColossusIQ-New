@@ -53,6 +53,8 @@ import { dispatchExperience, experienceNotifications } from "./experience";
 import { dispatchViva } from "./viva";
 import { dispatchResume } from "./resume";
 import { dispatchDrives } from "./drives";
+import { dispatchJobs } from "./jobs";
+import { dispatchAlumni } from "./alumni";
 import { dispatchInterview } from "./interview";
 import { ChatBodySchema } from "@/lib/api/mentor-schemas";
 import { audit, recentAudit } from "./audit";
@@ -254,6 +256,8 @@ export async function dispatch(method: string, segs: string[], rawBody: unknown,
   if (segs[0] === "resume") return dispatchResume(method, segs, rawBody, session);
   if (segs[0] === "interview") return dispatchInterview(method, segs, rawBody, session);
   if (segs[0] === "drives") return dispatchDrives(method, segs, rawBody, session);
+  if (segs[0] === "jobs") return dispatchJobs(method, segs, rawBody, session, query);
+  if (segs[0] === "alumni") return dispatchAlumni(method, segs, rawBody, session, query);
   if (LEARNING_AREAS.has(segs[0] ?? "")) return dispatchLearning(method, segs, rawBody, session, query);
   if (segs[0] === "students" && segs[1] !== "me") return dispatchStudents(method, segs, rawBody, session, query);
   if (segs[0] === "faculty") return dispatchFaculty(method, segs, rawBody, session, query);

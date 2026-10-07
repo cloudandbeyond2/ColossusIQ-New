@@ -151,7 +151,7 @@ export const MODULES: ModuleDef[] = [
   { slug: "achievements", title: "XP & Badges", description: "Your XP, level, streak and badges from real quizzes, courses and assignments, plus your class rank.", group: "Campus Life", roles: ["student"], template: "bespoke", icon: "trophy", phase: "Phase 3" },
   { slug: "wellness", title: "Wellness & Habits", description: "Educational content on sleep, hydration, breaks, screen time and healthy routines.", group: "Campus Life", roles: ["student"], template: "calendar", icon: "heart", phase: "Phase 3", notice: "This area is educational and non-diagnostic. If you are struggling, please reach out to your student counsellor or the Student Welfare Office. In an emergency, call 112 (India)." },
   { slug: "campus-assistant", title: "Campus Assistant", description: "Ask anything about your campus — answered from institution-approved sources.", group: "Campus Life", roles: ["student", "faculty"], template: "chat", icon: "school", phase: "Phase 3", agent: "knowledge" },
-  { slug: "alumni", title: "Alumni Network", description: "Mentors, speakers, recruiters and project advisors matched to your goals.", group: "Campus Life", roles: ["student", "placement", "incubation"], template: "list", icon: "network", phase: "Phase 3" },
+  { slug: "alumni", title: "Alumni Network", description: "Mentors, speakers, recruiters and project advisors matched to your goals.", group: "Campus Life", roles: ["student", "placement", "incubation"], template: "bespoke", icon: "network", phase: "Phase 3" },
 
   // ───────────── Faculty ─────────────
   { slug: "copilot", title: "Faculty AI Copilot", description: "Lesson plans, notes, PPT outlines, assignments, rubrics and lab manuals.", group: "Faculty", roles: ["faculty"], template: "generator", icon: "bot", phase: "MVP", agent: "faculty-copilot" },
@@ -172,7 +172,7 @@ export const MODULES: ModuleDef[] = [
   // ───────────── Placement ─────────────
   { slug: "placement-board", title: "Placement Readiness Board", description: "Every student’s readiness total, gaps and status — filter, shortlist and export for drives.", group: "Placement", roles: ["placement", "hod", "institution", "admin"], template: "bespoke", icon: "target", phase: "MVP" },
   { slug: "drives", title: "Placement Drives", description: "Schedule and manage campus recruitment drives.", group: "Placement", roles: ["placement"], template: "bespoke", icon: "briefcase", phase: "MVP" },
-  { slug: "jobs", title: "Job Matching", description: "Open roles matched to verified student profiles and eligibility.", group: "Placement", roles: ["placement", "student"], template: "list", icon: "handshake", phase: "Phase 2" },
+  { slug: "jobs", title: "Job Matching", description: "Open roles matched to verified student profiles and eligibility.", group: "Placement", roles: ["placement", "student"], template: "bespoke", icon: "handshake", phase: "MVP" },
   { slug: "employers", title: "Employers", description: "Recruiter relationships, history and hiring outcomes.", group: "Placement", roles: ["placement"], template: "list", icon: "building", phase: "Phase 2" },
   { slug: "placement-analytics", title: "Placement Analytics", description: "Readiness, resume completion, mock-interview participation and offers.", group: "Placement", roles: ["placement", "hod", "institution"], template: "dashboard", icon: "chart", phase: "Phase 2" },
 

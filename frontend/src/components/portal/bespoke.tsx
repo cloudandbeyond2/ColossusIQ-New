@@ -47,6 +47,8 @@ import { VivaModule } from "./bespoke/viva";
 import { ExamPrepHubModule } from "./bespoke/exam-prep";
 import { CurrentAffairsDeskModule } from "./bespoke/current-affairs-desk";
 import { ExamPrepStudioModule } from "./bespoke/exam-prep-studio";
+import { JobsModule } from "./bespoke/jobs";
+import { AlumniModule } from "./bespoke/alumni";
 
 const BESPOKE: Record<string, (props: { role: Role }) => React.ReactNode> = {
   "aicte-compliance": ({ role }) => <AicteComplianceModule role={role} />,
@@ -95,6 +97,8 @@ const BESPOKE: Record<string, (props: { role: Role }) => React.ReactNode> = {
   "competitive-exams": () => <ExamPrepHubModule />,
   "current-affairs-desk": () => <CurrentAffairsDeskModule />,
   "exam-prep-studio": () => <ExamPrepStudioModule />,
+  jobs: ({ role }) => <JobsModule role={role} />,
+  alumni: ({ role }) => <AlumniModule role={role} />,
 };
 
 

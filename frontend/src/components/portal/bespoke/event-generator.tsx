@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import { z } from "zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -431,15 +431,16 @@ export function EventGeneratorModule({ role }: { role: Role }) {
   // Current active plan (starts empty/null until generated or selected)
   const [plan, setPlan] = useState<EventPlan | null>(null);
   // Saved plans archive (persisted to localStorage)
-  const [savedPlans, setSavedPlans] = useState<EventPlan[]>(() => {
-    if (typeof window !== "undefined") {
-      try {
-        const stored = localStorage.getItem("colossusiq_saved_event_plans");
-        if (stored) return JSON.parse(stored);
-      } catch { }
-    }
-    return [];
-  });
+  const [savedPlans, setSavedPlans] = useState<EventPlan[]>([]);
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem("colossusiq_saved_event_plans");
+      if (stored) {
+        setSavedPlans(JSON.parse(stored));
+      }
+    } catch { }
+  }, []);
 
   // Tab navigation
   const [activeTab, setActiveTab] = useState<

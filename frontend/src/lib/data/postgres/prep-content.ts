@@ -5,7 +5,7 @@ import { db, isUuid } from "./db";
 import { collegeUuid } from "./lookups";
 
 /*
- * Exam-prep content on PostgreSQL: `prep_content` (db/migrations/0013_prep_content.sql). Row-level security limits
+ * Exam-prep content on PostgreSQL: `prep_content` (db/migrations/0014_prep_content.sql). Row-level security limits
  * every query to the signed-in college.
  */
 
