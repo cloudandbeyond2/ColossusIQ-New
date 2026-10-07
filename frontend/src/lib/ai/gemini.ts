@@ -1,4 +1,5 @@
 import "server-only";
+import { recordAiCall } from "./ai-log";
 import type { z } from "zod";
 import { aiConfig, PROVIDERS, providerOrder, type ProviderId } from "./ai-config";
 import { claudeText } from "./claude";
@@ -144,8 +145,12 @@ export async function geminiJson<S extends z.ZodTypeAny>(schema: S, opts: Option
   }
   if (!geminiEnabled()) return { ok: false, reason: "disabled" };
   let last = "unknown";
+  let first = true;
   for (const id of providerOrder()) {
+    const started = Date.now();
     const r = await jsonFrom(id, schema, opts);
+    recordAiCall({ provider: id, model: aiConfig().providers[id].model, ms: Date.now() - started, ok: r.ok, reason: r.ok ? "ok" : r.reason, fallback: !first });
+    first = false;
     if (r.ok) return r;
     last = r.reason;
     console.warn(`[ai] ${id} request failed: ${last}`); // reason code only — never the key or the content

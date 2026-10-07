@@ -42,7 +42,14 @@ export function CertificateAuthorityModule() {
         <Tile icon="cross-circle" label="Revoked" value={d.counts.revoked} />
         <Tile icon="graduation-cap" label="Course & quiz certificates" value={d.counts.courseCertificates} />
       </div>
-      {!d.canAuthorize ? <Card className="p-4 text-sm text-ink-2">Confirm your sign-in code to issue or change certificates.</Card> : null}
+      {d.reviewOnly ? (
+        <Card className="flex items-start gap-3 border-brand/30 p-4 text-sm text-ink-2">
+          <Fi name="eye" className="mt-0.5 text-lg text-brand" />
+          <p>{d.reviewOnly}</p>
+        </Card>
+      ) : !d.canAuthorize ? (
+        <Card className="p-4 text-sm text-ink-2">Confirm your sign-in code to issue or change certificates.</Card>
+      ) : null}
       {message ? (
         <div role={message.tone === "error" ? "alert" : "status"} className={cn("flex flex-wrap items-center justify-between gap-2 rounded-xl px-4 py-2 text-sm", message.tone === "error" ? "bg-rose-soft text-rose" : "bg-teal-soft text-teal")}>
           <span>{message.text}</span>

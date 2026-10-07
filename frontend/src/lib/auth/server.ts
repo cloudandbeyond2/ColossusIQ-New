@@ -8,6 +8,7 @@ import { withRequestContext } from "@/lib/data";
 import type { Stream } from "@/config/streams";
 import { SESSION_COOKIE, verifySession, type SessionPayload } from "./session";
 import type { Role } from "./roles";
+import { blockedSlugs } from "@/lib/module-access";
 
 export async function getSession(): Promise<SessionPayload | null> {
   const store = await cookies();
@@ -32,6 +33,8 @@ export interface CollegeContext {
   enabledGroups: string[] | "all";
   /** Academic stream of the college (null at university-wide scope). */
   stream: Stream | null;
+  /** Modules the Super Admin has switched off for the signed-in role (Module Control). */
+  blocked: string[];
 }
 
 export async function collegeContext(session: SessionPayload): Promise<CollegeContext> {
@@ -42,11 +45,13 @@ export async function collegeContext(session: SessionPayload): Promise<CollegeCo
     isAllColleges: all,
     enabledGroups: await enabledGroups(session.college),
     stream: all ? null : await collegeStream(session.college),
+    blocked: await blockedSlugs(session.role),
   }));
 }
 
 /** Whether a module's area is switched on for the session's college. */
 export function isModuleEnabled(mod: ModuleDef, ctx: CollegeContext): boolean {
+  if (ctx.blocked.includes(mod.slug)) return false;
   // Stream-only modules (e.g. Clinical Rotations for medical colleges) are hidden elsewhere.
   if (mod.streams && ctx.stream && !mod.streams.includes(ctx.stream)) return false;
   if (!(TOGGLEABLE_GROUPS as readonly string[]).includes(mod.group)) return true;

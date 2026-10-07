@@ -108,6 +108,8 @@ export const DecisionBody = z.object({ note: z.string().trim().max(300).default(
 export const DeskOverview = z.object({
   profile: CertificateProfile,
   canAuthorize: z.boolean(),
+  /** Set when the viewer may review but never issue (the Super Admin's oversight view). */
+  reviewOnly: z.string().nullable().default(null),
   awards: z.array(AwardRow),
   students: z.array(z.object({ sub: z.string(), name: z.string(), rollNo: z.string(), department: z.string() })),
   counts: z.object({ issued: z.number(), pending: z.number(), revoked: z.number(), courseCertificates: z.number() }),

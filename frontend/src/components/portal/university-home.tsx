@@ -16,6 +16,7 @@ import { Fi } from "@/components/ui/icon";
 import { RefreshCw } from "lucide-react";
 import { Badge, Button, Card, CardBody, CardHeader, LinkButton, Spinner, toneForStatus } from "@/components/ui/primitives";
 import { cn, formatNumber } from "@/lib/utils";
+import { PlatformPanel } from "./platform-panel";
 
 type College = UniversityOverview["colleges"][number];
 
@@ -160,6 +161,8 @@ export function UniversityHome() {
           { label: "Active staff", value: formatNumber(t.staff), hint: `${formatNumber(t.users)} user accounts`, tone: "neutral" },
         ]}
       />
+
+      <PlatformPanel />
 
       <div>
         <h2 className="mb-3 text-lg font-semibold text-ink">By stream</h2>
