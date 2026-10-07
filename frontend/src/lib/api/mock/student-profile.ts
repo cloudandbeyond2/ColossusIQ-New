@@ -36,6 +36,7 @@ export interface StudentAcademicProfile {
   department: string;
   departmentCode: string;
   semester: number;
+  year?: string;
   section: string;
   stream: Stream;
   cgpa: number;
@@ -44,6 +45,12 @@ export interface StudentAcademicProfile {
   streakDays: number;
   xp: number;
   enrolledSubjects: EnrolledSubject[];
+}
+
+export function toYearString(sem: number): string {
+  const y = Math.max(1, Math.min(5, Math.ceil(sem / 2)));
+  const suffix = y === 1 ? "1st" : y === 2 ? "2nd" : y === 3 ? "3rd" : `${y}th`;
+  return `${suffix} Year`;
 }
 
 const STREAM_CURRICULUM: Record<
@@ -500,10 +507,15 @@ export async function getStudentAcademicProfile(
       const collegePublicId = session.college && session.college !== "all" ? session.college : undefined;
       const userSub = session.sub;
 
-      // 1. Look up student record in DB if session.sub is a UUID
+      // 1. Look up student record in DB if session.sub is a UUID or fallback to available student
       let studentRecord = isUuid(userSub)
         ? await t.student.findFirst({
-            where: { userId: userSub },
+            where: {
+              OR: [
+                { userId: userSub },
+                { id: userSub },
+              ],
+            },
             include: {
               department: true,
               programme: true,
@@ -517,24 +529,61 @@ export async function getStudentAcademicProfile(
           })
         : null;
 
+      if (!studentRecord && collegePublicId) {
+        studentRecord = await t.student.findFirst({
+          where: { college: { publicId: collegePublicId } },
+          include: {
+            department: true,
+            programme: true,
+            term: true,
+            college: true,
+            user: true,
+            certificates: true,
+            quizAttempts: { include: { quiz: true } },
+            evaluationItems: true,
+          },
+          orderBy: { createdAt: "desc" },
+        });
+      }
+
       if (studentRecord) {
-        name = studentRecord.user?.fullName || name;
+        name = session.name && session.name !== "Student" ? session.name : (studentRecord.user?.fullName || name);
         rollNo = studentRecord.rollNo || rollNo;
         department = studentRecord.department?.name || department;
         degree = studentRecord.programme?.name || degree;
-        semester = studentRecord.term?.position || semester;
+        if (studentRecord.term?.position) {
+          semester = studentRecord.term.position;
+        } else if (studentRecord.batchYear) {
+          const currentYear = new Date().getFullYear();
+          const yearDiff = Math.max(1, currentYear - studentRecord.batchYear + 1);
+          semester = Math.min(8, yearDiff * 2 - 1);
+        }
         departmentCode = department.split(" ").map((w) => w[0]).join("").toUpperCase().slice(0, 4) || departmentCode;
       }
 
       // 2. Fetch real active courses from PostgreSQL for this college and department
-      const colCourses = await t.course.findMany({
-        where: {
-          ...(collegePublicId ? { college: { publicId: collegePublicId } } : {}),
-          status: "Active",
-        },
-        include: { department: true },
-        orderBy: { title: "asc" },
-      });
+      const deptCourses = studentRecord?.departmentId
+        ? await t.course.findMany({
+            where: {
+              ...(collegePublicId ? { college: { publicId: collegePublicId } } : {}),
+              departmentId: studentRecord.departmentId,
+              status: "Active",
+            },
+            include: { department: true },
+            orderBy: { title: "asc" },
+          })
+        : [];
+
+      const colCourses = deptCourses.length > 0
+        ? deptCourses
+        : await t.course.findMany({
+            where: {
+              ...(collegePublicId ? { college: { publicId: collegePublicId } } : {}),
+              status: "Active",
+            },
+            include: { department: true },
+            orderBy: { title: "asc" },
+          });
 
       const quizCount = studentRecord?.quizAttempts?.length || 0;
       const evalCount = studentRecord?.evaluationItems?.length || 0;
@@ -613,6 +662,7 @@ export async function getStudentAcademicProfile(
     department,
     departmentCode,
     semester,
+    year: toYearString(semester),
     section: `${departmentCode}-A`,
     stream,
     cgpa,
@@ -741,12 +791,18 @@ export async function generateDynamicStudentDashboard(
   const isNewStudent = avgIa === 0 && profile.cgpa === 0;
 
   const recommendation = isNewStudent
-    ? `Welcome to **${profile.degree}**! Explore your enrolled courses and attempt your first practice quiz in **My Quizzes** to begin calculating your academic scorecard and mastery metrics.`
+    ? `Welcome to **${profile.degree}**! Revise **${weakest.topic} (${weakest.subject})** and attempt your first practice quiz in **My Quizzes** to begin calculating your academic scorecard and mastery metrics.`
     : `Revise **${weakest.topic} (${weakest.subject})** for 25 minutes and attempt the adaptive 10-question practice set — it is currently your lowest mastery topic (**${weakest.mastery}%**) and the **${examName}** is in 9 days.`;
 
   return {
     name: profile.name,
-    priorities: isNewStudent ? 0 : weakTopics.length,
+    department: profile.department,
+    departmentCode: profile.departmentCode,
+    degree: profile.degree,
+    semester: profile.semester,
+    year: toYearString(profile.semester),
+    rollNo: profile.rollNo,
+    priorities: weakTopics.length,
     academic: {
       semesterProgress,
       examReadiness: isNewStudent ? 0 : examReadiness,
@@ -769,7 +825,7 @@ export async function generateDynamicStudentDashboard(
     upcoming: upcomingMap[profile.stream] || upcomingMap.engineering,
     streak: profile.streakDays,
     xp: profile.xp,
-    weakTopics: isNewStudent ? [] : weakTopics,
+    weakTopics,
     examCountdown: {
       exam: examName,
       days: 9,

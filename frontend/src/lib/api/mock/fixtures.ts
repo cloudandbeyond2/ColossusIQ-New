@@ -58,6 +58,12 @@ export const DEPARTMENTS = [
 
 export const STUDENT_DASHBOARD: StudentDashboard = {
   name: "Anand",
+  department: "Computer Science & Engineering",
+  departmentCode: "CSE",
+  degree: "B.E. Computer Science & Engineering",
+  semester: 5,
+  year: "3rd Year",
+  rollNo: "21CS1014",
   priorities: 3,
   academic: { semesterProgress: 72, examReadiness: 64 },
   skills: { technical: 71, communication: 59, interview: 48 },
