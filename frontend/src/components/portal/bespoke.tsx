@@ -44,6 +44,7 @@ import { AchievementsModule } from "./bespoke/achievements";
 import { RefreshZoneModule } from "./bespoke/refresh-zone";
 import { ExperienceModule } from "./bespoke/experience";
 import { VivaModule } from "./bespoke/viva";
+import { JobsModule } from "./bespoke/jobs";
 
 const BESPOKE: Record<string, (props: { role: Role }) => React.ReactNode> = {
   "aicte-compliance": ({ role }) => <AicteComplianceModule role={role} />,
@@ -89,6 +90,7 @@ const BESPOKE: Record<string, (props: { role: Role }) => React.ReactNode> = {
   "refresh-zone": () => <RefreshZoneModule />,
   experience: () => <ExperienceModule />,
   viva: () => <VivaModule />,
+  jobs: ({ role }) => <JobsModule role={role} />,
 };
 
 
