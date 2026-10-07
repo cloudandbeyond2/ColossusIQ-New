@@ -417,15 +417,19 @@ export const pgAttempts: AttemptStore = {
 };
 
 /* â”€â”€ certificates â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
-const CERT_INCLUDE = { quiz: { select: { publicId: true } }, student: { select: { userId: true } } } satisfies Prisma.CertificateInclude;
+const CERT_INCLUDE = {
+  quiz: { select: { publicId: true } },
+  student: { select: { userId: true, status: true, user: { select: { fullName: true } } } },
+} satisfies Prisma.CertificateInclude;
 type CertRow = Prisma.CertificateGetPayload<{ include: typeof CERT_INCLUDE }>;
 
 async function toCert(r: CertRow): Promise<Certificate> {
+  const actualName = r.student?.user?.fullName || r.studentName;
   return {
     id: r.publicId,
     kind: label("CertificateKind", r.kind) as Certificate["kind"],
     studentSub: r.student.userId,
-    studentName: r.studentName,
+    studentName: actualName,
     collegeId: await collegePublic(r.collegeId),
     quizId: r.quiz.publicId,
     title: r.title,
@@ -447,8 +451,9 @@ export const pgCertificates: CertificateStore = {
     const rows = await db().certificate.findMany({
       where: {
         supersededAt: null,
+        student: { status: "Active" },
         ...(quizId ? { quiz: { publicId: quizId } } : {}),
-        ...(studentSub ? { student: { userId: studentSub } } : {}),
+        ...(studentSub ? { student: { userId: studentSub, status: "Active" } } : {}),
         ...(scope ? await scopeWhere(scope) : {}),
       },
       include: CERT_INCLUDE,
