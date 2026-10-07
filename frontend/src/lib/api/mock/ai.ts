@@ -3,6 +3,7 @@ import { z } from "zod";
 import type { ChatReply, EvaluationResult, GenerateReply, InterviewTurn, ResumeAnalysis } from "@/lib/api/schemas";
 import { geminiEnabled, geminiJson } from "@/lib/ai/gemini";
 import { generateDocumentAi } from "./document-ai";
+import { generateCopilotContent, generateQuestionPaperContent } from "./copilot-ai";
 
 /*
  * Deterministic stand-ins for the AI Orchestrator. They exist so every screen is fully
@@ -109,16 +110,28 @@ export async function generate(module: string, inputs: Record<string, string>): 
         agent: "career",
         markdown: `### ${v("weeks", "8")}-week plan — ${v("role", "Software Engineer")} at a ${lower(v("company", "product company"))}\n\n**Required skills:** DSA, one backend language, SQL, system basics, communication\n\n| Week | Coding | Aptitude | Communication |\n|---|---|---|---|\n| 1–2 | Arrays, strings, hashing | Percentages, ratios | STAR stories ×3 |\n| 3–4 | Trees, graphs | Time & work | Mock HR interview |\n| 5–6 | DP, SQL joins/windows | Puzzles | Technical explanation drill |\n| 7–8 | Company PYQs, mock OAs | Full mocks | 2 full mock interviews |\n\n**Resume:** quantify project impact; add GitHub link.\n**Portfolio:** deploy one project publicly.`,
       };
-    case "copilot":
+    case "copilot": {
+      const tool = v("tool", "Lesson plan");
+      const topic = v("topic", "Database normalization");
+      const duration = v("duration", "45");
+      const level = v("level", "UG Year 3");
+      const markdown = await generateCopilotContent(tool, topic, duration, level);
       return {
         agent: "faculty-copilot",
-        markdown: `### ${v("tool", "Lesson plan")}: ${v("topic", "Database normalization")} (${v("duration", "45")} min · ${v("level", "UG Year 3")})\n\n**Learning outcomes** — students will be able to identify FDs, test for 3NF/BCNF and decompose losslessly.\n\n| Time | Activity |\n|---|---|\n| 0–5 | Hook: an update anomaly in a real college table |\n| 5–20 | Concepts: FDs, 2NF, 3NF, BCNF with one running example |\n| 20–32 | Pair activity: decompose \`Enrolment(...)\` |\n| 32–40 | Quick quiz (5 MCQs, auto-generated) |\n| 40–45 | Exit ticket + remedial pointer |\n\n**Assessment:** rubric attached (definition 3, example 3, decomposition 3, presentation 1).\n\n_Review and adapt before use — AI-generated material._`,
+        markdown,
       };
-    case "question-generator":
+    }
+    case "question-generator": {
+      const course = v("course", "CS3492 Database Management Systems");
+      const units = v("units", "Units 1–5");
+      const marks = v("marks", "50");
+      const pattern = v("pattern", "Part A (2 marks) + Part B (13 marks)");
+      const markdown = await generateQuestionPaperContent(course, units, marks, pattern);
       return {
         agent: "exam",
-        markdown: `### ${v("course", "Course")} — ${v("units", "Units 1–5")} · ${v("marks", "50")} marks\n\n**Part A (5 × 2 = 10)**\n1. Define functional dependency. (CO2, Remember)\n2. What is a superkey? (CO1, Remember)\n3. State two ACID properties. (CO4, Understand)\n4. Differentiate 3NF and BCNF. (CO3, Understand)\n5. What is a B+ tree? (CO5, Remember)\n\n**Part B (2 × 13 + 1 × 14 = 40)**\n6. (a) Decompose \`R(A,B,C,D,E)\` with the given FDs into BCNF and verify lossless join. (CO3, Apply) **or** (b) …\n7. (a) Explain conflict serialisability with a precedence graph. (CO4, Analyse)\n8. Design an ER model for a hostel management system and map it to relations. (CO1, Create)\n\n**Blueprint coverage:** CO1 22% · CO2 12% · CO3 30% · CO4 24% · CO5 12%`,
+        markdown,
       };
+    }
     case "event-generator": {
       const brief = v("brief") || v("topic") || "Technology Innovation Summit";
       const title = v("title") || brief.split(/[.\n]/)[0]?.slice(0, 50) || "Campus Tech Initiative";
