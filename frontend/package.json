@@ -20,6 +20,7 @@
     "db:dev-accounts": "tsx db/scripts/dev-accounts.ts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "0.131.0",
     "@flaticon/flaticon-uicons": "3.3.1",
     "@node-rs/argon2": "^2.2.1",
     "@prisma/client": "6.19.3",

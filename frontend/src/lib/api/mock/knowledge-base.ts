@@ -2,7 +2,7 @@ import "server-only";
 import { createHash } from "node:crypto";
 import { z } from "zod";
 import { ALL_COLLEGES } from "@/config/tenancy";
-import { geminiEmbed, geminiEmbedModel, geminiEnabled, geminiJson, geminiModel, geminiPdfText, EMBED_DIMS } from "@/lib/ai/gemini";
+import { activeAiModel, geminiEmbed, geminiEmbedModel, geminiEnabled, geminiFeaturesEnabled, geminiJson, geminiPdfText, EMBED_DIMS } from "@/lib/ai/gemini";
 import { can } from "@/lib/auth/roles";
 import type { SessionPayload } from "@/lib/auth/session";
 import { withRequestContext } from "@/lib/data";
@@ -287,7 +287,7 @@ async function overview(session: SessionPayload): Promise<KbOverview> {
       categories: new Set(live.map((d) => d.type)).size,
       lastIndexedAt: documents.map((d) => d.updatedAt).sort().at(-1) ?? null,
     },
-    ai: { enabled: on, model: on ? geminiModel() : null, embedModel: on ? geminiEmbedModel() : null, dims: on ? EMBED_DIMS : null },
+    ai: { enabled: on, model: on ? activeAiModel() : null, embedModel: on && geminiFeaturesEnabled() ? geminiEmbedModel() : null, dims: on && geminiFeaturesEnabled() ? EMBED_DIMS : null },
     suggestions: approved.slice(0, 3).map((d) => `Summarise the key rules in “${d.title}”`),
   };
 }

@@ -1779,3 +1779,14 @@ model AlumniMentorshipRequest {
   @@map("alumni_mentorship_requests")
 }
 
+model AiProviderSetting {
+  provider  String   @id
+  apiKeyEnc Bytes?   @map("api_key_enc")
+  model     String   @default("")
+  enabled   Boolean  @default(false)
+  isDefault Boolean  @default(false) @map("is_default")
+  updatedBy String   @default("") @map("updated_by")
+  updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@map("ai_provider_settings")
+}
