@@ -249,6 +249,42 @@ export function modulesForRole(role: Role): ModuleDef[] {
   return MODULES.filter((m) => m.roles.includes(role));
 }
 
+/*
+ * The Super Admin's menu lists only university and platform work. Every staff tool stays available to the Super
+ * Admin (search, links, direct URLs); it is just not listed. Inside a college, the college-management tools are added.
+ */
+export const SUPER_ADMIN_NAV = new Set([
+  "notice-board",
+  "colleges",
+  "content-desk",
+  "curriculum",
+  "admission-insights",
+  "naac-readiness",
+  "aicte-compliance",
+  "placement-board",
+  "issued-certificates",
+  "users",
+  "roles-permissions",
+  "module-control",
+  "ai-providers",
+  "ai-governance",
+  "ai-observability",
+  "agent-store",
+  "integrations",
+  "notifications-config",
+  "security-settings",
+  "audit-log",
+  "billing",
+  "developer-api",
+]);
+export const SUPER_ADMIN_COLLEGE_NAV = new Set(["admissions", "staff", "departments", "course-management", "question-bank", "events", "college-website", "gallery", "knowledge-base", "certificate-authority", "hospital-dashboard", "nmc-compliance"]);
+
+/** Whether a module is listed in the role's menu (all roles but the Super Admin list every module they have). */
+export function inNav(role: Role, slug: string, allColleges: boolean): boolean {
+  if (role !== "admin") return true;
+  return SUPER_ADMIN_NAV.has(slug) || (!allColleges && SUPER_ADMIN_COLLEGE_NAV.has(slug));
+}
+
 export function findModule(slug: string): ModuleDef | undefined {
   return MODULES.find((m) => m.slug === slug);
 }
