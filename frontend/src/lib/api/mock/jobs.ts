@@ -13,8 +13,7 @@ import {
   ToggleSaveJobBody,
   WithdrawJobBody,
 } from "@/lib/api/jobs-schemas";
-import { READINESS_RULES } from "@/lib/api/learning-schemas";
-import { computeReadiness, type Readiness } from "./learning";
+import { computeReadiness, READINESS_RULES, type Readiness } from "./learning";
 import { getStudentAcademicProfile } from "./student-profile";
 import { driveStore } from "./drive-store";
 import { studentStateStore } from "./student-state-store";

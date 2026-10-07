@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import { z } from "zod";
 import { apiFetch, ApiError } from "@/lib/api/client";
 import {
   type ApplyJobBody,
@@ -54,6 +55,7 @@ import type { Role } from "@/lib/auth/roles";
 import { Modal } from "./assignments-shared";
 
 const JOBS_KEY = ["jobs-overview"] as const;
+const Ok = z.object({ ok: z.boolean() });
 
 type FilterTab = "matched" | "all" | "drives" | "internships" | "applications" | "saved";
 type SortOption = "match" | "package" | "deadline" | "company";
@@ -80,7 +82,7 @@ export function JobsModule({ role }: { role: Role }) {
 
   // Mutations
   const applyMutation = useMutation({
-    mutationFn: (body: ApplyJobBody) => apiFetch("/api/v1/jobs/apply", { ok: true }, { method: "POST", body }),
+    mutationFn: (body: ApplyJobBody) => apiFetch("/api/v1/jobs/apply", Ok, { method: "POST", body }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: JOBS_KEY });
       setApplyJob(null);
@@ -89,7 +91,7 @@ export function JobsModule({ role }: { role: Role }) {
   });
 
   const withdrawMutation = useMutation({
-    mutationFn: (body: WithdrawJobBody) => apiFetch("/api/v1/jobs/withdraw", { ok: true }, { method: "POST", body }),
+    mutationFn: (body: WithdrawJobBody) => apiFetch("/api/v1/jobs/withdraw", Ok, { method: "POST", body }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: JOBS_KEY });
       setWithdrawingJobId(null);
@@ -97,7 +99,7 @@ export function JobsModule({ role }: { role: Role }) {
   });
 
   const saveMutation = useMutation({
-    mutationFn: (body: ToggleSaveJobBody) => apiFetch("/api/v1/jobs/save", { ok: true }, { method: "POST", body }),
+    mutationFn: (body: ToggleSaveJobBody) => apiFetch("/api/v1/jobs/save", Ok, { method: "POST", body }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: JOBS_KEY });
     },
@@ -625,7 +627,7 @@ function JobCard({
 
       {/* Card Footer Actions */}
       <div className="flex items-center gap-2 border-t border-line/60 bg-surface-2/30 p-3">
-        <Button variant="outline" size="sm" onClick={onOpenDetail} className="flex-1 text-xs">
+        <Button variant="secondary" size="sm" onClick={onOpenDetail} className="flex-1 text-xs">
           View Details
         </Button>
 
@@ -728,7 +730,7 @@ function ApplicationsTrackerView({
                   </Link>
 
                   <Button
-                    variant="outline"
+                    variant="secondary"
                     size="sm"
                     onClick={() => onWithdraw(app.jobId)}
                     disabled={withdrawing}
@@ -936,7 +938,7 @@ function JobDetailDialog({
             Practice company mock interview
           </Link>
 
-          <Button variant="outline" size="sm" onClick={onClose}>
+          <Button variant="secondary" size="sm" onClick={onClose}>
             Close
           </Button>
         </div>
@@ -1021,7 +1023,7 @@ function ApplyDialog({
         </div>
 
         <div className="flex items-center justify-end gap-2 border-t border-line pt-3">
-          <Button variant="outline" size="sm" onClick={onClose} disabled={isSubmitting}>
+          <Button variant="secondary" size="sm" onClick={onClose} disabled={isSubmitting}>
             Cancel
           </Button>
           <Button size="sm" onClick={onSubmit} disabled={isSubmitting}>

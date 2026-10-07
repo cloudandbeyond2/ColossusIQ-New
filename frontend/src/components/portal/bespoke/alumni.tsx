@@ -22,6 +22,7 @@ import {
   X,
 } from "lucide-react";
 import { useMemo, useState } from "react";
+import { z } from "zod";
 import { apiFetch, ApiError } from "@/lib/api/client";
 import {
   AlumniMemberItem,
@@ -50,6 +51,7 @@ import type { Role } from "@/lib/auth/roles";
 import { Modal } from "./assignments-shared";
 
 const ALUMNI_KEY = ["alumni-network"] as const;
+const Ok = z.object({ ok: z.boolean() });
 
 const TOPIC_TONES: Record<string, "brand" | "teal" | "amber" | "sky" | "neutral"> = {
   "Placement Prep": "teal",
@@ -84,7 +86,7 @@ export function AlumniModule({ role }: { role: Role }) {
   // Mutations
   const requestMutation = useMutation({
     mutationFn: (body: RequestMentorshipBody) =>
-      apiFetch("/api/v1/alumni/request", { ok: true }, { method: "POST", body }),
+      apiFetch("/api/v1/alumni/request", Ok, { method: "POST", body }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ALUMNI_KEY });
       setRequestModalMentor(null);
@@ -94,7 +96,7 @@ export function AlumniModule({ role }: { role: Role }) {
 
   const cancelRequestMutation = useMutation({
     mutationFn: (requestId: string) =>
-      apiFetch(`/api/v1/alumni/requests/${requestId}`, { ok: true }, { method: "DELETE" }),
+      apiFetch(`/api/v1/alumni/requests/${requestId}`, Ok, { method: "DELETE" }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ALUMNI_KEY });
     },
@@ -102,7 +104,7 @@ export function AlumniModule({ role }: { role: Role }) {
 
   const addMentorMutation = useMutation({
     mutationFn: (body: CreateAlumniBody) =>
-      apiFetch("/api/v1/alumni", { ok: true }, { method: "POST", body }),
+      apiFetch("/api/v1/alumni", Ok, { method: "POST", body }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ALUMNI_KEY });
       setShowAddMentorModal(false);
@@ -424,7 +426,7 @@ export function AlumniModule({ role }: { role: Role }) {
                           {/* Row Action */}
                           <td className="py-3.5 pl-3 pr-4 text-right">
                             <Button
-                              variant="outline"
+                              variant="secondary"
                               size="sm"
                               onClick={() => {
                                 setRequestModalMentor(m);
@@ -524,7 +526,7 @@ export function AlumniModule({ role }: { role: Role }) {
             </div>
 
             <div className="flex items-center justify-end gap-2 border-t border-line pt-3">
-              <Button variant="outline" size="sm" onClick={() => setRequestModalMentor(null)}>
+              <Button variant="secondary" size="sm" onClick={() => setRequestModalMentor(null)}>
                 Cancel
               </Button>
               <Button
@@ -604,7 +606,7 @@ export function AlumniModule({ role }: { role: Role }) {
             </div>
 
             <div className="flex items-center justify-end border-t border-line pt-3">
-              <Button variant="outline" size="sm" onClick={() => setDetailMentor(null)}>
+              <Button variant="secondary" size="sm" onClick={() => setDetailMentor(null)}>
                 Close
               </Button>
             </div>
@@ -712,7 +714,7 @@ function RequestsView({
 
               {r.status === "Pending" && (
                 <Button
-                  variant="outline"
+                  variant="secondary"
                   size="sm"
                   onClick={() => onCancel(r.id)}
                   disabled={cancelling}
@@ -856,7 +858,7 @@ function AddMentorDialog({
         </div>
 
         <div className="flex items-center justify-end gap-2 border-t border-line pt-3">
-          <Button variant="outline" size="sm" type="button" onClick={onClose} disabled={isSubmitting}>
+          <Button variant="secondary" size="sm" type="button" onClick={onClose} disabled={isSubmitting}>
             Cancel
           </Button>
           <Button size="sm" type="submit" disabled={isSubmitting}>
