@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Eye, Pencil, Plus, Search, Send, Trash2 } from "lucide-react";
@@ -315,12 +315,15 @@ function SubmissionCard({ sub, assignment }: { sub: Submission; assignment: Assi
   const [feedback, setFeedback] = useState(sub.feedback);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [general, setGeneral] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
 
   const grade = useMutation({
     mutationFn: (body: { marks: number; feedback: string }) => apiFetch(`/api/v1/assignments/${assignment.id}/submissions/${sub.id}`, Submission, { method: "PATCH", body }),
     onSuccess: () => {
       setErrors({});
       setGeneral(null);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
       void qc.invalidateQueries({ queryKey: submissionsKey(assignment.id) });
       void qc.invalidateQueries({ queryKey: LIST_KEY });
     },
@@ -369,6 +372,11 @@ function SubmissionCard({ sub, assignment }: { sub: Submission; assignment: Assi
           {grade.isPending ? <Spinner /> : null} {sub.marks === null ? "Save marks" : "Update"}
         </Button>
       </form>
+      {saved ? (
+        <p className="mt-2 text-sm font-medium text-teal" role="status">
+          ✓ Marks saved successfully!
+        </p>
+      ) : null}
       {general ? (
         <p className="mt-2 text-sm text-rose" role="alert">
           {general}
