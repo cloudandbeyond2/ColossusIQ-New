@@ -50,6 +50,7 @@ import { dispatchExamPrep } from "./exam-prep";
 import { dispatchCurrentAffairs } from "./current-affairs";
 import { dispatchPrepContent } from "./prep-content";
 import { dispatchAiProviders } from "./ai-providers";
+import { dispatchCertificateDesk } from "./certificate-desk";
 import { dispatchExperience, experienceNotifications } from "./experience";
 import { dispatchViva } from "./viva";
 import { dispatchResume } from "./resume";
@@ -253,6 +254,7 @@ export async function dispatch(method: string, segs: string[], rawBody: unknown,
   if (segs[0] === "current-affairs") return dispatchCurrentAffairs(method, segs, rawBody, session);
   if (segs[0] === "prep-content") return dispatchPrepContent(method, segs, rawBody, session);
   if (segs[0] === "ai-providers") return dispatchAiProviders(method, segs, rawBody, session);
+  if (segs[0] === "certificate-desk") return dispatchCertificateDesk(method, segs, rawBody, session);
   if (segs[0] === "experience") return dispatchExperience(method, segs, rawBody, session);
   if (segs[0] === "viva") return dispatchViva(method, segs, rawBody, session);
   if (segs[0] === "resume") return dispatchResume(method, segs, rawBody, session);

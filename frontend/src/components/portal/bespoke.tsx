@@ -48,6 +48,8 @@ import { ExamPrepHubModule } from "./bespoke/exam-prep";
 import { CurrentAffairsDeskModule } from "./bespoke/current-affairs-desk";
 import { ExamPrepStudioModule } from "./bespoke/exam-prep-studio";
 import { AiProvidersModule } from "./bespoke/ai-providers";
+import { CertificateAuthorityModule } from "./bespoke/certificate-authority";
+import { CertificateRequestsModule } from "./bespoke/certificate-requests";
 import { JobsModule } from "./bespoke/jobs";
 import { AlumniModule } from "./bespoke/alumni";
 
@@ -99,6 +101,8 @@ const BESPOKE: Record<string, (props: { role: Role }) => React.ReactNode> = {
   "current-affairs-desk": () => <CurrentAffairsDeskModule />,
   "exam-prep-studio": () => <ExamPrepStudioModule />,
   "ai-providers": () => <AiProvidersModule />,
+  "certificate-authority": () => <CertificateAuthorityModule />,
+  "certificate-requests": () => <CertificateRequestsModule />,
   jobs: ({ role }) => <JobsModule role={role} />,
   alumni: ({ role }) => <AlumniModule role={role} />,
 };
