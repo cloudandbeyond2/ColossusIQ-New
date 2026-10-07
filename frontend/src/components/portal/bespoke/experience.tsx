@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ExternalLink, Pencil, Plus, Search, Trash2 } from "lucide-react";
+import { Award, Check, Clock, ExternalLink, Filter, Pencil, Plus, RotateCcw, Search, ShieldCheck, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { z } from "zod";
 import { LoadError } from "@/components/ui/load-error";
@@ -30,14 +30,28 @@ export function ExperienceModule() {
 
 function Tiles({ s, labels }: { s: ExperienceOverview["summary"]; labels: [string, string, string, string] }) {
   const v = [s.total, s.verified, s.pending, s.rejected];
+  const meta = [
+    { label: labels[0], count: v[0], icon: Award, tone: "text-brand", bg: "bg-brand/10 border-brand/20" },
+    { label: labels[1], count: v[1], icon: ShieldCheck, tone: "text-teal", bg: "bg-teal/10 border-teal/20" },
+    { label: labels[2], count: v[2], icon: Clock, tone: "text-amber", bg: "bg-amber/10 border-amber/20" },
+    { label: labels[3], count: v[3], icon: RotateCcw, tone: "text-rose", bg: "bg-rose/10 border-rose/20" },
+  ];
   return (
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-      {labels.map((l, i) => (
-        <Card key={l} className="p-5">
-          <p className="text-sm text-ink-3">{l}</p>
-          <p className="mt-1 text-2xl font-semibold text-ink">{v[i]}</p>
-        </Card>
-      ))}
+      {meta.map((m) => {
+        const Icon = m.icon;
+        return (
+          <Card key={m.label} className="p-5 transition-shadow hover:shadow-xs">
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-medium text-ink-3">{m.label}</p>
+              <div className={cn("flex size-9 items-center justify-center rounded-xl border", m.bg)}>
+                <Icon className={cn("size-4.5", m.tone)} />
+              </div>
+            </div>
+            <p className="mt-2 text-2xl font-bold tracking-tight text-ink">{m.count}</p>
+          </Card>
+        );
+      })}
     </div>
   );
 }
@@ -254,80 +268,192 @@ function ActivityDialog({ item, onClose }: { item: ExperienceItem | null; onClos
 
 /* ───────────────────────────── faculty / HOD ───────────────────────────── */
 function Review({ data }: { data: ExperienceOverview }) {
+  const qc = useQueryClient();
   const [tab, setTab] = useState<"Pending" | "Verified" | "Rejected" | "All">("Pending");
+  const [category, setCategory] = useState("All");
   const [text, setText] = useState("");
   const [deciding, setDeciding] = useState<{ item: ExperienceItem; decision: "Verified" | "Rejected" } | null>(null);
-  const shown = data.items.filter((x) => (tab === "All" || x.status === tab) && `${x.studentName} ${x.rollNo} ${x.title} ${x.organisation}`.toLowerCase().includes(text.trim().toLowerCase()));
+  const [removing, setRemoving] = useState<ExperienceItem | null>(null);
+
+  const removeMutation = useMutation({
+    mutationFn: (id: string) => apiFetch(`/api/v1/experience/${encodeURIComponent(id)}`, ExperienceOverviewOk, { method: "DELETE" }),
+    onSuccess: () => {
+      setRemoving(null);
+      void qc.invalidateQueries({ queryKey: KEY });
+    },
+  });
+
+  const shown = data.items.filter((x) => {
+    const matchesTab = tab === "All" || x.status === tab;
+    const matchesCat = category === "All" || x.category === category;
+    const matchesText = `${x.studentName} ${x.rollNo} ${x.title} ${x.organisation} ${x.role}`.toLowerCase().includes(text.trim().toLowerCase());
+    return matchesTab && matchesCat && matchesText;
+  });
+
   const tabs = [
-    ["Pending", data.summary.pending],
-    ["Verified", data.summary.verified],
-    ["Rejected", data.summary.rejected],
-    ["All", data.summary.total],
+    ["Pending", data.summary.pending, "To verify"],
+    ["Verified", data.summary.verified, "Verified History"],
+    ["Rejected", data.summary.rejected, "Sent back"],
+    ["All", data.summary.total, "All Activities"],
   ] as const;
+
   return (
     <div className="space-y-6">
       <Tiles s={data.summary} labels={["Activities in college", "Verified", "Waiting for you", "Sent back"]} />
       <Card>
-        <div className="flex flex-wrap items-center gap-3 border-b border-line p-4">
-          <div className="flex gap-1" role="tablist" aria-label="Status">
-            {tabs.map(([t, n]) => (
-              <button key={t} role="tab" aria-selected={tab === t} onClick={() => setTab(t)} className={cn("rounded-full px-3 py-1 text-xs font-medium", tab === t ? "bg-brand text-white" : "text-ink-3 hover:bg-surface-2")}>
-                {t === "Rejected" ? "Sent back" : t === "Pending" ? "To verify" : t} · {n}
+        <div className="flex flex-col gap-3 border-b border-line p-4 lg:flex-row lg:items-center">
+          <div className="flex flex-wrap gap-1" role="tablist" aria-label="Status">
+            {tabs.map(([t, n, label]) => (
+              <button
+                key={t}
+                role="tab"
+                aria-selected={tab === t}
+                onClick={() => setTab(t)}
+                className={cn(
+                  "rounded-full px-3 py-1.5 text-xs font-medium transition-colors",
+                  tab === t ? "bg-brand text-white shadow-xs" : "text-ink-3 hover:bg-surface-2 hover:text-ink"
+                )}
+              >
+                {label} · {n}
               </button>
             ))}
           </div>
-          <div className="relative min-w-[200px] flex-1">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-3" aria-hidden="true" />
-            <input aria-label="Search" className={cn(inputClass, "pl-9")} placeholder="Search by student, roll number or activity…" value={text} onChange={(e) => setText(e.target.value)} />
+
+          <div className="flex flex-1 flex-wrap items-center gap-2">
+            <div className="relative min-w-[200px] flex-1">
+              <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ink-3" aria-hidden="true" />
+              <input
+                aria-label="Search"
+                className={cn(inputClass, "pl-9 text-xs")}
+                placeholder="Search student, roll number, activity, club…"
+                value={text}
+                onChange={(e) => setText(e.target.value)}
+              />
+            </div>
+
+            <div className="flex items-center gap-1.5">
+              <Filter className="size-3.5 text-ink-3" aria-hidden="true" />
+              <select
+                aria-label="Filter by Category"
+                className={cn(inputClass, "w-auto text-xs py-1.5")}
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+              >
+                <option value="All">All Categories</option>
+                {EXPERIENCE_CATEGORIES.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
         </div>
+
         <CardBody className="p-0">
           {!shown.length ? (
-            <div className="p-6">
-              <EmptyState title={tab === "Pending" ? "Nothing to verify" : "No activities here"} body={tab === "Pending" ? "When students add activities to their passport, they appear here for you to check." : "Nothing matches this view."} />
+            <div className="p-8 text-center">
+              <EmptyState
+                title={tab === "Pending" ? "Nothing to verify" : tab === "Verified" ? "No verified activities yet" : "No matching activities"}
+                body={
+                  tab === "Pending"
+                    ? "When students submit co-curricular activities, they will appear here for verification."
+                    : "Try adjusting your search keywords or category filter."
+                }
+              />
             </div>
           ) : (
             <ul className="divide-y divide-line">
               {shown.map((x) => (
-                <li key={x.id} className="grid gap-3 p-4 sm:grid-cols-[1fr_auto] sm:items-start">
-                  <div className="min-w-0">
-                    <p className="text-xs text-ink-3">
-                      {x.studentName}
-                      {x.rollNo ? ` · ${x.rollNo}` : ""} · added {date(x.createdAt)}
-                    </p>
-                    <div className="mt-0.5 flex flex-wrap items-center gap-2">
-                      <p className="font-medium text-ink">{x.title}</p>
-                      <Badge tone="neutral">{x.category}</Badge>
-                      <Badge tone={TONE[x.status]}>{x.status === "Rejected" ? "Sent back" : x.status === "Pending" ? "To verify" : "Verified"}</Badge>
+                <li key={x.id} className="p-5 transition-colors hover:bg-surface-2/40">
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="flex items-start gap-3.5 min-w-0">
+                      <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-brand/10 font-bold text-brand text-xs ring-2 ring-brand/20">
+                        {x.studentName ? x.studentName.split(" ").map((n) => n[0]).slice(0, 2).join("").toUpperCase() : "ST"}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="font-semibold text-ink">{x.studentName}</span>
+                          {x.rollNo ? <Badge tone="neutral" className="text-[11px] font-mono">{x.rollNo}</Badge> : null}
+                          <span className="text-xs text-ink-3">· submitted {date(x.createdAt)}</span>
+                        </div>
+
+                        <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                          <h3 className="text-base font-semibold text-ink">{x.title}</h3>
+                          <Badge tone="neutral">{x.category}</Badge>
+                          <Badge tone={TONE[x.status]}>
+                            {x.status === "Rejected" ? "Sent back" : x.status === "Pending" ? "To verify" : "Verified"}
+                          </Badge>
+                        </div>
+
+                        <p className="mt-1 text-sm text-ink-2">
+                          <span className="font-medium text-ink">{x.role}</span>
+                          {x.organisation ? ` · ${x.organisation}` : ""}
+                          <span className="text-ink-3"> ({x.period})</span>
+                        </p>
+
+                        {x.description ? (
+                          <div className="mt-3 rounded-xl border border-line bg-surface-2/60 p-3 text-sm text-ink-2">
+                            <p className="font-medium text-xs text-ink-3 uppercase tracking-wider mb-1">Key Achievement / Impact</p>
+                            {x.description}
+                          </div>
+                        ) : null}
+
+                        <div className="mt-3 flex flex-wrap items-center gap-3">
+                          {x.link ? (
+                            <a
+                              href={x.link}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-surface px-3 py-1.5 text-xs font-medium text-brand shadow-xs transition hover:bg-surface-2"
+                            >
+                              <ExternalLink className="size-3.5" aria-hidden="true" />
+                              View Evidence Certificate
+                            </a>
+                          ) : (
+                            <span className="text-xs text-ink-3">No certificate link attached</span>
+                          )}
+
+                          {x.status !== "Pending" && x.reviewedAt ? (
+                            <span className="text-xs text-ink-3">
+                              {x.status === "Verified" ? "Verified" : "Sent back"} by {x.reviewerName} ({x.reviewerRole}) on {date(x.reviewedAt)}
+                              {x.reviewNote ? ` — "${x.reviewNote}"` : ""}
+                            </span>
+                          ) : null}
+                        </div>
+                      </div>
                     </div>
-                    <p className="text-sm text-ink-2">{[x.role, x.organisation].filter(Boolean).join(" · ")}</p>
-                    <p className="text-xs text-ink-3">{x.period}</p>
-                    {x.description ? <p className="mt-2 text-sm text-ink-2">{x.description}</p> : null}
-                    {x.link ? (
-                      <a href={x.link} target="_blank" rel="noopener noreferrer" className="mt-1 inline-flex items-center gap-1 text-xs text-brand hover:underline">
-                        Open evidence <ExternalLink className="h-3 w-3" aria-hidden="true" />
-                      </a>
-                    ) : (
-                      <p className="mt-1 text-xs text-ink-3">No evidence link</p>
-                    )}
-                    {x.status !== "Pending" && x.reviewedAt ? (
-                      <p className="mt-2 text-xs text-ink-3">
-                        {x.status === "Verified" ? "Verified" : "Sent back"} by {x.reviewerName} ({x.reviewerRole}), {date(x.reviewedAt)}
-                        {x.reviewNote ? ` — ${x.reviewNote}` : ""}
-                      </p>
-                    ) : null}
-                  </div>
-                  <div className="flex gap-1.5">
-                    {x.status !== "Verified" ? (
-                      <Button size="sm" onClick={() => setDeciding({ item: x, decision: "Verified" })}>
-                        Verify
+
+                    <div className="flex shrink-0 items-center gap-2 sm:self-start">
+                      {x.status !== "Verified" ? (
+                        <Button
+                          size="sm"
+                          onClick={() => setDeciding({ item: x, decision: "Verified" })}
+                          className="gap-1.5 bg-teal hover:bg-teal/90 text-white border-transparent"
+                        >
+                          <Check className="size-4" /> Verify
+                        </Button>
+                      ) : null}
+                      {x.status !== "Rejected" ? (
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          onClick={() => setDeciding({ item: x, decision: "Rejected" })}
+                          className="gap-1.5"
+                        >
+                          <RotateCcw className="size-3.5 text-rose" /> Send back
+                        </Button>
+                      ) : null}
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        aria-label={`Delete ${x.title}`}
+                        onClick={() => setRemoving(x)}
+                        className="text-ink-3 hover:text-rose hover:bg-rose-soft"
+                      >
+                        <Trash2 className="size-4" />
                       </Button>
-                    ) : null}
-                    {x.status !== "Rejected" ? (
-                      <Button size="sm" variant="secondary" onClick={() => setDeciding({ item: x, decision: "Rejected" })}>
-                        Send back
-                      </Button>
-                    ) : null}
+                    </div>
                   </div>
                 </li>
               ))}
@@ -335,7 +461,28 @@ function Review({ data }: { data: ExperienceOverview }) {
           )}
         </CardBody>
       </Card>
+
       {deciding ? <DecisionDialog {...deciding} onClose={() => setDeciding(null)} /> : null}
+
+      {removing ? (
+        <Modal title="Delete activity entry?" onClose={() => setRemoving(null)}>
+          <p className="text-sm text-ink-2">
+            Are you sure you want to permanently delete <strong className="text-ink">“{removing.title}”</strong> submitted by <strong className="text-ink">{removing.studentName}</strong>? This action cannot be undone.
+          </p>
+          <div className="mt-5 flex justify-end gap-2">
+            <Button variant="secondary" onClick={() => setRemoving(null)}>
+              Cancel
+            </Button>
+            <Button
+              variant="danger"
+              disabled={removeMutation.isPending}
+              onClick={() => removeMutation.mutate(removing.id)}
+            >
+              {removeMutation.isPending ? <Spinner /> : <Trash2 className="size-4" />} Delete entry
+            </Button>
+          </div>
+        </Modal>
+      ) : null}
     </div>
   );
 }
