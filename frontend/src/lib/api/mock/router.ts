@@ -56,6 +56,7 @@ import { dispatchNotices, noticeNotifications } from "./notices";
 import { dispatchContentDesk } from "./content-desk";
 import { dispatchCurriculum } from "./curriculum";
 import { dispatchCourseRoadmap } from "./course-roadmap";
+import { dispatchIntegrations } from "./integrations";
 import { platformHealth } from "./platform-pages";
 import { API_AREAS, apiAreaOpen, disabledPairs, pairKey } from "@/lib/module-access";
 import { dispatchExperience, experienceNotifications } from "./experience";
@@ -257,6 +258,7 @@ export async function dispatch(method: string, segs: string[], rawBody: unknown,
   if (segs[0] === "content-desk") return dispatchContentDesk(method, segs, rawBody, session);
   if (segs[0] === "curriculum") return dispatchCurriculum(method, segs, rawBody, session);
   if (segs[0] === "course-roadmap") return dispatchCourseRoadmap(method, segs, rawBody, session);
+  if (segs[0] === "integrations") return dispatchIntegrations(method, segs, rawBody, session);
   if (segs[0] === "platform-health") {
     if (session.role !== "admin") return { status: 403, body: { error: { code: "forbidden", message: "Only the University Super Admin can view platform health." } } };
     if (method !== "GET" || segs.length !== 1) return { status: 404, body: { error: { code: "not_found", message: "Not found." } } };

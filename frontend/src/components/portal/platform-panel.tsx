@@ -13,6 +13,7 @@ const LINKS: Array<[string, string, string]> = [
   ["curriculum", "Curriculum Studio", "diploma"],
   ["notice-board", "Notice Board", "megaphone"],
   ["module-control", "Module Control", "apps"],
+  ["integrations", "Integrations & Setup", "plug-connection"],
   ["ai-providers", "AI Providers", "microchip-ai"],
   ["users", "Users", "users"],
   ["roles-permissions", "Roles & Permissions", "lock"],
@@ -46,6 +47,21 @@ export function PlatformPanel() {
           <p className="flex items-center gap-2 pt-1 text-xs text-ink-3">
             <Fi name="database" /> {d.database === "postgres" ? "PostgreSQL with row-level security" : "In-memory demo data store"}
           </p>
+          <Link href="/admin/integrations" className="mt-1 block rounded-xl border border-line px-3 py-2 transition hover:border-brand/40">
+            <span className="flex items-center justify-between text-xs font-medium text-ink">
+              Integrations
+              <span className="text-ink-3">
+                {d.integrations.filter((i) => i.status === "Connected" || i.status === "Saved").length}/{d.integrations.length} set up
+              </span>
+            </span>
+            <span className="mt-1.5 flex flex-wrap gap-1">
+              {d.integrations.map((i) => (
+                <span key={i.id} className={cn("rounded-full px-2 py-0.5 text-[10px]", i.status === "Connected" ? "bg-teal-soft text-teal" : i.status === "Saved" ? "bg-sky-soft text-sky" : i.status === "Incomplete" ? "bg-amber-soft text-amber" : "bg-surface-2 text-ink-3")} title={`${i.name}: ${i.status}`}>
+                  {i.name}
+                </span>
+              ))}
+            </span>
+          </Link>
         </CardBody>
       </Card>
 

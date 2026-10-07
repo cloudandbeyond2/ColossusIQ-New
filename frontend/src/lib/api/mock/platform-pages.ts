@@ -144,27 +144,6 @@ export async function agentStorePage(): Promise<GalleryData> {
   };
 }
 
-/* ── Integrations: what the platform is actually connected to. ── */
-export async function integrationsPage(): Promise<GalleryData> {
-  await refreshAiConfig();
-  const pg = dataBackend() === "postgres";
-  const env = (k: string) => Boolean((process.env[k] ?? "").trim());
-  const items: GalleryData["items"] = PIDS.map((id) => {
-    const s = providerState(id);
-    return { title: full(id), description: `${PROVIDERS[id].vendor} AI for mentoring, generation and evaluation. Managed in AI Providers.`, tag: "AI", meta: s.label, tone: s.tone };
-  });
-  items.push(
-    { title: pg ? "PostgreSQL" : "In-memory demo store", description: pg ? "Primary database with row-level security isolating every college." : "Demo data kept in the server's memory. Set DATA_BACKEND=postgres for production.", tag: "Database", meta: pg ? "Connected" : "Demo mode", tone: pg ? "teal" : "amber" },
-    { title: "Sign-in & MFA", description: "Built-in accounts with time-based one-time codes for staff and administrators.", tag: "Identity", meta: "Connected", tone: "teal" },
-    { title: "Certificate verification", description: "Public /verify page and QR codes for every certificate the Principal issues.", tag: "Certificates", meta: env("PUBLIC_APP_URL") ? "Connected" : "Uses request host", tone: env("PUBLIC_APP_URL") ? "teal" : "sky" },
-    { title: "Email gateway", description: "Institution-approved email for notifications and digests.", tag: "Communication", meta: env("SMTP_HOST") ? "Connected" : "Not configured", tone: env("SMTP_HOST") ? "teal" : "neutral" },
-    { title: "SMS gateway", description: "Exam reminders and alerts by SMS.", tag: "Communication", meta: env("SMS_API_KEY") ? "Connected" : "Not configured", tone: env("SMS_API_KEY") ? "teal" : "neutral" },
-    { title: "Student Information System / ERP", description: "Sync students, programmes, fees and timetables from the university ERP.", tag: "SIS / ERP", meta: "Available on request", tone: "neutral" },
-    { title: "LMS (Moodle / Canvas)", description: "Courses, content and grades.", tag: "LMS", meta: "Available on request", tone: "neutral" },
-  );
-  return { template: "gallery", items };
-}
-
 /* ── Developer API: the platform's real REST endpoints. ── */
 const AREAS: Array<[string, string, string]> = [
   ["records", "Records (courses, events, admissions, staff, users …)", "GET · POST · PUT · DELETE"],
@@ -173,6 +152,7 @@ const AREAS: Array<[string, string, string]> = [
   ["content-desk", "University Content Desk", "GET · POST · PUT · DELETE"],
   ["curriculum", "Curriculum Studio", "GET · POST · PUT · DELETE"],
   ["course-roadmap", "Course Roadmap", "GET · POST · PATCH · DELETE"],
+  ["integrations", "Integrations & Setup", "GET · PUT · POST · DELETE"],
   ["ai-providers", "AI Providers", "GET · PUT · POST"],
   ["learning-courses", "AI Course Studio", "GET · POST · PUT"],
   ["teaching", "Teaching Studio & Skill Booster", "GET · POST"],
@@ -214,6 +194,7 @@ export async function developerApiPage(): Promise<ListData> {
 
 /* ── Super Admin home: platform health at a glance. ── */
 export async function platformHealth(): Promise<PlatformHealth> {
+  const { integrationStatuses } = await import("@/lib/integrations/config");
   await refreshAiConfig();
   const cfg = aiConfig();
   const { calls, since } = aiCalls();
@@ -230,6 +211,7 @@ export async function platformHealth(): Promise<PlatformHealth> {
       return { role, label: ROLE_META[role].label, granted: granted.length, on: granted.filter((m) => !off.has(`${m.slug}|${role}`)).length };
     }),
     switchedOff: off.size,
+    integrations: (await integrationStatuses()).map((x) => ({ id: x.id, name: x.name, provider: x.provider, status: x.status })),
     database: dataBackend() === "postgres" ? "postgres" : "memory",
   };
 }

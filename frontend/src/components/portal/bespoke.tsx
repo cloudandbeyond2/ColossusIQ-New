@@ -53,6 +53,7 @@ import { NoticeBoardModule } from "./bespoke/notice-board";
 import { ContentDeskModule } from "./bespoke/content-desk";
 import { CurriculumModule } from "./bespoke/curriculum";
 import { CourseRoadmapModule } from "./bespoke/course-roadmap";
+import { IntegrationsModule } from "./bespoke/integrations";
 import { CertificateAuthorityModule } from "./bespoke/certificate-authority";
 import { CertificateRequestsModule } from "./bespoke/certificate-requests";
 import { JobsModule } from "./bespoke/jobs";
@@ -112,6 +113,7 @@ const BESPOKE: Record<string, (props: { role: Role }) => React.ReactNode> = {
   "content-desk": () => <ContentDeskModule />,
   curriculum: ({ role }) => <CurriculumModule role={role} />,
   "course-roadmap": () => <CourseRoadmapModule />,
+  integrations: () => <IntegrationsModule />,
   "certificate-authority": () => <CertificateAuthorityModule />,
   "certificate-requests": () => <CertificateRequestsModule />,
   jobs: ({ role }) => <JobsModule role={role} />,

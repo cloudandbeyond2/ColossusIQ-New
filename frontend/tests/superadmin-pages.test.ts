@@ -51,6 +51,7 @@ const BESPOKE_API: Record<string, string[]> = {
   "content-desk": ["content-desk"],
   curriculum: ["curriculum"],
   "course-roadmap": ["course-roadmap"],
+  integrations: ["integrations"],
 };
 /** Pages without a dispatcher GET (static, or served by the route handler itself, like the college website). */
 const UNIVERSITY_ONLY = new Set(["content-desk"]);

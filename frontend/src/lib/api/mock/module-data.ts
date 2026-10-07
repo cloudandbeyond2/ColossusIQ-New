@@ -30,7 +30,7 @@ import { getCollegeSports } from "./sports";
 import { getCollegeCalendar } from "./academic-calendar";
 import { getStudentsList } from "./students-store";
 import { kbStore } from "./knowledge-store";
-import { agentStorePage, aiGovernancePage, aiObservabilityPage, billingPage, developerApiPage, integrationsPage } from "./platform-pages";
+import { agentStorePage, aiGovernancePage, aiObservabilityPage, billingPage, developerApiPage } from "./platform-pages";
 import type { SessionPayload } from "@/lib/auth/session";
 import type { ReadinessBase } from "./learning";
 import {
@@ -1209,7 +1209,6 @@ const DATA: Record<string, (collegeScope: string, live: ScopeData) => ModuleData
       ["Research & Analytics Lab", "Data analysis, case studies and reporting", "Department", "Active", "sky"],
     ]);
   },
-  integrations: () => integrationsPage(),
   "agent-store": () => agentStorePage(),
 
   /* ── settings ── */

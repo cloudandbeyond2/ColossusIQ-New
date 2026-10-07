@@ -103,9 +103,13 @@ Resources: `admissions`, `staff`, `users`, `courses`, `events`. One Zod schema v
 
 ```bash
 npm install
-cp .env.example .env.local   # then set SESSION_SECRET to 32+ random characters
+cp .env.example .env.local   # then set SESSION_SECRET and MFA_ENCRYPTION_KEY to 32+ random characters
 npm run dev                  # http://localhost:3000
 ```
+
+The full guide (PostgreSQL, migrations, production checklist, the Super Admin's first-run checklist and every
+integration: cloud storage, email, WhatsApp, SMS, payments, SSO, online classes, ERP webhook) is in
+[docs/SETUP.md](docs/SETUP.md). Every environment variable is documented in [.env.example](.env.example).
 
 Sign in with any email and a password of 8+ characters, choose a portal, then enter the demo MFA code **246810**.
 

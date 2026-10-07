@@ -209,7 +209,7 @@ export const MODULES: ModuleDef[] = [
   { slug: "aicte-compliance", title: "AICTE Compliance", description: "Approval conditions, faculty-student ratio, labs and mandatory disclosures.", group: "Institution", roles: ["institution", "admin"], template: "bespoke", icon: "shield", phase: "Phase 3", streams: ["engineering", "management", "polytechnic"] },
   { slug: "branding", title: "Branding & White Label", description: "Logo, colours, subdomain, academic structure and notification templates.", group: "Institution", roles: ["institution"], template: "settings", icon: "settings", phase: "Phase 3" },
   { slug: "notifications-config", title: "Notification Rules", description: "Event + priority + audience + timing + channel rules.", group: "Institution", roles: ["institution", "admin"], template: "settings", icon: "bell", phase: "Phase 3" },
-  { slug: "integrations", title: "Integrations", description: "SIS, ERP, LMS, attendance, exam, identity and communication systems.", group: "Institution", roles: ["institution", "admin"], template: "gallery", icon: "plug", phase: "Phase 4" },
+  { slug: "integrations", title: "Integrations & Setup", description: "Connect cloud storage, email, WhatsApp, SMS, online payments, single sign-on, online classes and your ERP. Secrets are stored encrypted and never shown again.", group: "Platform", roles: ["admin", "institution"], template: "bespoke", icon: "plug", phase: "MVP" },
 
   // ───────────── Recruiter ─────────────
   { slug: "talent-search", title: "Talent Search", description: "Search verified student profiles by skills, projects and readiness.", group: "Recruiter", roles: ["recruiter"], template: "list", icon: "search", phase: "Phase 4" },

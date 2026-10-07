@@ -100,6 +100,7 @@ export const API_AREAS: Record<string, string[]> = {
   "content-desk": ["content-desk"],
   curriculum: ["curriculum", "course-roadmap"],
   "course-roadmap": ["course-roadmap"],
+  integrations: ["integrations"],
   sports: ["sports"],
 };
 

@@ -39,6 +39,7 @@ export const PlatformHealth = z.object({
   ai: z.object({ requests: z.number(), ok: z.number(), since: z.string(), avgMs: z.number() }),
   access: z.array(z.object({ role: RoleId, label: z.string(), on: z.number(), granted: z.number() })),
   switchedOff: z.number(),
+  integrations: z.array(z.object({ id: z.string(), name: z.string(), provider: z.string().nullable(), status: z.string() })),
   database: z.enum(["postgres", "memory"]),
 });
 export type PlatformHealth = z.infer<typeof PlatformHealth>;
