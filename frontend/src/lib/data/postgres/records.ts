@@ -918,6 +918,22 @@ export const pgRecords: RecordStore = {
   async delete(res, id) {
     if (res.key === "users") return usersStore.delete(id);
     if (res.key === "questions") return questionsStore.delete(id);
+    if (res.key === "staff") {
+      const t = db();
+      const staff = await t.staff.findFirst({ where: { publicId: id } });
+      if (staff?.userId) {
+        await t.roleAssignment.deleteMany({ where: { userId: staff.userId, collegeId: staff.collegeId } });
+        const remainingRoles = await t.roleAssignment.count({ where: { userId: staff.userId } });
+        const isStudent = await t.student.count({ where: { userId: staff.userId } });
+        if (remainingRoles === 0 && isStudent === 0) {
+          await t.userCredential.deleteMany({ where: { userId: staff.userId } });
+          await t.userSession.deleteMany({ where: { userId: staff.userId } });
+          await t.staff.deleteMany({ where: { publicId: id } });
+          await t.user.deleteMany({ where: { id: staff.userId } });
+          return true;
+        }
+      }
+    }
     const a = adapterFor(res);
     const r = await a.delegate(db()).deleteMany({ where: { publicId: id } });
     if (res.key === "colleges") collegesChanged();

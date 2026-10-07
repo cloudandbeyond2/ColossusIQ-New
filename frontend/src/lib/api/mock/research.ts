@@ -1,4 +1,5 @@
 import "server-only";
+import { ALL_COLLEGES } from "@/config/tenancy";
 import { createHash, randomUUID } from "node:crypto";
 import { z } from "zod";
 import { geminiEnabled, geminiJson } from "@/lib/ai/gemini";
@@ -377,7 +378,8 @@ async function overview(session: SessionPayload, st: State): Promise<ResearchOve
 }
 
 export async function dispatchResearch(method: string, segs: string[], rawBody: unknown, session: SessionPayload): Promise<MockResult> {
-  if (session.role !== "student" && session.role !== "faculty") return err(403, "forbidden", "The research assistant is for students and faculty.");
+  if (session.role !== "student" && session.role !== "faculty" && session.role !== "admin") return err(403, "forbidden", "The research assistant is for students and faculty.");
+  if (session.college === ALL_COLLEGES) return err(409, "choose_college", "Switch into a college to use the research assistant: your projects are saved with that college.");
   const who = session.sub ?? session.name;
   const st = await loadState(session);
   const id = segs[2];

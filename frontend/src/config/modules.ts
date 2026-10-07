@@ -222,10 +222,23 @@ export const MODULES: ModuleDef[] = [
   { slug: "agent-store", title: "Agent Store", description: "Enable domain agents per institution — GATE, NEET, coding, accounting, law and more.", group: "Platform", roles: ["admin", "institution"], template: "gallery", icon: "cpu", phase: "Phase 4" },
   { slug: "ai-providers", title: "AI Providers", description: "API keys, models and on/off switches for Google Gemini (default), Anthropic Claude and OpenAI ChatGPT. Choose the default provider; the others act as fallbacks.", group: "Platform", roles: ["admin"], template: "bespoke", icon: "cpu", phase: "MVP", notice: "Keys are stored encrypted and never shown again after saving. Changes apply to every college." },
   { slug: "audit-log", title: "Audit Log", description: "Security-relevant actions, score overrides and configuration changes.", group: "Platform", roles: ["admin", "institution"], template: "list", icon: "scroll", phase: "MVP" },
-  { slug: "feature-flags", title: "Feature Flags", description: "Roll modules out per tenant and plan.", group: "Platform", roles: ["admin"], template: "settings", icon: "toggle", phase: "Phase 2" },
+  { slug: "module-control", title: "Module Control", description: "Switch any module on or off for each role — students, faculty, HODs, placement, incubation, principals and recruiters — across the university, with a preview of every role's menu.", group: "Platform", roles: ["admin"], template: "bespoke", icon: "toggle", phase: "MVP", notice: "Changes apply to every college at once and are audit-logged. Areas switched off for a college (Colleges) still stay hidden there." },
   { slug: "security-settings", title: "Security Settings", description: "MFA, SSO, session, password, data-retention and AI data policies.", group: "Platform", roles: ["admin", "institution"], template: "settings", icon: "shield", phase: "MVP" },
   { slug: "developer-api", title: "Developer API", description: "API keys, scopes and webhooks for the Student, Course, Assessment, AI and Career APIs.", group: "Platform", roles: ["admin"], template: "list", icon: "code", phase: "Phase 4" },
 ];
+
+/**
+ * The University Super Admin technically has every staff and management feature: any module a principal, HOD,
+ * faculty member, placement officer or incubation head can open is open to the Super Admin too. Personal tools that
+ * only make sense for a student or a recruiter (their own courses, resume, shortlists) stay with those roles.
+ */
+/*
+ * The University Super Admin has every staff-facing module as well as its own. (Certificate Requests is left out:
+ * requests go to the Principal, and the Super Admin reviews the Principal's register in Certificate Authority.)
+ */
+const MANAGEMENT_ROLES: Role[] = ["faculty", "hod", "institution", "placement", "incubation"];
+const NOT_FOR_ADMIN = new Set(["certificate-requests"]);
+for (const m of MODULES) if (!m.roles.includes("admin") && !NOT_FOR_ADMIN.has(m.slug) && m.roles.some((r) => MANAGEMENT_ROLES.includes(r))) m.roles.push("admin");
 
 export function modulesForRole(role: Role): ModuleDef[] {
   return MODULES.filter((m) => m.roles.includes(role));

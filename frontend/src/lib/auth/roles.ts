@@ -115,6 +115,7 @@ export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
   admin: [
     "ai:chat",
     "assessment:create",
+    "assessment:override-score",
     "tenant:manage",
     "ai:governance",
     "audit:read",

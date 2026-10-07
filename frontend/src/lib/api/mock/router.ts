@@ -51,6 +51,9 @@ import { dispatchCurrentAffairs } from "./current-affairs";
 import { dispatchPrepContent } from "./prep-content";
 import { dispatchAiProviders } from "./ai-providers";
 import { dispatchCertificateDesk } from "./certificate-desk";
+import { dispatchModuleControl } from "./module-control";
+import { platformHealth } from "./platform-pages";
+import { API_AREAS, apiAreaOpen, disabledPairs, pairKey } from "@/lib/module-access";
 import { dispatchExperience, experienceNotifications } from "./experience";
 import { dispatchViva } from "./viva";
 import { dispatchResume } from "./resume";
@@ -98,6 +101,7 @@ const UpdateSettingsBody = z.object({
 
 /** Is this module's area switched on for the caller's college? (Super Admin at "all" scope sees everything.) */
 export async function moduleEnabled(mod: ModuleDef, session: SessionPayload): Promise<boolean> {
+  if ((await disabledPairs()).has(pairKey(mod.slug, session.role))) return false;
   const stream = session.college === ALL_COLLEGES ? null : await collegeStream(session.college);
   if (mod.streams && stream && !mod.streams.includes(stream)) return false;
   if (!(TOGGLEABLE_GROUPS as readonly string[]).includes(mod.group)) return true;
@@ -105,7 +109,7 @@ export async function moduleEnabled(mod: ModuleDef, session: SessionPayload): Pr
   return groups === "all" || groups.includes(mod.group);
 }
 
-async function universityOverview() {
+export async function universityOverview() {
   const colleges = (await listColleges()).sort((a, b) => String(a.name).localeCompare(String(b.name)));
   const count = (key: string, collegeId: string, where?: Record<string, string>) => getStore().records.count(RESOURCES[key]!, collegeId, where);
   const rows = await Promise.all(
@@ -155,7 +159,7 @@ async function universityOverview() {
   };
 }
 
-const PATTERNS = [
+export const PATTERNS = [
   "GET university/overview",
   "GET colleges/options",
   "GET staff/faculty-options",
@@ -242,6 +246,14 @@ function matchRoute(method: string, segs: string[]): { route: (typeof PATTERNS)[
 const LEARNING_AREAS = new Set(["learning", "quizzes", "certificates", "placement"]);
 
 export async function dispatch(method: string, segs: string[], rawBody: unknown, session: SessionPayload, query: URLSearchParams): Promise<MockResult> {
+  // Module Control: an API area switched off (for every module it serves) for this role is closed.
+  if (API_AREAS[segs[0] ?? ""] && !apiAreaOpen(segs[0]!, session.role, await disabledPairs())) return { status: 403, body: { error: { code: "module_disabled", message: "This module has been switched off for your role." } } };
+  if (segs[0] === "module-control") return dispatchModuleControl(method, segs, rawBody, session);
+  if (segs[0] === "platform-health") {
+    if (session.role !== "admin") return { status: 403, body: { error: { code: "forbidden", message: "Only the University Super Admin can view platform health." } } };
+    if (method !== "GET" || segs.length !== 1) return { status: 404, body: { error: { code: "not_found", message: "Not found." } } };
+    return { status: 200, body: await platformHealth() };
+  }
   if (segs[0] === "records") return dispatchRecords(method, segs, rawBody, session, query);
   if (segs[0] === "question-bank" && segs[1] === "generate") return dispatchQuestionAi(method, segs, rawBody, session);
   if (segs[0] === "questions" || segs[0] === "question-bank") return dispatchRecords(method, ["records", "questions", ...segs.slice(1)], rawBody, session, query);
@@ -713,7 +725,7 @@ export async function dispatch(method: string, segs: string[], rawBody: unknown,
       );
     }
     case "GET projects":
-      if (session.role !== "student" && session.role !== "faculty") return forbidden();
+      if (session.role !== "student" && session.role !== "faculty" && session.role !== "admin") return forbidden();
       return ok(PROJECTS);
 
     /* ── AI ── */

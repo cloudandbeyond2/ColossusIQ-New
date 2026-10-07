@@ -1818,3 +1818,14 @@ model CertificateAward {
   @@index([recipientSub])
   @@map("certificate_awards")
 }
+
+model ModuleAccess {
+  moduleSlug String   @map("module_slug")
+  role       String
+  enabled    Boolean  @default(false)
+  updatedBy  String   @default("") @map("updated_by")
+  updatedAt  DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@id([moduleSlug, role])
+  @@map("module_access")
+}

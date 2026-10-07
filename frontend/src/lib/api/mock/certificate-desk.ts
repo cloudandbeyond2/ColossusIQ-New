@@ -172,15 +172,18 @@ export async function dispatchCertificateDesk(method: string, segs: string[], ra
     return ok(MyAwards.parse(sheets));
   }
 
-  if (!STAFF.has(s.role)) return err(403, "forbidden", "Certificates are issued by the Principal.");
+  // The Super Admin may review a college's register and design; issuing stays with that college's Principal.
+  const oversight = s.role === "admin";
+  if (!STAFF.has(s.role) && !(oversight && method === "GET" && segs.length === 1)) return err(403, "forbidden", "Certificates are issued by the Principal.");
   const authority = mayAuthorize(s);
 
   if (method === "GET" && segs.length === 1) {
     const [profile, list, students, certs] = await Promise.all([profileFrom(s.college, await store.getProfile(s)), store.listAwards(s), studentsOf(s), getStore().certificates.list({ scope: s.college })]);
-    const visible = authority ? list : list.filter((a) => a.requestedBySub === s.sub);
+    const visible = authority || oversight ? list : list.filter((a) => a.requestedBySub === s.sub);
     const body: DeskOverview = {
       profile,
       canAuthorize: authority && s.mfa,
+      reviewOnly: oversight ? `${profile.principalName} is this college's certifying authority. As Super Admin you can review the register, requests and design; issuing, approving and revoking stay with the Principal.` : null,
       awards: visible.slice(0, 1000).map(row),
       students: students.slice(0, 3000),
       counts: { issued: list.filter((a) => a.status === "Issued").length, pending: list.filter((a) => a.status === "Pending").length, revoked: list.filter((a) => a.status === "Revoked").length, courseCertificates: certs.length },
