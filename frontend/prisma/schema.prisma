@@ -337,6 +337,9 @@ model College {
   assignmentSubmissions AssignmentSubmission[]
   studentExperiences    StudentExperience[]
   placementDrives       PlacementDrive[]
+  currentAffairs        CurrentAffair[]
+  prepAttempts          PrepAttempt[]
+  prepContent           PrepContent[]
   alumniMembers         AlumniMember[]
   alumniRequests        AlumniMentorshipRequest[]
 
@@ -913,6 +916,67 @@ model PlacementDrive {
 
   @@index([collegeId, driveDate])
   @@map("placement_drives")
+}
+
+model CurrentAffair {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  collegeId  String   @map("college_id") @db.Uuid
+  itemDate   String   @map("item_date")
+  category   String
+  headline   String
+  summary    String
+  sourceName String   @default("") @map("source_name")
+  sourceUrl  String   @default("") @map("source_url")
+  tags       String[] @default([])
+  status     String   @default("Draft")
+  mcq        Json?
+  authorName String   @default("") @map("author_name")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+  college    College  @relation(fields: [collegeId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([collegeId, itemDate])
+  @@map("current_affairs")
+}
+
+model PrepAttempt {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  collegeId   String   @map("college_id") @db.Uuid
+  userId      String   @map("user_id") @db.Uuid
+  kind        String
+  examId      String   @default("") @map("exam_id")
+  ref         String
+  score       Float
+  maxScore    Float    @map("max_score")
+  percent     Int
+  seconds     Int      @default(0)
+  submittedAt DateTime @default(now()) @map("submitted_at") @db.Timestamptz(6)
+  college     College  @relation(fields: [collegeId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([userId, ref])
+  @@index([collegeId, kind, examId])
+  @@map("prep_attempts")
+}
+
+model PrepContent {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  collegeId  String   @map("college_id") @db.Uuid
+  kind       String
+  topicId    String   @map("topic_id")
+  topicTitle String   @map("topic_title")
+  examIds    String[] @default([]) @map("exam_ids")
+  section    String   @default("")
+  title      String   @default("")
+  body       Json
+  source     String   @default("faculty")
+  status     String   @default("Draft")
+  authorName String   @default("") @map("author_name")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+  college    College  @relation(fields: [collegeId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([collegeId, kind, topicId])
+  @@map("prep_content")
 }
 
 model StudentExperience {

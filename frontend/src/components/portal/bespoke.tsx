@@ -44,6 +44,9 @@ import { AchievementsModule } from "./bespoke/achievements";
 import { RefreshZoneModule } from "./bespoke/refresh-zone";
 import { ExperienceModule } from "./bespoke/experience";
 import { VivaModule } from "./bespoke/viva";
+import { ExamPrepHubModule } from "./bespoke/exam-prep";
+import { CurrentAffairsDeskModule } from "./bespoke/current-affairs-desk";
+import { ExamPrepStudioModule } from "./bespoke/exam-prep-studio";
 import { JobsModule } from "./bespoke/jobs";
 import { AlumniModule } from "./bespoke/alumni";
 
@@ -91,6 +94,9 @@ const BESPOKE: Record<string, (props: { role: Role }) => React.ReactNode> = {
   "refresh-zone": () => <RefreshZoneModule />,
   experience: () => <ExperienceModule />,
   viva: () => <VivaModule />,
+  "competitive-exams": () => <ExamPrepHubModule />,
+  "current-affairs-desk": () => <CurrentAffairsDeskModule />,
+  "exam-prep-studio": () => <ExamPrepStudioModule />,
   jobs: ({ role }) => <JobsModule role={role} />,
   alumni: ({ role }) => <AlumniModule role={role} />,
 };

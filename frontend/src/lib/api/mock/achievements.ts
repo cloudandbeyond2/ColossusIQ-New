@@ -3,8 +3,11 @@ import type { SessionPayload } from "@/lib/auth/session";
 import { getStore } from "@/lib/data";
 import type { Attempt } from "@/lib/data/store";
 import { AchievementsOverview, type Badge } from "@/lib/api/achievements-schemas";
+import { StoredPrep } from "@/lib/api/exam-prep-schemas";
 import { assignmentStore } from "./assignment-store";
 import { allLessons } from "./course-state";
+import { prepAttemptStore } from "./prep-attempt-store";
+import { studentStateStore } from "./student-state-store";
 import type { Certificate } from "./learning";
 import type { MockResult } from "./router";
 
@@ -28,6 +31,10 @@ export const XP = {
   onTime: 20,
   late: 10,
   strong: 20,
+  dailyTest: 15,
+  mock: 30,
+  caQuiz: 15,
+  drill: 5,
 } as const;
 
 export const RULES = [
@@ -40,6 +47,10 @@ export const RULES = [
   { label: "Handing in an assignment on time", xp: XP.onTime },
   { label: "Handing in an assignment late", xp: XP.late },
   { label: "Scoring 80% or more on an assignment", xp: XP.strong },
+  { label: "Each daily aptitude test (Exam Prep Hub)", xp: XP.dailyTest },
+  { label: "Each practice mock", xp: XP.mock },
+  { label: "Each weekly current-affairs quiz", xp: XP.caQuiz },
+  { label: "Each topic drill or English round", xp: XP.drill },
 ];
 
 const TITLES = ["Newcomer", "Explorer", "Learner", "Achiever", "Scholar", "Expert", "Master", "Legend"];
@@ -146,6 +157,10 @@ export interface BadgeFacts {
   strong: number;
   longestStreak: number;
   level: number;
+  /** Exam Prep Hub (optional so older callers keep working). */
+  dailyStreak?: number;
+  mocks?: number;
+  caQuizzes?: number;
 }
 export function badgesFor(f: BadgeFacts): Badge[] {
   const b = (id: string, title: string, description: string, group: Badge["group"], tone: Badge["tone"], value: number, target: number): Badge => ({ id, title, description, group, tone, value: Math.min(value, target), target, earned: value >= target });
@@ -162,12 +177,40 @@ export function badgesFor(f: BadgeFacts): Badge[] {
     b("course-finisher", "Course finisher", "Finish every lesson of a course", "Courses", "brand", f.coursesDone, 1),
     b("on-time", "Always on time", "Hand in 3 assignments before the deadline", "Assignments", "amber", f.onTime, 3),
     b("assignment-ace", "Assignment ace", "Score 80% or more on an assignment", "Assignments", "rose", f.strong, 1),
+    b("daily-7", "Aptitude habit", "Take the daily aptitude test 7 days in a row", "Exam prep", "brand", f.dailyStreak ?? 0, 7),
+    b("mock-5", "Mock marathon", "Finish 5 practice mocks", "Exam prep", "rose", f.mocks ?? 0, 5),
+    b("ca-quiz", "News reader", "Take a weekly current-affairs quiz", "Exam prep", "teal", f.caQuizzes ?? 0, 1),
     b("streak-3", "3-day streak", "Be active 3 days in a row", "Consistency", "amber", f.longestStreak, 3),
     b("streak-7", "Week warrior", "Be active 7 days in a row", "Consistency", "amber", f.longestStreak, 7),
     b("streak-30", "Unstoppable", "Be active 30 days in a row", "Consistency", "rose", f.longestStreak, 30),
     b("level-3", "Rising star", "Reach level 3", "Progress", "brand", f.level, 3),
     b("level-5", "Scholar", "Reach level 5", "Progress", "brand", f.level, 5),
   ];
+}
+
+/* ───────────────────────────── exam prep XP ───────────────────────── */
+/** XP from the Competitive Exam Prep Hub: finished tests from prep_attempts, drills from the student's saved prep state. */
+async function prepFor(session: SessionPayload): Promise<{ xp: number; count: number; events: Event[]; days: string[]; dailyStreak: number; mocks: number; caQuizzes: number }> {
+  try {
+    const rows = await prepAttemptStore().mine(session);
+    const st = StoredPrep.safeParse(await studentStateStore().get(session.sub, "exam-prep-hub"));
+    const drills = st.success ? [...Object.values(st.data.topics), ...Object.values(st.data.english)].reduce((n, t) => n + t.rounds, 0) : 0;
+    const events: Event[] = [];
+    const days: string[] = [];
+    let xp = drills * XP.drill;
+    for (const r of rows) {
+      const gain = r.kind === "daily" ? XP.dailyTest : r.kind === "mock" ? XP.mock : XP.caQuiz;
+      xp += gain;
+      days.push(istDay(r.at));
+      events.push({ at: r.at, label: r.kind === "daily" ? `Daily aptitude test (${r.percent}%)` : r.kind === "mock" ? `Practice mock (${r.percent}%)` : `Weekly current-affairs quiz (${r.percent}%)`, xp: gain });
+    }
+    if (st.success) for (const [d, v] of Object.entries(st.data.days)) if (v.rounds > 0) days.push(d);
+    const dailyDays = rows.filter((r) => r.kind === "daily").map((r) => r.key);
+    return { xp, count: rows.length + drills, events, days, dailyStreak: computeStreak(dailyDays, istDay(Date.now())).longest, mocks: rows.filter((r) => r.kind === "mock").length, caQuizzes: rows.filter((r) => r.kind === "ca-quiz").length };
+  } catch {
+    // Exam prep never breaks the XP page.
+    return { xp: 0, count: 0, events: [], days: [], dailyStreak: 0, mocks: 0, caQuizzes: 0 };
+  }
 }
 
 /* ───────────────────────────── the page ───────────────────────────── */
@@ -242,10 +285,14 @@ export async function overview(session: SessionPayload): Promise<AchievementsOve
     }
   }
 
-  const xp = mine.xp + asgXp;
+  const prep = await prepFor(session);
+  events.push(...prep.events);
+  days.push(...prep.days);
+
+  const xp = mine.xp + asgXp + prep.xp;
   const lv = levelOf(xp);
   const streak = computeStreak(days, istDay(Date.now()));
-  const badges = badgesFor({ attempts: mine.quiz.count, perfect: mine.perfect, passed: mine.passed, certs: mine.cert.count, lessons: mine.lesson.count, coursesDone: mine.course.count, onTime, strong, longestStreak: streak.longest, level: lv.level });
+  const badges = badgesFor({ attempts: mine.quiz.count, perfect: mine.perfect, passed: mine.passed, certs: mine.cert.count, lessons: mine.lesson.count, coursesDone: mine.course.count, onTime, strong, longestStreak: streak.longest, level: lv.level, dailyStreak: prep.dailyStreak, mocks: prep.mocks, caQuizzes: prep.caQuizzes });
 
   const ranked = [...xpOf.entries()].filter(([sub, v]) => v > 0 || sub === session.sub).sort((a, b) => b[1] - a[1]);
   const rankOf = (v: number) => 1 + ranked.filter(([, x]) => x > v).length;
@@ -269,6 +316,7 @@ export async function overview(session: SessionPayload): Promise<AchievementsOve
       { key: "lessons", label: "Lessons read", count: mine.lesson.count, xp: mine.lesson.xp },
       { key: "courses", label: "Courses finished", count: mine.course.count, xp: mine.course.xp },
       { key: "assignments", label: "Assignments", count: onTime + late, xp: asgXp },
+      { key: "exam-prep", label: "Exam prep", count: prep.count, xp: prep.xp },
     ],
     stats: { quizAttempts: mine.quiz.count, quizzesPassed: mine.passed, certificates: mine.cert.count, lessons: mine.lesson.count, coursesDone: mine.course.count, assignments: onTime + late },
     badges,
