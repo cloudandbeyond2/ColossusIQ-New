@@ -741,12 +741,12 @@ export async function generateDynamicStudentDashboard(
   const isNewStudent = avgIa === 0 && profile.cgpa === 0;
 
   const recommendation = isNewStudent
-    ? `Welcome to **${profile.degree}**! Explore your enrolled courses and attempt your first practice quiz in **My Quizzes** to begin calculating your academic scorecard and mastery metrics.`
+    ? `Welcome to **${profile.degree}**! Revise **${weakest.topic} (${weakest.subject})** and attempt your first practice quiz in **My Quizzes** to begin calculating your academic scorecard and mastery metrics.`
     : `Revise **${weakest.topic} (${weakest.subject})** for 25 minutes and attempt the adaptive 10-question practice set — it is currently your lowest mastery topic (**${weakest.mastery}%**) and the **${examName}** is in 9 days.`;
 
   return {
     name: profile.name,
-    priorities: isNewStudent ? 0 : weakTopics.length,
+    priorities: weakTopics.length,
     academic: {
       semesterProgress,
       examReadiness: isNewStudent ? 0 : examReadiness,
@@ -769,7 +769,7 @@ export async function generateDynamicStudentDashboard(
     upcoming: upcomingMap[profile.stream] || upcomingMap.engineering,
     streak: profile.streakDays,
     xp: profile.xp,
-    weakTopics: isNewStudent ? [] : weakTopics,
+    weakTopics,
     examCountdown: {
       exam: examName,
       days: 9,
