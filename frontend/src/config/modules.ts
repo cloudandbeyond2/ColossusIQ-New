@@ -144,7 +144,7 @@ export const MODULES: ModuleDef[] = [
   { slug: "team-finder", title: "Team Finder", description: "Discover teammates by skills, department, interests and competition goals.", group: "Project & Innovation", roles: ["student"], template: "list", icon: "users", phase: "Phase 3" },
   { slug: "startup-hub", title: "Startup Idea Hub", description: "Problem discovery, business model, market analysis, pitch and MVP planning.", group: "Project & Innovation", roles: ["student"], template: "workflow", icon: "rocket", phase: "Phase 2" },
   { slug: "research", title: "Research Assistant", description: "Research questions, literature discovery and comparison, planning and academic writing.", group: "Project & Innovation", roles: ["student", "faculty"], template: "bespoke", icon: "flask", phase: "Phase 2", agent: "research" },
-  { slug: "hackathons", title: "Hackathon Hub", description: "Upcoming hackathons, teams, problem statements and results.", group: "Project & Innovation", roles: ["student", "incubation"], template: "list", icon: "code", phase: "Phase 3" },
+  { slug: "hackathons", title: "Hackathon Hub", description: "Upcoming hackathons, teams, problem statements and results.", group: "Project & Innovation", roles: ["student", "incubation"], template: "bespoke", icon: "code", phase: "Phase 3" },
   { slug: "project-review", title: "AI Project Review Board", description: "Architecture, documentation, code quality, tests, innovation and risk review for faculty.", group: "Project & Innovation", roles: ["faculty", "hod"], template: "scorecard", icon: "review", phase: "Phase 2" },
 
   // ───────────── Campus Life ─────────────
@@ -180,7 +180,7 @@ export const MODULES: ModuleDef[] = [
   { slug: "placement-board", title: "Placement Readiness Board", description: "Every student’s readiness total, gaps and status — filter, shortlist and export for drives.", group: "Placement", roles: ["placement", "hod", "institution", "admin"], template: "bespoke", icon: "target", phase: "MVP" },
   { slug: "drives", title: "Placement Drives", description: "Schedule and manage campus recruitment drives.", group: "Placement", roles: ["placement"], template: "bespoke", icon: "briefcase", phase: "MVP" },
   { slug: "jobs", title: "Job Matching", description: "Open roles matched to verified student profiles and eligibility.", group: "Placement", roles: ["placement", "student"], template: "bespoke", icon: "handshake", phase: "MVP" },
-  { slug: "employers", title: "Employers", description: "Recruiter relationships, history and hiring outcomes.", group: "Placement", roles: ["placement"], template: "list", icon: "building", phase: "Phase 2" },
+  { slug: "employers", title: "Employers", description: "Recruiter relationships, history and hiring outcomes.", group: "Placement", roles: ["placement"], template: "bespoke", icon: "building", phase: "MVP" },
   { slug: "placement-analytics", title: "Placement Analytics", description: "Readiness, resume completion, mock-interview participation and offers.", group: "Placement", roles: ["placement", "hod", "institution"], template: "dashboard", icon: "chart", phase: "Phase 2" },
 
   // ───────────── Incubation ─────────────

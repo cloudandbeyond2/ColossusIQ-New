@@ -5,7 +5,7 @@ import { db } from "./db";
 import { collegePublic, collegeUuid } from "./lookups";
 
 /*
- * Student fees on PostgreSQL (db/migrations/0020_billing.sql). Row-level security keeps a college to its own dues
+ * Student fees on PostgreSQL (db/migrations/0022_billing.sql). Row-level security keeps a college to its own dues
  * and payments, and lets only the University scope mark anything paid, waived or cleared.
  */
 

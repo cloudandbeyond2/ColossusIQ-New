@@ -60,7 +60,7 @@ export async function runInTransaction<T>(ctx: RequestContext, fn: () => Promise
       await tx.$executeRaw`SELECT app_set_context(${collegeUuid}::uuid, ${all ? "all" : "college"}, ${userUuid}::uuid)`;
       return als.run({ tx, scope: ctx.scope, collegeUuid, userUuid, cache: new Map() }, fn);
     },
-    { maxWait: 10_000, timeout: 30_000 },
+    { maxWait: 30_000, timeout: 180_000 },
   );
 }
 

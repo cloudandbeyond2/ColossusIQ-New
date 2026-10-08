@@ -1,5 +1,5 @@
 -- ════════════════════════════════════════════════════════════════════════════════════════════
---  0020 — Student app fees, payments and the academic-year lock
+--  0022 — Student app fees, payments and the academic-year lock
 --  billing_settings  one row for the University: academic year, due date, grace days, fee per plan, lock switches.
 --  college_billing   per college and year: the college's own fee (overrides its plan) and whether the University
 --                    has cleared the college's staff for the year.

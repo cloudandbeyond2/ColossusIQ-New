@@ -67,8 +67,8 @@ export function HandwrittenModule({ role = "faculty" }: { role?: Role } = {}) {
   const queryClient = useQueryClient();
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Active top-level tab for faculty: "evaluate" or "history"
-  const [activeTab, setActiveTab] = useState<"evaluate" | "history">("evaluate");
+  // Active top-level tab: "evaluate" or "history" (defaults to student's own history for students)
+  const [activeTab, setActiveTab] = useState<"evaluate" | "history">(role === "student" ? "history" : "evaluate");
 
   // Evaluation Form State (Faculty)
   const [file, setFile] = useState<File | null>(null);
@@ -313,19 +313,35 @@ export function HandwrittenModule({ role = "faculty" }: { role?: Role } = {}) {
       {/* Top Header & Navigation Tabs */}
       <div className="flex flex-wrap items-center justify-between gap-4 border-b border-line pb-4">
         <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setActiveTab("evaluate")}
-            className={cn(
-              "flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all",
-              activeTab === "evaluate"
-                ? "bg-brand text-white shadow-sm shadow-brand/25"
-                : "bg-surface text-ink-2 hover:bg-surface-2 hover:text-ink border border-line"
-            )}
-          >
-            <Sparkles className="size-4" />
-            Evaluate Answer Sheet
-          </button>
+          {role !== "student" ? (
+            <button
+              type="button"
+              onClick={() => setActiveTab("evaluate")}
+              className={cn(
+                "flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all",
+                activeTab === "evaluate"
+                  ? "bg-brand text-white shadow-sm shadow-brand/25"
+                  : "bg-surface text-ink-2 hover:bg-surface-2 hover:text-ink border border-line"
+              )}
+            >
+              <Sparkles className="size-4" />
+              Evaluate Answer Sheet
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setActiveTab("evaluate")}
+              className={cn(
+                "flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all",
+                activeTab === "evaluate"
+                  ? "bg-brand text-white shadow-sm shadow-brand/25"
+                  : "bg-surface text-ink-2 hover:bg-surface-2 hover:text-ink border border-line"
+              )}
+            >
+              <Sparkles className="size-4" />
+              Practice & Self-Evaluation
+            </button>
+          )}
           <button
             type="button"
             onClick={() => setActiveTab("history")}
@@ -337,7 +353,7 @@ export function HandwrittenModule({ role = "faculty" }: { role?: Role } = {}) {
             )}
           >
             <History className="size-4" />
-            Evaluation History
+            {role === "student" ? "My Evaluated Sheets" : "Evaluation History"}
             {historyQuery.data && (
               <span
                 className={cn(
@@ -355,7 +371,9 @@ export function HandwrittenModule({ role = "faculty" }: { role?: Role } = {}) {
 
         {activeTab === "history" && (
           <div className="text-xs text-ink-3">
-            Showing evaluated student records by Dr. Meena · Anna Institute of Technology
+            {role === "student"
+              ? "Showing your evaluated answer sheets and faculty feedback"
+              : "Showing evaluated student records for your department"}
           </div>
         )}
       </div>
@@ -707,8 +725,12 @@ export function HandwrittenModule({ role = "faculty" }: { role?: Role } = {}) {
                   <GraduationCap className="size-5" />
                 </div>
                 <div>
-                  <p className="text-xs font-medium text-ink-3">Unique Students</p>
-                  <p className="text-2xl font-bold text-ink">{stats.students}</p>
+                  <p className="text-xs font-medium text-ink-3">{role === "student" ? "Verified by Faculty" : "Unique Students"}</p>
+                  <p className="text-2xl font-bold text-ink">
+                    {role === "student"
+                      ? historyQuery.data?.filter((i) => i.status === "approved" || i.status === "overridden").length ?? 0
+                      : stats.students}
+                  </p>
                 </div>
               </CardBody>
             </Card>
@@ -743,13 +765,13 @@ export function HandwrittenModule({ role = "faculty" }: { role?: Role } = {}) {
             <CardBody className="p-4 sm:p-5 space-y-4">
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-12 items-center">
                 {/* Search Bar */}
-                <div className="relative sm:col-span-2 lg:col-span-4">
+                <div className={cn("relative sm:col-span-2", role === "student" ? "lg:col-span-5" : "lg:col-span-4")}>
                   <Search className="absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-ink-3 pointer-events-none" />
                   <input
                     type="text"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Search student, roll number, topic..."
+                    placeholder={role === "student" ? "Search topic, assessment..." : "Search student, roll number, topic..."}
                     className={cn(inputClass, "h-10 pl-9 pr-8 text-xs placeholder:text-ink-3")}
                   />
                   {searchQuery && (
@@ -763,28 +785,30 @@ export function HandwrittenModule({ role = "faculty" }: { role?: Role } = {}) {
                   )}
                 </div>
 
-                {/* Student Dropdown */}
-                <div className="relative sm:col-span-1 lg:col-span-3">
-                  <div className="relative">
-                    <User className="absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-ink-3 pointer-events-none" />
-                    <select
-                      value={selectedStudentFilter}
-                      onChange={(e) => setSelectedStudentFilter(e.target.value)}
-                      className={cn(inputClass, "h-10 pl-8 pr-7 text-xs font-medium cursor-pointer")}
-                      aria-label="Filter by student"
-                    >
-                      <option value="all">All Students ({uniqueStudents.length})</option>
-                      {uniqueStudents.map((st) => (
-                        <option key={st.rollNo} value={st.rollNo}>
-                          {st.name} ({st.rollNo})
-                        </option>
-                      ))}
-                    </select>
+                {/* Student Dropdown (Faculty/Admin only) */}
+                {role !== "student" && (
+                  <div className="relative sm:col-span-1 lg:col-span-3">
+                    <div className="relative">
+                      <User className="absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-ink-3 pointer-events-none" />
+                      <select
+                        value={selectedStudentFilter}
+                        onChange={(e) => setSelectedStudentFilter(e.target.value)}
+                        className={cn(inputClass, "h-10 pl-8 pr-7 text-xs font-medium cursor-pointer")}
+                        aria-label="Filter by student"
+                      >
+                        <option value="all">All Students ({uniqueStudents.length})</option>
+                        {uniqueStudents.map((st) => (
+                          <option key={st.rollNo} value={st.rollNo}>
+                            {st.name} ({st.rollNo})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
-                </div>
+                )}
 
                 {/* Status Dropdown */}
-                <div className="relative sm:col-span-1 lg:col-span-2">
+                <div className={cn("relative sm:col-span-1", role === "student" ? "lg:col-span-3" : "lg:col-span-2")}>
                   <select
                     value={selectedStatusFilter}
                     onChange={(e) => setSelectedStatusFilter(e.target.value)}
@@ -802,7 +826,9 @@ export function HandwrittenModule({ role = "faculty" }: { role?: Role } = {}) {
                 <div
                   className={cn(
                     "relative sm:col-span-2",
-                    hasActiveFilters ? "lg:col-span-2" : "lg:col-span-3"
+                    role === "student"
+                      ? hasActiveFilters ? "lg:col-span-3" : "lg:col-span-4"
+                      : hasActiveFilters ? "lg:col-span-2" : "lg:col-span-3"
                   )}
                 >
                   <select
@@ -837,8 +863,8 @@ export function HandwrittenModule({ role = "faculty" }: { role?: Role } = {}) {
                 )}
               </div>
 
-              {/* Student Quick-Filter Pills */}
-              {uniqueStudents.length > 0 && (
+              {/* Student Quick-Filter Pills (Faculty only) */}
+              {role !== "student" && uniqueStudents.length > 0 && (
                 <div className="flex items-center gap-1.5 overflow-x-auto pt-2 border-t border-line pb-1">
                   <span className="text-[11px] font-semibold text-ink-3 uppercase tracking-wider shrink-0 mr-1">
                     Student:

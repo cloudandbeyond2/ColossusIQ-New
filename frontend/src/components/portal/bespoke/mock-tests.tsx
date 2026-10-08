@@ -169,6 +169,10 @@ function TestPlayer({ id, onExit }: { id: string; onExit: () => void }) {
 }
 
 function Results({ test, result, answers, onExit }: { test: MockTest; result: TestResult; answers: Record<string, number | string>; onExit: () => void }) {
+  const hasMcq = test.questions.some((q) => q.type === "mcq");
+  const descriptiveScore = result.descriptive.reduce((s, d) => s + (d.score ?? 0), 0);
+  const descriptiveMax = result.descriptive.reduce((s, d) => s + (d.max ?? 0), 0);
+
   return (
     <div className="space-y-6">
       <Card className="p-6">
@@ -176,8 +180,17 @@ function Results({ test, result, answers, onExit }: { test: MockTest; result: Te
           <div>
             <p className="text-sm text-ink-3">{test.title}</p>
             <p className="mt-1 font-serif text-3xl font-semibold text-ink">
-              MCQ: {result.mcqScore} / {result.mcqMax}
-              {result.descriptive.length ? <span className="text-lg text-ink-3"> · descriptive pending faculty review</span> : null}
+              {hasMcq ? (
+                <>
+                  MCQ: {result.mcqScore} / {result.mcqMax}
+                  {result.descriptive.length ? <span className="text-lg text-ink-3"> · descriptive provisional: {descriptiveScore} / {descriptiveMax}</span> : null}
+                </>
+              ) : (
+                <>
+                  AI Score: {descriptiveScore} / {descriptiveMax}
+                  <span className="text-lg text-ink-3"> · pending faculty review</span>
+                </>
+              )}
             </p>
           </div>
           <Button variant="secondary" onClick={onExit}>
@@ -186,27 +199,29 @@ function Results({ test, result, answers, onExit }: { test: MockTest; result: Te
         </div>
       </Card>
 
-      <Card>
-        <CardHeader title="Answer review" />
-        <CardBody className="space-y-4">
-          {test.questions
-            .filter((q) => q.type === "mcq")
-            .map((q, i) => {
-              const r = result.answers.find((a) => a.questionId === q.id);
-              const given = answers[q.id];
-              return (
-                <div key={q.id} className="rounded-xl border border-line p-4">
-                  <p className="flex items-start gap-2 text-sm font-medium text-ink">
-                    {r?.correct ? <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-teal" aria-label="Correct" /> : <XCircle className="mt-0.5 size-4 shrink-0 text-rose" aria-label="Incorrect" />}
-                    {i + 1}. {q.prompt}
-                  </p>
-                  <p className="mt-1 pl-6 text-sm text-ink-3">Your answer: {typeof given === "number" ? q.options?.[given] : "Not answered"}</p>
-                  <p className="mt-2 pl-6 text-sm text-ink-2">{r?.explanation}</p>
-                </div>
-              );
-            })}
-        </CardBody>
-      </Card>
+      {hasMcq ? (
+        <Card>
+          <CardHeader title="Answer review" />
+          <CardBody className="space-y-4">
+            {test.questions
+              .filter((q) => q.type === "mcq")
+              .map((q, i) => {
+                const r = result.answers.find((a) => a.questionId === q.id);
+                const given = answers[q.id];
+                return (
+                  <div key={q.id} className="rounded-xl border border-line p-4">
+                    <p className="flex items-start gap-2 text-sm font-medium text-ink">
+                      {r?.correct ? <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-teal" aria-label="Correct" /> : <XCircle className="mt-0.5 size-4 shrink-0 text-rose" aria-label="Incorrect" />}
+                      {i + 1}. {q.prompt}
+                    </p>
+                    <p className="mt-1 pl-6 text-sm text-ink-3">Your answer: {typeof given === "number" ? q.options?.[given] : "Not answered"}</p>
+                    <p className="mt-2 pl-6 text-sm text-ink-2">{r?.explanation}</p>
+                  </div>
+                );
+              })}
+          </CardBody>
+        </Card>
+      ) : null}
 
       {result.descriptive.map((d) => (
         <EvaluationCard key={d.questionId} result={d} title={`Descriptive answer (${d.questionId.toUpperCase()}) — AI evaluation`} />

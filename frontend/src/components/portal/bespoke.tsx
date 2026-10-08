@@ -12,6 +12,7 @@ import { EvaluationReviewModule } from "./bespoke/evaluation-review";
 import { ResumeModule } from "./bespoke/resume";
 import { InterviewModule } from "./bespoke/interview";
 import { DrivesModule } from "./bespoke/drives";
+import { EmployersModule } from "./bespoke/employers";
 import { ProjectsModule } from "./bespoke/projects";
 import { RolesPermissionsModule } from "./bespoke/roles-permissions";
 import { CollegeWebsiteModule } from "./bespoke/college-website";
@@ -63,8 +64,11 @@ import { ClassAnalyticsModule } from "./bespoke/class-analytics";
 import { FeePaymentModule } from "./bespoke/fee-payment";
 import { BillingModule } from "./bespoke/billing";
 import { StudentFeesModule } from "./bespoke/student-fees";
+import { BrandingModule } from "./bespoke/branding";
+import { HackathonsModule } from "./bespoke/hackathons";
 
 const BESPOKE: Record<string, (props: { role: Role }) => React.ReactNode> = {
+  branding: () => <BrandingModule />,
   "aicte-compliance": ({ role }) => <AicteComplianceModule role={role} />,
   "early-warning": ({ role }) => <EarlyWarningModule role={role} />,
   "department-skills": ({ role }) => <DepartmentSkillsModule role={role} />,
@@ -87,6 +91,7 @@ const BESPOKE: Record<string, (props: { role: Role }) => React.ReactNode> = {
   resume: () => <ResumeModule />,
   interview: () => <InterviewModule />,
   drives: () => <DrivesModule />,
+  employers: () => <EmployersModule />,
   projects: ({ role }) => <ProjectsModule role={role} />,
   "roles-permissions": () => <RolesPermissionsModule />,
   "college-website": () => <CollegeWebsiteModule />,
@@ -127,6 +132,7 @@ const BESPOKE: Record<string, (props: { role: Role }) => React.ReactNode> = {
   "fee-payment": () => <FeePaymentModule />,
   billing: () => <BillingModule />,
   "student-fees": () => <StudentFeesModule />,
+  hackathons: ({ role }) => <HackathonsModule role={role} />,
 };
 
 

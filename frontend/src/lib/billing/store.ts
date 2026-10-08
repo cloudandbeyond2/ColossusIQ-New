@@ -5,7 +5,7 @@ import type { BillingSettings, DueStatus, FeePayment, PaymentStatus, StudentDue 
 
 /*
  * Fees, payments and college clearance. In memory for the demo backend, PostgreSQL otherwise
- * (data/postgres/billing.ts, db/migrations/0020_billing.sql). `college` is always the college's public id.
+ * (data/postgres/billing.ts, db/migrations/0022_billing.sql). `college` is always the college's public id.
  */
 
 export interface CollegeBilling {

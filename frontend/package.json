@@ -17,7 +17,8 @@
     "prisma:validate": "prisma validate",
     "postinstall": "prisma generate",
     "prisma:generate": "prisma generate",
-    "db:dev-accounts": "tsx db/scripts/dev-accounts.ts"
+    "db:dev-accounts": "tsx db/scripts/dev-accounts.ts",
+    "db:seed-drives": "tsx db/scripts/seed-drives.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "0.131.0",

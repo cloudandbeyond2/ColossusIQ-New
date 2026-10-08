@@ -1211,25 +1211,116 @@ const DATA: Record<string, (collegeScope: string, live: ScopeData) => ModuleData
   "agent-store": () => agentStorePage(),
 
   /* ── settings ── */
-  branding: (): SettingsData => ({
-    template: "settings",
-    sections: [
-      {
-        title: "Identity", description: "How your institution appears to students and staff.", fields: [
-          { id: "name", label: "Display name", type: "text", value: "Anna Institute of Technology" },
-          { id: "subdomain", label: "Subdomain", type: "text", value: "ait.collossusiq.ai", help: "Custom domains (e.g. ai.college.edu) are verified via DNS." },
-          { id: "primary", label: "Primary colour", type: "color", value: "#1e2a5a" },
-          { id: "accent", label: "Accent colour", type: "color", value: "#c9962b" },
-        ]
-      },
-      {
-        title: "Language", description: "Default interface and AI explanation languages.", fields: [
-          { id: "ui-lang", label: "Default interface language", type: "select", value: "English", options: ["English", "தமிழ்", "हिन्दी"] },
-          { id: "ai-lang", label: "Default AI explanation language", type: "select", value: "English", options: ["English", "Tamil", "Hindi", "Telugu", "Kannada", "Malayalam"] },
-        ]
-      },
-    ],
-  }),
+  branding: async (collegeScope?: string): Promise<SettingsData> => {
+    let collegeName = "Anna Institute of Technology";
+    let collegeDomain = "ait.edu.in";
+    let collegeCode = "1101";
+    let collegeCity = "Chennai";
+    if (collegeScope && collegeScope !== ALL_COLLEGES) {
+      const c = await getCollege(collegeScope);
+      if (c) {
+        if (typeof c.name === "string") collegeName = c.name;
+        if (typeof c.code === "string") collegeCode = c.code;
+        if (typeof c.city === "string") collegeCity = c.city;
+        if (typeof c.email === "string" && c.email.includes("@")) {
+          collegeDomain = c.email.split("@")[1] || collegeDomain;
+        }
+      }
+    }
+    const words = collegeName.split(" ").filter(Boolean);
+    const short = words.length > 1 ? words.map((w) => w[0]).join("").toUpperCase().slice(0, 5) : collegeName.slice(0, 4).toUpperCase();
+    const sub = short.toLowerCase().replace(/[^a-z0-9]/g, "") || "ait";
+
+    return {
+      template: "settings",
+      sections: [
+        {
+          title: "Identity & Visual Theme",
+          description: "Institution name, logos, colors and styling across student and faculty portals.",
+          fields: [
+            { id: "name", label: "Display name", type: "text", value: collegeName },
+            { id: "shortName", label: "Short Name / Acronym", type: "text", value: short },
+            { id: "tagline", label: "Motto / Tagline", type: "text", value: "Excellence in Engineering, Research & Human Values" },
+            { id: "established", label: "Established Year", type: "text", value: "2001" },
+            { id: "primary", label: "Primary Brand Colour", type: "color", value: "#1e2a5a" },
+            { id: "accent", label: "Accent Gold/Amber Colour", type: "color", value: "#c9962b" },
+            { id: "secondary", label: "Secondary / Surface Colour", type: "color", value: "#0f766e" },
+            { id: "navDark", label: "Dark Navigation Bar", type: "toggle", value: true },
+            { id: "logoPreset", label: "Logo Crest Emblem", type: "select", value: "Academic Crest", options: ["Academic Crest", "Classic University", "STEM & Technology", "Modern Shield"] },
+            { id: "logoUrl", label: "Custom Logo URL", type: "text", value: "" },
+            { id: "faviconUrl", label: "Custom Favicon URL", type: "text", value: "" },
+            { id: "borderRadius", label: "Interface Roundness", type: "select", value: "Modern (16px)", options: ["Compact (8px)", "Modern (16px)", "Soft (24px)"] },
+            { id: "themePreset", label: "Theme Palette Preset", type: "select", value: "Imperial Navy & Gold", options: ["Imperial Navy & Gold", "Oxford Royal & Cyan", "Emerald Tech & Mint", "Crimson Academic & Ruby", "Midnight Violet & Amber", "Slate Minimalist"] },
+          ],
+        },
+        {
+          title: "Domain & White-Label",
+          description: "Custom domain, DNS records, SSL certificates and platform attribution.",
+          fields: [
+            { id: "subdomain", label: "Subdomain", type: "text", value: `${sub}.colossusiq.ai`, help: "Default access endpoint." },
+            { id: "customDomain", label: "Custom Domain", type: "text", value: `portal.${collegeDomain}`, help: "Point your CNAME record to cname.colossusiq.ai" },
+            { id: "dnsCnameTarget", label: "CNAME Target", type: "text", value: "cname.colossusiq.ai" },
+            { id: "dnsStatus", label: "DNS Status", type: "text", value: "Verified & Propagated" },
+            { id: "sslStatus", label: "SSL Certificate", type: "text", value: "Active (TLS 1.3 - Auto Renewed)" },
+            { id: "forceHttps", label: "Enforce HTTPS Strict Transport", type: "toggle", value: true },
+            { id: "hidePoweredBy", label: "Hide 'Powered by ColossusIQ' badge", type: "toggle", value: true },
+            { id: "browserTitleFormat", label: "Browser Tab Title Format", type: "text", value: `{page} | ${collegeName}` },
+          ],
+        },
+        {
+          title: "Academic Structure & Terminology",
+          description: "System nomenclature displayed across courses, portals and reports.",
+          fields: [
+            { id: "termInstitution", label: "Institution Designation", type: "select", value: "Institute", options: ["College", "Institute", "University", "Academy", "Autonomous Institution"] },
+            { id: "termHod", label: "Department Head Designation", type: "select", value: "Head of Department (HOD)", options: ["Head of Department (HOD)", "Department Chair", "Program Director", "Dean of Department"] },
+            { id: "termFaculty", label: "Teaching Staff Designation", type: "select", value: "Faculty", options: ["Faculty", "Professor", "Instructor", "Lecturer", "Academician"] },
+            { id: "termStudentId", label: "Student Identifier Label", type: "select", value: "Roll Number", options: ["Roll Number", "Register Number", "Student ID", "Enrollment Number", "UID"] },
+            { id: "termPeriod", label: "Academic Term Cycle", type: "select", value: "Semester", options: ["Semester", "Trimester", "Quarter", "Annual Term"] },
+            { id: "academicYearCycle", label: "Active Academic Year", type: "text", value: "2026-2027" },
+            { id: "gradingFormat", label: "Primary Grading Scale", type: "select", value: "10-Point CGPA Scale", options: ["10-Point CGPA Scale", "Percentage System (%)", "Letter Grade (A+ to F)", "4-Point GPA Scale"] },
+            { id: "showNaacBadge", label: "Display NAAC Accreditation on Portal", type: "toggle", value: true },
+            { id: "showNbaBadge", label: "Display NBA Accreditation on Portal", type: "toggle", value: true },
+            { id: "showAicteId", label: "Display AICTE Approval Number", type: "toggle", value: true },
+            { id: "aicteApprovalId", label: "AICTE Approval Reference ID", type: "text", value: `F.No. Southern/1-9321458921/2026/EOA (${collegeCode})` },
+          ],
+        },
+        {
+          title: "Notification & Communication Templates",
+          description: "Branded email, SMS and WhatsApp delivery sender configurations.",
+          fields: [
+            { id: "emailSenderName", label: "Email Sender Name", type: "text", value: `${collegeName} Academic Office` },
+            { id: "emailSenderAddress", label: "From Email Address", type: "text", value: `notifications@${collegeDomain}` },
+            { id: "emailReplyTo", label: "Reply-To Email Address", type: "text", value: `office@${collegeDomain}` },
+            { id: "emailHeaderColor", label: "Email Header Banner Colour", type: "color", value: "#1e2a5a" },
+            { id: "emailFooterText", label: "Campus Address & Legal Footer", type: "text", value: `${collegeName}, Sardar Patel Road, Guindy, ${collegeCity} 600025. Approved by AICTE, Affiliated to TNTU.` },
+            { id: "smsSenderId", label: "SMS DLT Sender ID (6 Chars)", type: "text", value: short.slice(0, 6).padEnd(6, "X") },
+            { id: "whatsappBranded", label: "Enable Official WhatsApp Business Sender", type: "toggle", value: true },
+          ],
+        },
+        {
+          title: "Certificates & Official Documents",
+          description: "Institutional crest, border styling and signatures on generated certificates.",
+          fields: [
+            { id: "certHeader", label: "Official Certificate Header", type: "text", value: collegeName.toUpperCase() },
+            { id: "certAffiliation", label: "Affiliation / Accreditation Subtitle", type: "text", value: "Autonomous Institution Affiliated to Tamil Nadu Technical University (TNTU)" },
+            { id: "certBorderStyle", label: "Certificate Border Styling", type: "select", value: "Classic Gold Guilloche", options: ["Classic Gold Guilloche", "Modern Dual Border", "Minimalist Slate", "Royal Ornamental"] },
+            { id: "certPrimarySignatory", label: "Primary Signatory (Left)", type: "text", value: "Dr. Lakshmi Sundaram, Principal" },
+            { id: "certSecondarySignatory", label: "Secondary Signatory (Right)", type: "text", value: "Prof. K. Venkatesh, Controller of Examinations" },
+            { id: "certShowQrVerification", label: "Include Anti-Fraud QR Verification Code", type: "toggle", value: true },
+            { id: "certWatermarkEnabled", label: "Include Anti-Counterfeit Background Watermark", type: "toggle", value: true },
+          ],
+        },
+        {
+          title: "Language & AI Voice",
+          description: "Default interface language and AI explanation voice.",
+          fields: [
+            { id: "ui-lang", label: "Default interface language", type: "select", value: "English", options: ["English", "Tamil", "Hindi"] },
+            { id: "ai-lang", label: "Default AI explanation language", type: "select", value: "English", options: ["English", "Tamil", "Hindi", "Telugu", "Kannada", "Malayalam"] },
+          ],
+        },
+      ],
+    };
+  },
   "notifications-config": (): SettingsData => ({
     template: "settings",
     sections: [

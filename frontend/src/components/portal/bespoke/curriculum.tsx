@@ -113,7 +113,7 @@ function NewCurriculum({ aiReady, onCreated }: { aiReady: boolean; onCreated: (i
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
   const create = useMutation({
-    mutationFn: () => apiFetch("/api/v1/curriculum", CurriculumDoc, { method: "POST", body: b }),
+    mutationFn: () => apiFetch("/api/v1/curriculum", CurriculumDoc, { method: "POST", body: b, timeoutMs: 90_000 }),
     onSuccess: (r) => {
       void qc.invalidateQueries({ queryKey: LIST });
       qc.setQueryData(["curriculum", r.id], r);
@@ -185,6 +185,75 @@ function NewCurriculum({ aiReady, onCreated }: { aiReady: boolean; onCreated: (i
 
 /* ───────────────────────── editor ───────────────────────── */
 
+interface ConfirmModalProps {
+  open: boolean;
+  title: string;
+  description: string;
+  confirmLabel?: string;
+  confirmTone?: "primary" | "danger";
+  loading?: boolean;
+  onConfirm: () => void;
+  onCancel: () => void;
+}
+
+function ConfirmModal({
+  open,
+  title,
+  description,
+  confirmLabel = "Confirm",
+  confirmTone = "primary",
+  loading = false,
+  onConfirm,
+  onCancel,
+}: ConfirmModalProps) {
+  if (!open) return null;
+  return (
+    <div
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+      role="dialog"
+      aria-modal="true"
+      onClick={onCancel}
+    >
+      <div
+        className="w-full max-w-md rounded-2xl border border-line bg-surface p-6 shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start gap-4">
+          <span
+            className={cn(
+              "grid size-11 shrink-0 place-items-center rounded-xl text-lg",
+              confirmTone === "danger" ? "bg-rose-soft text-rose" : "bg-brand-soft text-brand"
+            )}
+          >
+            <Fi name={confirmTone === "danger" ? "triangle-warning" : "paper-plane"} />
+          </span>
+          <div className="min-w-0 flex-1">
+            <h3 className="text-base font-semibold text-ink">
+              {title}
+            </h3>
+            <p className="mt-1 text-sm leading-relaxed text-ink-3">
+              {description}
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-6 flex items-center justify-end gap-2.5">
+          <Button variant="secondary" onClick={onCancel} disabled={loading}>
+            Cancel
+          </Button>
+          <Button
+            variant={confirmTone === "danger" ? "danger" : "primary"}
+            onClick={onConfirm}
+            disabled={loading}
+          >
+            {loading ? <Spinner /> : confirmLabel}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function Editor({ id, role, onBack }: { id: string; role: Role; onBack: () => void }) {
   const q = useQuery({ queryKey: ["curriculum", id], queryFn: () => apiFetch(`/api/v1/curriculum/${id}`, CurriculumDoc) });
   if (q.isPending) return <Skeleton className="h-[600px]" />;
@@ -198,6 +267,13 @@ function EditorBody({ doc, role, onBack }: { doc: CurriculumDoc; role: Role; onB
   const [sem, setSem] = useState(1);
   const [open, setOpen] = useState<number | null>(null);
   const [message, setMessage] = useState<{ tone: "ok" | "error"; text: string } | null>(null);
+  const [confirmAction, setConfirmAction] = useState<{
+    type: "publish" | "delete" | "archive";
+    title: string;
+    description: string;
+    confirmLabel: string;
+    confirmTone: "primary" | "danger";
+  } | null>(null);
   const edit = doc.canEdit;
   const dirty = useMemo(() => JSON.stringify(data) !== JSON.stringify(doc.data), [data, doc.data]);
   const warnings = useMemo(() => curriculumWarnings(data), [data]);
@@ -230,6 +306,26 @@ function EditorBody({ doc, role, onBack }: { doc: CurriculumDoc; role: Role; onB
 
   return (
     <div className="space-y-5">
+      <ConfirmModal
+        open={!!confirmAction}
+        title={confirmAction?.title ?? ""}
+        description={confirmAction?.description ?? ""}
+        confirmLabel={confirmAction?.confirmLabel ?? "Confirm"}
+        confirmTone={confirmAction?.confirmTone ?? "primary"}
+        loading={status.isPending || remove.isPending}
+        onConfirm={() => {
+          if (!confirmAction) return;
+          if (confirmAction.type === "publish") {
+            status.mutate("publish");
+          } else if (confirmAction.type === "archive") {
+            status.mutate("archive");
+          } else if (confirmAction.type === "delete") {
+            remove.mutate();
+          }
+          setConfirmAction(null);
+        }}
+        onCancel={() => setConfirmAction(null)}
+      />
       <Card className="p-5">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="flex items-start gap-3">
@@ -252,10 +348,34 @@ function EditorBody({ doc, role, onBack }: { doc: CurriculumDoc; role: Role; onB
             <div className="flex flex-wrap gap-2">
               {doc.status === "Draft" ? (
                 <>
-                  <Button variant="ghost" onClick={() => window.confirm("Delete this draft curriculum?") && remove.mutate()} disabled={remove.isPending}>
+                  <Button
+                    variant="ghost"
+                    onClick={() =>
+                      setConfirmAction({
+                        type: "delete",
+                        title: "Delete draft curriculum",
+                        description: "Are you sure you want to delete this draft curriculum? This action cannot be undone.",
+                        confirmLabel: "Delete draft",
+                        confirmTone: "danger",
+                      })
+                    }
+                    disabled={remove.isPending}
+                  >
                     <Fi name="trash" /> Delete
                   </Button>
-                  <Button onClick={() => window.confirm("Publish to every college? Staff will see it at once.") && status.mutate("publish")} disabled={dirty || status.isPending} title={dirty ? "Save your changes first" : undefined}>
+                  <Button
+                    onClick={() =>
+                      setConfirmAction({
+                        type: "publish",
+                        title: "Publish to every college?",
+                        description: "Every college, faculty member, and student will see this curriculum immediately.",
+                        confirmLabel: "Publish now",
+                        confirmTone: "primary",
+                      })
+                    }
+                    disabled={dirty || status.isPending}
+                    title={dirty ? "Save your changes first" : undefined}
+                  >
                     <Fi name="paper-plane" /> Publish
                   </Button>
                 </>
@@ -264,7 +384,19 @@ function EditorBody({ doc, role, onBack }: { doc: CurriculumDoc; role: Role; onB
                   <Button variant="secondary" onClick={() => status.mutate("draft")} disabled={status.isPending}>
                     Unpublish
                   </Button>
-                  <Button variant="ghost" onClick={() => window.confirm("Archive this curriculum? It becomes read-only.") && status.mutate("archive")} disabled={status.isPending}>
+                  <Button
+                    variant="ghost"
+                    onClick={() =>
+                      setConfirmAction({
+                        type: "archive",
+                        title: "Archive curriculum",
+                        description: "Are you sure you want to archive this curriculum? It will become read-only.",
+                        confirmLabel: "Archive",
+                        confirmTone: "danger",
+                      })
+                    }
+                    disabled={status.isPending}
+                  >
                     Archive
                   </Button>
                 </>
@@ -451,9 +583,10 @@ function EditorBody({ doc, role, onBack }: { doc: CurriculumDoc; role: Role; onB
 
 function CourseDrawer({ course, programme, curriculumId, edit, aiReady, semesters, onChange, onDelete, onClose }: { course: Course; programme: string; curriculumId: string; edit: boolean; aiReady: boolean; semesters: number; onChange: (c: Course) => void; onDelete: () => void; onClose: () => void }) {
   const [error, setError] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const set = <K extends keyof Course>(k: K, v: Course[K]) => onChange({ ...course, [k]: v });
   const draft = useMutation({
-    mutationFn: () => apiFetch(`/api/v1/curriculum/${curriculumId}/syllabus`, Syllabus, { method: "POST", body: { code: course.code, title: course.title, programme, hours: Math.max(15, Math.min(90, (course.l + course.t) * 15 || 45)), notes: "" } }),
+    mutationFn: () => apiFetch(`/api/v1/curriculum/${curriculumId}/syllabus`, Syllabus, { method: "POST", body: { code: course.code, title: course.title, programme, hours: Math.max(15, Math.min(90, (course.l + course.t) * 15 || 45)), notes: "" }, timeoutMs: 60_000 }),
     onSuccess: (s) => {
       setError(null);
       onChange({ ...course, units: s.units, outcomes: s.outcomes, textbooks: s.textbooks });
@@ -553,9 +686,23 @@ function CourseDrawer({ course, programme, curriculumId, edit, aiReady, semester
         </fieldset>
         <div className="mt-6 flex justify-between gap-2">
           {edit ? (
-            <Button variant="ghost" className="text-rose" onClick={() => window.confirm(`Remove ${course.code} from the curriculum?`) && onDelete()}>
-              <Fi name="trash" /> Remove course
-            </Button>
+            <>
+              <Button variant="ghost" className="text-rose" onClick={() => setConfirmDelete(true)}>
+                <Fi name="trash" /> Remove course
+              </Button>
+              <ConfirmModal
+                open={confirmDelete}
+                title={`Remove ${course.code}?`}
+                description={`Are you sure you want to remove ${course.title} from the curriculum?`}
+                confirmLabel="Remove course"
+                confirmTone="danger"
+                onConfirm={() => {
+                  setConfirmDelete(false);
+                  onDelete();
+                }}
+                onCancel={() => setConfirmDelete(false)}
+              />
+            </>
           ) : (
             <span />
           )}

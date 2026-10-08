@@ -233,16 +233,16 @@ describe("Campus clubs API and live management", () => {
     expect(leaveBody.membersCount).toBe(40);
   });
 
-  it("denies student from creating or deleting clubs", async () => {
+  it("allows student to create a club, but denies student from deleting clubs", async () => {
     const studentSession = session("student");
     const createRes = await dispatch(
       "POST",
       ["clubs"],
-      { name: "Unauthorized Club", category: "Social", lead: "X", meetingSchedule: "Sun" },
+      { name: "Student Coding Guild", category: "Technical", lead: "Bala", meetingSchedule: "Sat 10 AM" },
       studentSession,
       new URLSearchParams(),
     );
-    expect(createRes.status).toBe(403);
+    expect(createRes.status).toBe(200);
 
     const deleteRes = await dispatch("DELETE", ["clubs", "some-club-id"], undefined, studentSession, new URLSearchParams());
     expect(deleteRes.status).toBe(403);
@@ -376,6 +376,67 @@ describe("Campus sports API and live management", () => {
     const overview = await dispatch("GET", ["sports"], undefined, instSession, new URLSearchParams());
     const list = (overview.body as { sports: Array<{ id: string }> }).sports;
     expect(list.some((s) => s.id === team.id)).toBe(false);
+  });
+});
+
+describe("Campus hackathons API and team registration", () => {
+  it("fetches hackathons overview with seeded hackathons and KPIs", async () => {
+    const studentSession = session("student");
+    const res = await dispatch("GET", ["hackathons"], undefined, studentSession, new URLSearchParams());
+    expect(res.status).toBe(200);
+    const body = res.body as {
+      kpis: { totalHackathons: number; registeredTeams: number };
+      hackathons: Array<{ id: string; name: string; status: string }>;
+    };
+    expect(body.kpis.totalHackathons).toBeGreaterThanOrEqual(3);
+    expect(body.hackathons.some((h) => h.name.includes("Smart India Hackathon"))).toBe(true);
+  });
+
+  it("allows student to register a team for a hackathon", async () => {
+    const studentSession = session("student");
+    const payload = {
+      hackathonId: "hack-campus-ai",
+      hackathonName: "Campus AI Buildathon",
+      teamName: "Neural Forge",
+      teamLeadName: "Bala Kumar",
+      teamLeadEmail: "bala@college.edu",
+      rollNo: "23CS104",
+      membersCount: 4,
+      memberNames: "Bala, Anand, Priya, Rahul",
+      problemStatement: "Autonomous agent for real-time exam paper rubric evaluation.",
+      domain: "AI & Machine Learning",
+      repoUrl: "https://github.com/neuralforge/evaluator",
+    };
+
+    const res = await dispatch("POST", ["hackathons", "teams"], payload, studentSession, new URLSearchParams());
+    expect(res.status).toBe(200);
+    const created = res.body as { id: string; teamName: string; hackathonId: string };
+    expect(created.teamName).toBe("Neural Forge");
+    expect(created.hackathonId).toBe("hack-campus-ai");
+
+    // Verify it appears in GET hackathons/teams
+    const listRes = await dispatch("GET", ["hackathons", "teams"], undefined, studentSession, new URLSearchParams());
+    expect(listRes.status).toBe(200);
+    const teams = listRes.body as Array<{ id: string; teamName: string }>;
+    expect(teams.some((t) => t.teamName === "Neural Forge")).toBe(true);
+  });
+
+  it("denies recruiter from registering hackathon teams", async () => {
+    const recruiterSession = session("recruiter");
+    const res = await dispatch(
+      "POST",
+      ["hackathons", "teams"],
+      {
+        hackathonId: "hack-campus-ai",
+        hackathonName: "Campus AI Buildathon",
+        teamName: "Recruiter Team",
+        teamLeadName: "Recruiter",
+        problemStatement: "Test problem",
+      },
+      recruiterSession,
+      new URLSearchParams(),
+    );
+    expect(res.status).toBe(403);
   });
 });
 
