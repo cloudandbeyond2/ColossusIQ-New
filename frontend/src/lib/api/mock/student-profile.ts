@@ -510,23 +510,23 @@ export async function getStudentAcademicProfile(
       // 1. Look up student record in DB if session.sub is a UUID or fallback to available student
       let studentRecord = isUuid(userSub)
         ? await t.student.findFirst({
-            where: {
-              OR: [
-                { userId: userSub },
-                { id: userSub },
-              ],
-            },
-            include: {
-              department: true,
-              programme: true,
-              term: true,
-              college: true,
-              user: true,
-              certificates: true,
-              quizAttempts: { include: { quiz: true } },
-              evaluationItems: true,
-            },
-          })
+          where: {
+            OR: [
+              { userId: userSub },
+              { id: userSub },
+            ],
+          },
+          include: {
+            department: true,
+            programme: true,
+            term: true,
+            college: true,
+            user: true,
+            certificates: true,
+            quizAttempts: { include: { quiz: true } },
+            evaluationItems: true,
+          },
+        })
         : null;
 
       if (!studentRecord && collegePublicId) {
@@ -564,26 +564,26 @@ export async function getStudentAcademicProfile(
       // 2. Fetch real active courses from PostgreSQL for this college and department
       const deptCourses = studentRecord?.departmentId
         ? await t.course.findMany({
-            where: {
-              ...(collegePublicId ? { college: { publicId: collegePublicId } } : {}),
-              departmentId: studentRecord.departmentId,
-              status: "Active",
-            },
-            include: { department: true },
-            orderBy: { title: "asc" },
-          })
+          where: {
+            ...(collegePublicId ? { college: { publicId: collegePublicId } } : {}),
+            departmentId: studentRecord.departmentId,
+            status: "Active",
+          },
+          include: { department: true },
+          orderBy: { title: "asc" },
+        })
         : [];
 
       const colCourses = deptCourses.length > 0
         ? deptCourses
         : await t.course.findMany({
-            where: {
-              ...(collegePublicId ? { college: { publicId: collegePublicId } } : {}),
-              status: "Active",
-            },
-            include: { department: true },
-            orderBy: { title: "asc" },
-          });
+          where: {
+            ...(collegePublicId ? { college: { publicId: collegePublicId } } : {}),
+            status: "Active",
+          },
+          include: { department: true },
+          orderBy: { title: "asc" },
+        });
 
       const quizCount = studentRecord?.quizAttempts?.length || 0;
       const evalCount = studentRecord?.evaluationItems?.length || 0;
@@ -715,8 +715,8 @@ export async function generateDynamicStudentDashboard(
     profile.stream === "medical"
       ? "Pathology Internal Assessment II"
       : profile.stream === "artsScience"
-      ? "Continuous Internal Assessment II"
-      : `${mainSubject} Internal Assessment II`;
+        ? "Continuous Internal Assessment II"
+        : `${mainSubject} Internal Assessment II`;
 
   // 4. Stream-specific projects and upcoming events
   const projectMap: Record<Stream, { name: string; progress: number }> = {
@@ -809,15 +809,15 @@ export async function generateDynamicStudentDashboard(
     },
     skills: isNewStudent
       ? {
-          technical: 0,
-          communication: 0,
-          interview: 0,
-        }
+        technical: 0,
+        communication: 0,
+        interview: 0,
+      }
       : {
-          technical: Math.min(95, Math.round(avgIa * 0.9 + 8)),
-          communication: Math.min(90, Math.round(avgIa * 0.8 + 10)),
-          interview: Math.min(85, Math.round(avgIa * 0.75 + 10)),
-        },
+        technical: Math.min(95, Math.round(avgIa * 0.9 + 8)),
+        communication: Math.min(90, Math.round(avgIa * 0.8 + 10)),
+        interview: Math.min(85, Math.round(avgIa * 0.75 + 10)),
+      },
     careerReadiness: isNewStudent ? 0 : Math.min(90, Math.round(avgIa * 0.8)),
     today,
     recommendation,
@@ -979,118 +979,44 @@ export async function generateDynamicSkillGraph(
   const subjects = profile.enrolledSubjects;
   const isNew = profile.cgpa === 0 && profile.streakDays === 0;
 
-  // Stream/Department-specific skill dimensions when enrolled courses < 5
-  const defaultPillarsByStream: Record<string, Array<{ name: string; baseScore: number; target: number }>> = {
-    engineering: [
-      { name: "Database Systems (CS3492)", baseScore: 68, target: 85 },
-      { name: "Data Structures & Algorithms", baseScore: 62, target: 85 },
-      { name: "SQL & Query Optimization", baseScore: 72, target: 85 },
-      { name: "System Architecture", baseScore: 56, target: 80 },
-      { name: "Problem Solving & Logic", baseScore: 75, target: 85 },
-      { name: "Software Engineering & Git", baseScore: 60, target: 80 },
-    ],
-    medical: [
-      { name: "Human Anatomy & Morphology", baseScore: 70, target: 85 },
-      { name: "Physiology & Homeostasis", baseScore: 65, target: 85 },
-      { name: "Clinical Biochemistry", baseScore: 62, target: 80 },
-      { name: "Pathology & Diagnostics", baseScore: 58, target: 85 },
-      { name: "Pharmacology Therapeutics", baseScore: 64, target: 85 },
-      { name: "Clinical Case Assessment", baseScore: 60, target: 80 },
-    ],
-    artsScience: [
-      { name: "Financial Accounting", baseScore: 72, target: 85 },
-      { name: "Business Statistics", baseScore: 65, target: 80 },
-      { name: "Applied Mathematics", baseScore: 60, target: 80 },
-      { name: "Communication & Writing", baseScore: 78, target: 85 },
-      { name: "Data Analytics & Excel", baseScore: 66, target: 85 },
-      { name: "Domain Specialization", baseScore: 70, target: 85 },
-    ],
-    management: [
-      { name: "Marketing Strategy (STP)", baseScore: 74, target: 85 },
-      { name: "Financial Management", baseScore: 64, target: 85 },
-      { name: "Operations & Supply Chain", baseScore: 68, target: 80 },
-      { name: "Business Analytics", baseScore: 66, target: 85 },
-      { name: "Managerial Economics", baseScore: 70, target: 80 },
-      { name: "Leadership & Team Dynamics", baseScore: 76, target: 85 },
-    ],
-    polytechnic: [
-      { name: "Engineering Drawing & CAD", baseScore: 72, target: 85 },
-      { name: "Applied Electronics", baseScore: 65, target: 80 },
-      { name: "Workshop Technology", baseScore: 75, target: 85 },
-      { name: "Circuit Theory & Testing", baseScore: 62, target: 80 },
-      { name: "Industrial Safety", baseScore: 80, target: 85 },
-    ],
-  };
+  const dimensions = subjects.map((s) => {
+    const avgUnitMastery = Math.round(
+      s.units.reduce((sum, u) => sum + u.mastery, 0) / (s.units.length || 1)
+    );
+    const score = isNew ? 0 : Math.max(30, Math.min(98, Math.round((avgUnitMastery + s.ia1Marks + s.ia2Marks) / 3)));
+    return {
+      name: s.shortName,
+      score,
+      target: 85,
+    };
+  });
 
-  const streamKey = (profile.stream || "engineering") as keyof typeof defaultPillarsByStream;
-  const standardPillars = defaultPillarsByStream[streamKey] ?? defaultPillarsByStream.engineering;
-
-  // Build multi-axis dimensions (at least 5 for a rich radar polygon)
-  const dimensions: Array<{ name: string; score: number; target: number }> = [];
-
-  if (subjects.length >= 4) {
-    for (const s of subjects) {
-      const avgUnitMastery = Math.round(
-        s.units.reduce((sum, u) => sum + u.mastery, 0) / (s.units.length || 1)
-      );
-      const computedScore = isNew
-        ? Math.max(45, Math.min(80, Math.round((s.attendancePercent * 0.4) + 30)))
-        : Math.max(35, Math.min(98, Math.round((avgUnitMastery + s.ia1Marks + s.ia2Marks) / 3)));
-      dimensions.push({
-        name: s.shortName,
-        score: computedScore,
-        target: 85,
-      });
-    }
-  } else {
-    // Merge enrolled subject specifics with curriculum pillar competencies
-    for (const pillar of standardPillars) {
-      const matchedSubject = subjects.find(
-        (s) => pillar.name.toLowerCase().includes(s.shortName.toLowerCase()) || s.title.toLowerCase().includes(pillar.name.toLowerCase())
-      );
-      if (matchedSubject) {
-        const avgUnitMastery = Math.round(
-          matchedSubject.units.reduce((sum, u) => sum + u.mastery, 0) / (matchedSubject.units.length || 1)
-        );
-        const score = isNew
-          ? pillar.baseScore
-          : Math.max(35, Math.min(98, Math.round((avgUnitMastery + matchedSubject.ia1Marks + matchedSubject.ia2Marks) / 3)));
-        dimensions.push({
-          name: `${matchedSubject.shortName} (${matchedSubject.title.slice(0, 18)})`,
-          score,
-          target: pillar.target,
-        });
-      } else {
-        dimensions.push({
-          name: pillar.name,
-          score: pillar.baseScore,
-          target: pillar.target,
-        });
-      }
-    }
-  }
-
-  const overall = Math.round(dimensions.reduce((a, d) => a + d.score, 0) / (dimensions.length || 1));
+  const overall = isNew ? 0 : Math.round(dimensions.reduce((a, d) => a + d.score, 0) / (dimensions.length || 1));
   const strengths: string[] = [];
   const gaps: string[] = [];
   const plan: string[] = [];
 
-  // Generate strengths from high scoring dimensions & records
-  const topDims = [...dimensions].sort((a, b) => b.score - a.score);
-  if (topDims[0]) strengths.push(`${topDims[0].name}: Demonstrating solid proficiency (${topDims[0].score}%)`);
-  if (topDims[1]) strengths.push(`${topDims[1].name}: Consistent baseline competency (${topDims[1].score}%)`);
-  strengths.push(`Enrolled in ${profile.degree} · ${profile.department} (Active Semester ${profile.semester})`);
+  for (const s of subjects) {
+    const lowUnits = s.units.filter((u) => u.mastery < 55);
+    const highUnits = s.units.filter((u) => u.mastery >= 75);
+    if (highUnits.length > 0) {
+      strengths.push(`${s.shortName}: Strong mastery in ${highUnits[0]?.title}`);
+    }
+    if (lowUnits.length > 0 && !isNew) {
+      gaps.push(`${s.shortName}: ${lowUnits[0]?.title} (${lowUnits[0]?.mastery}%)`);
+      plan.push(`Complete adaptive revision quiz on ${lowUnits[0]?.title} (${s.shortName})`);
+    }
+  }
 
-  // Generate targeted learning gaps from lower dimensions
-  const lowDims = [...dimensions].sort((a, b) => a.score - b.score);
-  if (lowDims[0]) gaps.push(`${lowDims[0].name}: Below target benchmark (${lowDims[0].score}% / ${lowDims[0].target}%)`);
-  if (lowDims[1]) gaps.push(`${lowDims[1].name}: Needs focused practice on advanced concepts (${lowDims[1].score}%)`);
-  gaps.push("Diagnostic practice assessments recommended to accelerate score calibration");
-
-  // Actionable 3-step improvement plan
-  plan.push(`Complete an adaptive practice quiz on ${lowDims[0]?.name || "Core Principles"} in My Quizzes`);
-  plan.push(`Review Unit 2 & 3 concept notes and worked examples for ${subjects[0]?.shortName || "CS3492"}`);
-  plan.push("Attempt a full-length timed diagnostic test to boost placement readiness score");
+  if (isNew) {
+    strengths.push(`Enrolled in ${profile.degree} (${profile.department})`);
+    gaps.push("No diagnostic tests or quizzes attempted yet");
+    plan.push("Complete coursework lessons and practice quizzes in My Quizzes to build your skill graph");
+  } else {
+    if (strengths.length === 0) strengths.push(`${subjects[0]?.shortName}: Consistent practice streak (${profile.streakDays} days)`);
+    if (gaps.length === 0) gaps.push("Advance to mock interview and full-length assessment");
+    if (plan.length === 0) plan.push("Take the departmental certification test");
+  }
 
   return {
     template: "scorecard",
@@ -1112,31 +1038,31 @@ export async function generateDynamicStudyTwin(
   return {
     template: "scorecard",
     headline: `AI Study Twin — ${profile.name}'s Learning Dynamics`,
-    overall: isNew ? 70 : 74,
+    overall: isNew ? 0 : 74,
     dimensions: [
-      { name: "Learning pace", score: isNew ? 72 : 76, target: 80 },
-      { name: "Retention rate (7-day)", score: isNew ? 65 : 68, target: 75 },
-      { name: "Practice consistency", score: isNew ? 78 : 85, target: 80 },
-      { name: "Revision discipline", score: isNew ? 60 : 62, target: 75 },
-      { name: "Focus duration", score: isNew ? 75 : 78, target: 80 },
+      { name: "Learning pace", score: isNew ? 0 : 76, target: 80 },
+      { name: "Retention rate (7-day)", score: isNew ? 0 : 68, target: 75 },
+      { name: "Practice consistency", score: isNew ? 0 : 85, target: 80 },
+      { name: "Revision discipline", score: isNew ? 0 : 62, target: 75 },
+      { name: "Focus duration", score: isNew ? 0 : 78, target: 80 },
     ],
     strengths: isNew
       ? [
-          "Study twin initialized for current academic curriculum",
-          "Optimal focus windows mapped to standard timetable",
-          "Cognitive model ready to calibrate with your first study session",
-        ]
+        "Study twin initialized for current academic curriculum",
+        "Optimal focus windows mapped to standard timetable",
+        "Cognitive model ready to calibrate with your first study session",
+      ]
       : [
-          "Visual worked examples & concept diagrams increase retention by 2.4x",
-          "Peak cognitive focus observed between 08:30 AM – 11:30 AM",
-          `High consistency with a ${profile.streakDays}-day active learning streak`,
-        ],
+        "Visual worked examples & concept diagrams increase retention by 2.4x",
+        "Peak cognitive focus observed between 08:30 AM – 11:30 AM",
+        `High consistency with a ${profile.streakDays}-day active learning streak`,
+      ],
     gaps: isNew
       ? ["Awaiting initial learning session telemetry to measure retention curve"]
       : [
-          "Revision frequency slows down on weekends",
-          "Complex theoretical proofs show faster decay without practice recaps",
-        ],
+        "Revision frequency slows down on weekends",
+        "Complex theoretical proofs show faster decay without practice recaps",
+      ],
     plan: [
       "Utilize 25-minute Pomodoro focus blocks with formula flashcards",
       "Schedule Sunday morning 30-minute spaced revision for lowest-mastery units",
@@ -1227,20 +1153,20 @@ export async function generateDynamicCareer(
     ],
     strengths: isNew
       ? [
-          `Enrolled in accredited program (${profile.degree})`,
-          "Curriculum aligned to industry standard role competencies",
-        ]
+        `Enrolled in accredited program (${profile.degree})`,
+        "Curriculum aligned to industry standard role competencies",
+      ]
       : [
-          `Strong core foundations in ${profile.enrolledSubjects[0]?.shortName || "major subjects"}`,
-          `Good academic standing with CGPA ${profile.cgpa}`,
-          "Active participation in campus innovation and projects",
-        ],
+        `Strong core foundations in ${profile.enrolledSubjects[0]?.shortName || "major subjects"}`,
+        `Good academic standing with CGPA ${profile.cgpa}`,
+        "Active participation in campus innovation and projects",
+      ],
     gaps: isNew
       ? ["Complete first semester milestones and technical certifications to unlock role benchmark score"]
       : [
-          "Technical mock interview score is below target (58% vs 75%)",
-          "Portfolio lacks deployment to public cloud / live demonstration",
-        ],
+        "Technical mock interview score is below target (58% vs 75%)",
+        "Portfolio lacks deployment to public cloud / live demonstration",
+      ],
     plan: [
       "Take 2 mock technical interviews weekly on AI Mock Interview",
       "Deploy capstone project on GitHub with live architecture diagram",
@@ -1269,19 +1195,19 @@ export async function generateDynamicReadiness(
     ],
     strengths: isNew
       ? [
-          `Active student registration in ${profile.department}`,
-          "Enrolled in university placement readiness track",
-        ]
+        `Active student registration in ${profile.department}`,
+        "Enrolled in university placement readiness track",
+      ]
       : [
-          "Academic CGPA and Resume ATS optimization exceed hiring thresholds",
-          "Consistent continuous assessment marks across semesters",
-        ],
+        "Academic CGPA and Resume ATS optimization exceed hiring thresholds",
+        "Consistent continuous assessment marks across semesters",
+      ],
     gaps: isNew
       ? ["No assessment attempts, certifications, or mock interviews recorded yet"]
       : [
-          "Live verbal communication in technical interviews requires STAR practice",
-          "Advanced domain certifications pending completion",
-        ],
+        "Live verbal communication in technical interviews requires STAR practice",
+        "Advanced domain certifications pending completion",
+      ],
     plan: [
       "Practice STAR framework answers with Viva Simulator",
       "Earn second department course certificate in AI Course Studio",
@@ -1633,8 +1559,8 @@ export async function generateDynamicExamPrep(
     profile.stream === "medical"
       ? "Pathology Internal Assessment II"
       : profile.stream === "artsScience"
-      ? "Continuous Internal Assessment II"
-      : `${primarySubject.shortName} IA-II`;
+        ? "Continuous Internal Assessment II"
+        : `${primarySubject.shortName} IA-II`;
 
   return {
     template: "dashboard",
