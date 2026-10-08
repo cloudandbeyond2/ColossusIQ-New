@@ -93,6 +93,7 @@ export const API_AREAS: Record<string, string[]> = {
   resume: ["resume"],
   interview: ["interview"],
   drives: ["drives"],
+  employers: ["employers"],
   knowledge: ["knowledge-base"],
   "ai-providers": ["ai-providers"],
   clubs: ["clubs"],
