@@ -165,7 +165,7 @@ export const MODULES: ModuleDef[] = [
   { slug: "question-generator", title: "Question Paper Generator", description: "Generate blueprint-aligned question papers mapped to course outcomes.", group: "Faculty", roles: ["faculty", "hod"], template: "generator", icon: "wand", phase: "MVP", agent: "exam" },
   { slug: "teaching-studio", title: "Teaching Studio", description: "Topic basics, a timed lesson outline, a semester roadmap, an infographic handout, smart-board slides and a class summary to share — for any chapter or topic.", group: "Faculty", roles: ["faculty", "hod"], template: "bespoke", icon: "board", phase: "MVP", notice: "AI drafts the teaching pack from your course content. Review it before class; you decide what students see." },
   { slug: "skill-booster", title: "Faculty Skill Booster", description: "Teaching tasks that complete from what you actually do, short skill tracks, levels and badges.", group: "Faculty", roles: ["faculty", "hod"], template: "bespoke", icon: "award", phase: "MVP" },
-  { slug: "class-analytics", title: "Class Performance", description: "Topic-wise mastery, remedial recommendations and at-risk signals for your classes.", group: "Faculty", roles: ["faculty"], template: "dashboard", icon: "chart", phase: "MVP" },
+  { slug: "class-analytics", title: "Class Performance", description: "Topic-wise mastery, remedial recommendations and at-risk signals for your classes.", group: "Faculty", roles: ["faculty"], template: "bespoke", icon: "chart", phase: "MVP" },
 
   // ───────────── Department (HOD) ─────────────
   { slug: "department-faculty", title: "Faculty", description: "Faculty load, development progress and AI adoption.", group: "Department", roles: ["hod"], template: "bespoke", icon: "users", phase: "MVP" },

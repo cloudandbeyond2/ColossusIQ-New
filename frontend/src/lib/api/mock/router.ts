@@ -78,6 +78,12 @@ import {
   saveAttendanceSession,
   scheduleExtraClass,
 } from "./faculty-allocation";
+import {
+  getClassAnalyticsData,
+  createRemedialIntervention,
+  updateRemedialStatus,
+  generateAiRemedialWorksheet,
+} from "./class-analytics-engine";
 
 export interface MockResult {
   status: number;
@@ -1036,6 +1042,57 @@ async function dispatchFaculty(
     const stream = (await collegeStream(session.college)) || "engineering";
     const added = scheduleExtraClass(slot, stream);
     return ok({ ok: true, slot: added });
+  }
+
+  // GET /faculty/analytics or GET /faculty/classes/:id/analytics — dynamic class analytics & diagnostics
+  if (
+    (method === "GET" && segs.length === 2 && segs[1] === "analytics") ||
+    (method === "GET" && segs.length === 4 && segs[1] === "classes" && segs[3] === "analytics")
+  ) {
+    const sectionId = segs[1] === "classes" ? segs[2] : (query.get("sectionId") || undefined);
+    return ok(await getClassAnalyticsData(session, sectionId));
+  }
+
+  // POST /faculty/remedial/interventions — schedule remedial intervention
+  if (method === "POST" && segs.length === 3 && segs[1] === "remedial" && segs[2] === "interventions") {
+    let body = rawBody;
+    if (typeof body === "string") {
+      try { body = JSON.parse(body); } catch {}
+    }
+    const data = (body as { data?: any })?.data || (body as any);
+    if (!data?.topic || !data?.sectionId) {
+      return err(400, "invalid_body", "topic and sectionId are required");
+    }
+    const created = await createRemedialIntervention(session, data);
+    return ok({ ok: true, intervention: created });
+  }
+
+  // PATCH /faculty/remedial/interventions/:id — update remedial intervention status
+  if (method === "PATCH" && segs.length === 4 && segs[1] === "remedial" && segs[2] === "interventions" && segs[3]) {
+    let body = rawBody;
+    if (typeof body === "string") {
+      try { body = JSON.parse(body); } catch {}
+    }
+    const data = (body as { data?: any })?.data || (body as any);
+    if (!data?.status) {
+      return err(400, "invalid_body", "status is required");
+    }
+    const updated = await updateRemedialStatus(session, segs[3], data.status);
+    if (!updated) return notFound();
+    return ok({ ok: true, intervention: updated });
+  }
+
+  // POST /faculty/remedial/generate-plan — AI remedial study guide & worksheet
+  if (method === "POST" && segs.length === 3 && segs[1] === "remedial" && segs[2] === "generate-plan") {
+    let body = rawBody;
+    if (typeof body === "string") {
+      try { body = JSON.parse(body); } catch {}
+    }
+    const data = (body as { data?: any })?.data || (body as any);
+    const topic = String(data?.topic || "Unit 3: Normalization & Functional Dependencies");
+    const unit = String(data?.unit || "Unit 3");
+    const worksheet = generateAiRemedialWorksheet(topic, unit);
+    return ok({ ok: true, worksheet });
   }
 
   // Only roles with department:manage or users:manage may manage faculty
