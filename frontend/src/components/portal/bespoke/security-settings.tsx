@@ -6,7 +6,10 @@ import {
   Check,
   CheckCircle2,
   Clock,
+  EyeOff,
+  GraduationCap,
   KeyRound,
+  LineChart,
   Lock,
   RefreshCw,
   RotateCcw,
@@ -15,6 +18,7 @@ import {
   ShieldAlert,
   ShieldCheck,
   Sparkles,
+  UserCheck,
   Users,
   X,
 } from "lucide-react";
@@ -76,6 +80,167 @@ function calculateSecurityScore(values: Record<string, string | boolean>): {
   if (capped >= 75) return { score: capped, grade: "A Strong", tone: "teal" };
   if (capped >= 60) return { score: capped, grade: "B Good", tone: "gold" };
   return { score: capped, grade: "C Needs Attention", tone: "rose" };
+}
+
+function SecurityScoreGauge({ score, tone }: { score: number; tone: "teal" | "gold" | "rose" }) {
+  const r = 34;
+  const strokeWidth = 6.5;
+  const c = 2 * Math.PI * r;
+  const strokeDashoffset = c * (1 - Math.min(100, Math.max(0, score)) / 100);
+
+  const colors = {
+    teal: {
+      gradientStart: "#10b981",
+      gradientEnd: "#059669",
+      glow: "rgba(16, 185, 129, 0.25)",
+      bgRing: "rgba(16, 185, 129, 0.12)",
+      text: "text-emerald-600 dark:text-emerald-400",
+    },
+    gold: {
+      gradientStart: "#f59e0b",
+      gradientEnd: "#d97706",
+      glow: "rgba(245, 158, 11, 0.25)",
+      bgRing: "rgba(245, 158, 11, 0.12)",
+      text: "text-amber-600 dark:text-amber-400",
+    },
+    rose: {
+      gradientStart: "#f43f5e",
+      gradientEnd: "#e11d48",
+      glow: "rgba(244, 63, 94, 0.25)",
+      bgRing: "rgba(244, 63, 94, 0.12)",
+      text: "text-rose-600 dark:text-rose-400",
+    },
+  }[tone];
+
+  return (
+    <div className="relative flex size-24 shrink-0 items-center justify-center">
+      <svg viewBox="0 0 88 88" className="size-full -rotate-90" aria-hidden>
+        <defs>
+          <linearGradient id={`score-grad-${tone}`} x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor={colors.gradientStart} />
+            <stop offset="100%" stopColor={colors.gradientEnd} />
+          </linearGradient>
+          <filter id={`glow-${tone}`} x="-20%" y="-20%" width="140%" height="140%">
+            <feDropShadow dx="0" dy="2" stdDeviation="3" floodColor={colors.gradientStart} floodOpacity="0.3" />
+          </filter>
+        </defs>
+
+        {/* Track Circle */}
+        <circle
+          cx="44"
+          cy="44"
+          r={r}
+          fill="none"
+          stroke="currentColor"
+          className="text-line/60 dark:text-line/40"
+          strokeWidth={strokeWidth}
+        />
+
+        {/* Progress Circle */}
+        <circle
+          cx="44"
+          cy="44"
+          r={r}
+          fill="none"
+          stroke={`url(#score-grad-${tone})`}
+          strokeWidth={strokeWidth}
+          strokeLinecap="round"
+          strokeDasharray={c}
+          strokeDashoffset={strokeDashoffset}
+          filter={`url(#glow-${tone})`}
+          className="transition-all duration-700 ease-out"
+        />
+      </svg>
+
+      {/* Center Label */}
+      <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
+        <span className={cn("text-2xl font-extrabold tracking-tight leading-none", colors.text)}>
+          {score}
+        </span>
+        <span className="mt-0.5 text-[10px] font-bold tracking-wider text-ink-3 uppercase">
+          / 100
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function SecurityToggleItem({
+  title,
+  description,
+  checked,
+  onToggle,
+  id,
+  icon: Icon,
+}: {
+  title: string;
+  description: string;
+  checked: boolean;
+  onToggle: () => void;
+  id: string;
+  icon?: React.ComponentType<{ className?: string }>;
+}) {
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onToggle();
+        }
+      }}
+      onClick={onToggle}
+      className={cn(
+        "group flex cursor-pointer items-center justify-between gap-4 rounded-xl border p-3.5 transition-all duration-200",
+        checked
+          ? "border-emerald-500/30 bg-emerald-500/[0.03] shadow-sm hover:border-emerald-500/50 hover:bg-emerald-500/[0.06]"
+          : "border-line/70 bg-surface hover:border-line hover:bg-surface-2/50",
+      )}
+    >
+      <div className="flex items-start gap-3 min-w-0 flex-1">
+        {Icon ? (
+          <div
+            className={cn(
+              "mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg border transition-colors",
+              checked
+                ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                : "border-line bg-surface-2 text-ink-3 group-hover:text-ink",
+            )}
+          >
+            <Icon className="size-4" />
+          </div>
+        ) : null}
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold text-ink group-hover:text-brand transition-colors">{title}</p>
+          <p className="mt-0.5 text-xs text-ink-3 leading-relaxed">{description}</p>
+        </div>
+      </div>
+
+      <button
+        id={id}
+        type="button"
+        role="switch"
+        aria-checked={checked}
+        onClick={(e) => {
+          e.stopPropagation();
+          onToggle();
+        }}
+        className={cn(
+          "relative inline-flex h-7 w-12 shrink-0 cursor-pointer items-center rounded-full p-1 transition-colors duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-emerald-500/40 focus:ring-offset-2",
+          checked ? "bg-emerald-600 dark:bg-emerald-500 shadow-sm" : "bg-line hover:bg-line-2",
+        )}
+      >
+        <span
+          aria-hidden="true"
+          className={cn(
+            "pointer-events-none inline-block size-5 transform rounded-full bg-white shadow-md ring-0 transition-transform duration-300 ease-in-out",
+            checked ? "translate-x-5" : "translate-x-0",
+          )}
+        />
+      </button>
+    </div>
+  );
 }
 
 export function SecuritySettingsModule() {
@@ -203,10 +368,7 @@ export function SecuritySettingsModule() {
       <Card className="overflow-hidden border-line">
         <div className="flex flex-col gap-6 p-6 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-5">
-            <div className="relative flex size-20 shrink-0 items-center justify-center rounded-2xl bg-surface-2">
-              <span className="text-2xl font-black text-ink">{score}</span>
-              <span className="absolute -bottom-1 text-[9px] font-bold uppercase tracking-wider text-ink-3">/ 100</span>
-            </div>
+            <SecurityScoreGauge score={score} tone={tone} />
             <div>
               <div className="flex items-center gap-2">
                 <Badge tone={tone}>{grade}</Badge>
@@ -289,81 +451,36 @@ export function SecuritySettingsModule() {
               title="Authentication & Identity"
               subtitle="Applies to every user in the tenant with multi-factor authentication and session security."
             />
-            <CardBody className="space-y-5">
-              {/* Staff MFA */}
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <p className="text-sm font-semibold text-ink">Require MFA for staff</p>
-                  <p className="text-xs text-ink-3">Mandates 2-step verification (authenticator app) for all faculty and administrative accounts.</p>
-                </div>
-                <button
-                  role="switch"
-                  aria-checked={values["mfa"] === true}
-                  onClick={() => toggle("mfa")}
-                  className={cn(
-                    "relative h-6 w-11 shrink-0 rounded-full transition-colors",
-                    values["mfa"] === true ? "bg-teal" : "bg-line",
-                  )}
-                >
-                  <span
-                    className={cn(
-                      "absolute top-0.5 size-5 rounded-full bg-white shadow transition-transform",
-                      values["mfa"] === true ? "translate-x-5" : "translate-x-0.5",
-                    )}
-                  />
-                </button>
-              </div>
+            <CardBody className="space-y-3">
+              <SecurityToggleItem
+                id="toggle-mfa"
+                icon={UserCheck}
+                title="Require MFA for staff"
+                description="Mandates 2-step verification (authenticator app) for all faculty and administrative accounts."
+                checked={values["mfa"] === true}
+                onToggle={() => toggle("mfa")}
+              />
 
-              {/* Student MFA */}
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <p className="text-sm font-semibold text-ink">Require MFA for students</p>
-                  <p className="text-xs text-ink-3">Enforces multi-factor authentication on student portal logins.</p>
-                </div>
-                <button
-                  role="switch"
-                  aria-checked={values["mfa-students"] === true}
-                  onClick={() => toggle("mfa-students")}
-                  className={cn(
-                    "relative h-6 w-11 shrink-0 rounded-full transition-colors",
-                    values["mfa-students"] === true ? "bg-teal" : "bg-line",
-                  )}
-                >
-                  <span
-                    className={cn(
-                      "absolute top-0.5 size-5 rounded-full bg-white shadow transition-transform",
-                      values["mfa-students"] === true ? "translate-x-5" : "translate-x-0.5",
-                    )}
-                  />
-                </button>
-              </div>
+              <SecurityToggleItem
+                id="toggle-mfa-students"
+                icon={GraduationCap}
+                title="Require MFA for students"
+                description="Enforces multi-factor authentication on student portal logins."
+                checked={values["mfa-students"] === true}
+                onToggle={() => toggle("mfa-students")}
+              />
 
-              {/* SSO */}
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <p className="text-sm font-semibold text-ink">Enterprise SSO (SAML / OIDC)</p>
-                  <p className="text-xs text-ink-3">Allows campus Google Workspace, Microsoft 365, or Azure AD single sign-on.</p>
-                </div>
-                <button
-                  role="switch"
-                  aria-checked={values["sso"] === true}
-                  onClick={() => toggle("sso")}
-                  className={cn(
-                    "relative h-6 w-11 shrink-0 rounded-full transition-colors",
-                    values["sso"] === true ? "bg-teal" : "bg-line",
-                  )}
-                >
-                  <span
-                    className={cn(
-                      "absolute top-0.5 size-5 rounded-full bg-white shadow transition-transform",
-                      values["sso"] === true ? "translate-x-5" : "translate-x-0.5",
-                    )}
-                  />
-                </button>
-              </div>
+              <SecurityToggleItem
+                id="toggle-sso"
+                icon={KeyRound}
+                title="Enterprise SSO (SAML / OIDC)"
+                description="Allows campus Google Workspace, Microsoft 365, or Azure AD single sign-on."
+                checked={values["sso"] === true}
+                onToggle={() => toggle("sso")}
+              />
 
               {/* Session timeout & password length */}
-              <div className="grid gap-4 sm:grid-cols-2 pt-2 border-t border-line">
+              <div className="grid gap-4 sm:grid-cols-2 pt-3 border-t border-line">
                 <Field label="Idle session timeout" htmlFor="setting-session" hint="Automatically logs out inactive users.">
                   <select
                     id="setting-session"
@@ -400,82 +517,35 @@ export function SecuritySettingsModule() {
               title="Data Protection & AI Isolation"
               subtitle="Data privacy, automated anonymization, and generative AI guardrails."
             />
-            <CardBody className="space-y-5">
-              {/* Masking */}
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <p className="text-sm font-semibold text-ink">Mask personal data before sending to models</p>
-                  <p className="text-xs text-ink-3">Redacts student names, phone numbers, and roll numbers before LLM processing.</p>
-                </div>
-                <button
-                  role="switch"
-                  aria-checked={values["masking"] === true}
-                  onClick={() => toggle("masking")}
-                  className={cn(
-                    "relative h-6 w-11 shrink-0 rounded-full transition-colors",
-                    values["masking"] === true ? "bg-teal" : "bg-line",
-                  )}
-                >
-                  <span
-                    className={cn(
-                      "absolute top-0.5 size-5 rounded-full bg-white shadow transition-transform",
-                      values["masking"] === true ? "translate-x-5" : "translate-x-0.5",
-                    )}
-                  />
-                </button>
-              </div>
+            <CardBody className="space-y-3">
+              <SecurityToggleItem
+                id="toggle-masking"
+                icon={EyeOff}
+                title="Mask personal data before sending to models"
+                description="Redacts student names, phone numbers, and roll numbers before LLM processing."
+                checked={values["masking"] === true}
+                onToggle={() => toggle("masking")}
+              />
 
-              {/* Training */}
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <p className="text-sm font-semibold text-ink">Allow tenant data for model training</p>
-                  <p className="text-xs text-ink-3">
-                    Off by default. Student and institutional academic data is strictly isolated and never used for model training without consent.
-                  </p>
-                </div>
-                <button
-                  role="switch"
-                  aria-checked={values["training"] === true}
-                  onClick={() => toggle("training")}
-                  className={cn(
-                    "relative h-6 w-11 shrink-0 rounded-full transition-colors",
-                    values["training"] === true ? "bg-teal" : "bg-line",
-                  )}
-                >
-                  <span
-                    className={cn(
-                      "absolute top-0.5 size-5 rounded-full bg-white shadow transition-transform",
-                      values["training"] === true ? "translate-x-5" : "translate-x-0.5",
-                    )}
-                  />
-                </button>
-              </div>
+              <SecurityToggleItem
+                id="toggle-training"
+                icon={Lock}
+                title="Allow tenant data for model training"
+                description="Off by default. Student and institutional academic data is strictly isolated and never used for model training without consent."
+                checked={values["training"] === true}
+                onToggle={() => toggle("training")}
+              />
 
-              {/* Attendance in early warning */}
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <p className="text-sm font-semibold text-ink">Use attendance in early-warning signals</p>
-                  <p className="text-xs text-ink-3">Allows AI models to correlate attendance trends with academic risk indicators.</p>
-                </div>
-                <button
-                  role="switch"
-                  aria-checked={values["attendance"] === true}
-                  onClick={() => toggle("attendance")}
-                  className={cn(
-                    "relative h-6 w-11 shrink-0 rounded-full transition-colors",
-                    values["attendance"] === true ? "bg-teal" : "bg-line",
-                  )}
-                >
-                  <span
-                    className={cn(
-                      "absolute top-0.5 size-5 rounded-full bg-white shadow transition-transform",
-                      values["attendance"] === true ? "translate-x-5" : "translate-x-0.5",
-                    )}
-                  />
-                </button>
-              </div>
+              <SecurityToggleItem
+                id="toggle-attendance"
+                icon={LineChart}
+                title="Use attendance in early-warning signals"
+                description="Allows AI models to correlate attendance trends with academic risk indicators."
+                checked={values["attendance"] === true}
+                onToggle={() => toggle("attendance")}
+              />
 
-              <div className="pt-2 border-t border-line">
+              <div className="pt-3 border-t border-line">
                 <Field label="AI conversation retention" htmlFor="setting-retention" hint="Retention window for chat and generation history.">
                   <select
                     id="setting-retention"

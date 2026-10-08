@@ -25,6 +25,7 @@ export const COLLEGE_SEEDS: Array<[string, string, string, string, number, numbe
   ["Vaigai Polytechnic College", "4507", "Polytechnic", "Madurai", 2015, 900, "Mr. A. Selvam", "Campus Starter", "Onboarding", ["Career", "Campus Life", "Admissions"], "vaigaipoly.ac.in"],
   ["Madurai Medical College & Hospital", "5101", "Medical College & Hospital", "Madurai", 1954, 1500, "Dr. R. Meenakshi, MD", "University Enterprise", "Active", ["Career", "Communication & Skills", "Project & Innovation", "Campus Life", "Admissions"], "mmch.ac.in"],
   ["Chennai Institute of Nursing & Allied Health Sciences", "5230", "Nursing & Allied Health Sciences", "Chennai", 1999, 800, "Prof. J. Stella, M.Sc (N)", "Campus Pro", "Active", ["Career", "Communication & Skills", "Campus Life", "Admissions"], "cinahs.ac.in"],
+  ["Apex Institute of Science & Technology", "2418", "Engineering", "Coimbatore", 2012, 2400, "SARAVANAN-PRIN", "Campus Pro", "Active", ALL_GROUPS, "aist.edu.in"],
 ];
 
 export function collegeRows(): Array<Record<string, RecordValue>> {

@@ -36,6 +36,7 @@ const DOMAINS: Record<string, string> = {
   "COL-1006": "mmch.ac.in",
   "COL-1007": "cinahs.ac.in",
   "COL-1008": "bdu.ac.in",
+  "COL-1015": "aist.edu.in",
 };
 
 function devCredentialsFor(r: Role, cId: string) {

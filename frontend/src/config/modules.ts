@@ -165,7 +165,7 @@ export const MODULES: ModuleDef[] = [
   { slug: "question-generator", title: "Question Paper Generator", description: "Generate blueprint-aligned question papers mapped to course outcomes.", group: "Faculty", roles: ["faculty", "hod"], template: "generator", icon: "wand", phase: "MVP", agent: "exam" },
   { slug: "teaching-studio", title: "Teaching Studio", description: "Topic basics, a timed lesson outline, a semester roadmap, an infographic handout, smart-board slides and a class summary to share — for any chapter or topic.", group: "Faculty", roles: ["faculty", "hod"], template: "bespoke", icon: "board", phase: "MVP", notice: "AI drafts the teaching pack from your course content. Review it before class; you decide what students see." },
   { slug: "skill-booster", title: "Faculty Skill Booster", description: "Teaching tasks that complete from what you actually do, short skill tracks, levels and badges.", group: "Faculty", roles: ["faculty", "hod"], template: "bespoke", icon: "award", phase: "MVP" },
-  { slug: "class-analytics", title: "Class Performance", description: "Topic-wise mastery, remedial recommendations and at-risk signals for your classes.", group: "Faculty", roles: ["faculty"], template: "dashboard", icon: "chart", phase: "MVP" },
+  { slug: "class-analytics", title: "Class Performance", description: "Topic-wise mastery, remedial recommendations and at-risk signals for your classes.", group: "Faculty", roles: ["faculty"], template: "bespoke", icon: "chart", phase: "MVP" },
 
   // ───────────── Department (HOD) ─────────────
   { slug: "department-faculty", title: "Faculty", description: "Faculty load, development progress and AI adoption.", group: "Department", roles: ["hod"], template: "bespoke", icon: "users", phase: "MVP" },
@@ -178,7 +178,7 @@ export const MODULES: ModuleDef[] = [
   { slug: "placement-board", title: "Placement Readiness Board", description: "Every student’s readiness total, gaps and status — filter, shortlist and export for drives.", group: "Placement", roles: ["placement", "hod", "institution", "admin"], template: "bespoke", icon: "target", phase: "MVP" },
   { slug: "drives", title: "Placement Drives", description: "Schedule and manage campus recruitment drives.", group: "Placement", roles: ["placement"], template: "bespoke", icon: "briefcase", phase: "MVP" },
   { slug: "jobs", title: "Job Matching", description: "Open roles matched to verified student profiles and eligibility.", group: "Placement", roles: ["placement", "student"], template: "bespoke", icon: "handshake", phase: "MVP" },
-  { slug: "employers", title: "Employers", description: "Recruiter relationships, history and hiring outcomes.", group: "Placement", roles: ["placement"], template: "list", icon: "building", phase: "Phase 2" },
+  { slug: "employers", title: "Employers", description: "Recruiter relationships, history and hiring outcomes.", group: "Placement", roles: ["placement"], template: "bespoke", icon: "building", phase: "MVP" },
   { slug: "placement-analytics", title: "Placement Analytics", description: "Readiness, resume completion, mock-interview participation and offers.", group: "Placement", roles: ["placement", "hod", "institution"], template: "dashboard", icon: "chart", phase: "Phase 2" },
 
   // ───────────── Incubation ─────────────
