@@ -61,8 +61,10 @@ import { JobsModule } from "./bespoke/jobs";
 import { AlumniModule } from "./bespoke/alumni";
 import { MyClassesModule } from "./bespoke/my-classes";
 import { ClassAnalyticsModule } from "./bespoke/class-analytics";
+import { BrandingModule } from "./bespoke/branding";
 
 const BESPOKE: Record<string, (props: { role: Role }) => React.ReactNode> = {
+  branding: () => <BrandingModule />,
   "aicte-compliance": ({ role }) => <AicteComplianceModule role={role} />,
   "early-warning": ({ role }) => <EarlyWarningModule role={role} />,
   "department-skills": ({ role }) => <DepartmentSkillsModule role={role} />,
