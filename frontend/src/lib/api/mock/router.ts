@@ -30,7 +30,14 @@ import {
   EvaluationQueueItem,
   UpdateAicteActionStatusInput,
   UpdateReviewStatusInput,
+  CreateReportInputSchema,
 } from "@/lib/api/schemas";
+import {
+  createReport,
+  deleteReport,
+  getReportsOverview,
+  toggleScheduledReport,
+} from "./reports";
 import { createIntervention, getDepartmentSkillsOverview } from "./department-skills";
 import { createSupportAction, getEarlyWarningOverview, updateReviewStatus } from "./early-warning";
 import { createAicteAction, getAicteComplianceOverview, updateAicteActionStatus } from "./aicte-compliance";
@@ -202,6 +209,10 @@ export const PATTERNS = [
   "PUT sports/:id",
   "POST sports/:id/register",
   "DELETE sports/:id",
+  "GET reports",
+  "POST reports",
+  "DELETE reports/:id",
+  "POST reports/scheduled/:id/toggle",
   "GET hackathons",
   "POST hackathons/register",
   "POST hackathons/teams",
@@ -579,6 +590,28 @@ export async function dispatch(method: string, segs: string[], rawBody: unknown,
       if (!b) return notFound();
       const success = await deleteSport(session, b);
       return success ? ok({ ok: true }) : notFound();
+    }
+
+    /* ── institutional reports ── */
+    case "GET reports":
+      return ok(await getReportsOverview(session));
+    case "POST reports": {
+      if (session.role === "recruiter") return forbidden();
+      const parsed = CreateReportInputSchema.safeParse(rawBody);
+      if (!parsed.success) return err(400, "invalid_body", parsed.error.issues[0]?.message ?? "Invalid report payload.");
+      return ok(await createReport(session, parsed.data));
+    }
+    case "DELETE reports/:id": {
+      if (session.role === "recruiter") return forbidden();
+      if (!b) return notFound();
+      const success = await deleteReport(session, b);
+      return success ? ok({ ok: true }) : notFound();
+    }
+    case "POST reports/scheduled/:id/toggle": {
+      if (session.role === "recruiter") return forbidden();
+      if (!b) return notFound();
+      const res = await toggleScheduledReport(session, b);
+      return res ? ok(res) : notFound();
     }
 
     /* ── hackathons & team registration ── */
