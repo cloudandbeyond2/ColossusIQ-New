@@ -5,8 +5,6 @@ import type { ClubItem, ClubsOverview, CreateClubInput } from "@/lib/api/schemas
 import { getStore } from "@/lib/data";
 
 const clubsStore = sharedState("campus.clubs.map.v2", () => new Map<string, ClubItem[]>());
-// Ensure old in-memory mock cache is purged
-clubsStore.clear();
 
 function defaultClubs(_collegeId: string): ClubItem[] {
   return [];
@@ -63,9 +61,16 @@ export async function createClub(session: SessionPayload, input: CreateClubInput
     meetingSchedule: input.meetingSchedule.trim(),
     venue: input.venue?.trim() || "Campus Center",
     status: "Active",
-    isJoined: false,
+    isJoined: true,
     createdAt: new Date().toISOString(),
   };
+
+  let userJoined = joinedClubsByUser.get(session.sub);
+  if (!userJoined) {
+    userJoined = new Set<string>();
+    joinedClubsByUser.set(session.sub, userJoined);
+  }
+  userJoined.add(newClub.id);
 
   items.unshift(newClub);
   clubsStore.set(collegeId, items);
