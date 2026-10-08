@@ -344,6 +344,7 @@ model College {
   certificateAwards     CertificateAward[]
   alumniMembers         AlumniMember[]
   alumniRequests        AlumniMentorshipRequest[]
+  hackathonTeams        HackathonTeam[]
 
   @@unique([universityId, code])
   @@unique([universityId, name])
@@ -1911,4 +1912,31 @@ model PlatformIntegration {
   updatedAt  DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
 
   @@map("platform_integrations")
+}
+
+model HackathonTeam {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  collegeId        String   @map("college_id") @db.Uuid
+  userId           String   @map("user_id") @db.Uuid
+  hackathonId      String   @map("hackathon_id")
+  hackathonName    String   @map("hackathon_name")
+  teamName         String   @map("team_name")
+  teamLeadName     String   @map("team_lead_name")
+  teamLeadEmail    String   @default("") @map("team_lead_email")
+  rollNo           String   @default("") @map("roll_no")
+  membersCount     Int      @default(4) @map("members_count")
+  memberNames      String   @default("") @map("member_names")
+  problemStatement String   @map("problem_statement")
+  domain           String   @default("AI & Machine Learning")
+  repoUrl          String   @default("") @map("repo_url")
+  status           String   @default("Registered")
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  college College @relation(fields: [collegeId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([collegeId])
+  @@index([userId])
+  @@index([hackathonId])
+  @@map("hackathon_teams")
 }

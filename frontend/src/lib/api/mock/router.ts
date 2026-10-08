@@ -17,6 +17,8 @@ import { dynamicBiAnalytics } from "./bi-analytics";
 import { moduleData } from "./module-data";
 import { createClub, deleteClub, getClubsOverview, toggleJoinClub, updateClub } from "./clubs";
 import { createSport, deleteSport, getSportsOverview, toggleRegisterTrial, updateSport } from "./sports";
+import { getHackathonsOverview, listHackathonTeams, registerHackathonTeam } from "./hackathons";
+import { RegisterHackathonTeamInput } from "@/lib/api/hackathon-schemas";
 import { createCalendarItem, deleteCalendarItem, getCalendarOverview, syncCampusEvents, updateCalendarItem } from "./academic-calendar";
 import {
   CreateAicteActionInput,
@@ -198,6 +200,10 @@ export const PATTERNS = [
   "PUT sports/:id",
   "POST sports/:id/register",
   "DELETE sports/:id",
+  "GET hackathons",
+  "POST hackathons/register",
+  "POST hackathons/teams",
+  "GET hackathons/teams",
   "GET academic-calendar",
   "POST academic-calendar",
   "PUT academic-calendar/:id",
@@ -518,13 +524,13 @@ export async function dispatch(method: string, segs: string[], rawBody: unknown,
     case "GET clubs":
       return ok(await getClubsOverview(session));
     case "POST clubs": {
-      if (session.role !== "institution" && session.role !== "admin") return forbidden();
+      if (session.role === "recruiter") return forbidden();
       const parsed = CreateClubInput.safeParse(rawBody);
       if (!parsed.success) return err(400, "invalid_body", parsed.error.issues[0]?.message ?? "Invalid club payload.");
       return ok(await createClub(session, parsed.data));
     }
     case "PUT clubs/:id": {
-      if (session.role !== "institution" && session.role !== "admin") return forbidden();
+      if (session.role === "recruiter") return forbidden();
       if (!b) return notFound();
       const parsed = CreateClubInput.partial().safeParse(rawBody);
       if (!parsed.success) return err(400, "invalid_body", "Invalid club payload.");
@@ -570,6 +576,19 @@ export async function dispatch(method: string, segs: string[], rawBody: unknown,
       if (!b) return notFound();
       const success = await deleteSport(session, b);
       return success ? ok({ ok: true }) : notFound();
+    }
+
+    /* ── hackathons & team registration ── */
+    case "GET hackathons":
+      return ok(await getHackathonsOverview(session));
+    case "GET hackathons/teams":
+      return ok(await listHackathonTeams(session));
+    case "POST hackathons/register":
+    case "POST hackathons/teams": {
+      if (session.role === "recruiter") return forbidden();
+      const parsed = RegisterHackathonTeamInput.safeParse(rawBody);
+      if (!parsed.success) return err(400, "invalid_body", parsed.error.issues[0]?.message ?? "Invalid hackathon registration payload.");
+      return ok(await registerHackathonTeam(session, parsed.data));
     }
 
     /* ── academic calendar ── */
