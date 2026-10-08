@@ -17,6 +17,8 @@ import { dynamicBiAnalytics } from "./bi-analytics";
 import { moduleData } from "./module-data";
 import { createClub, deleteClub, getClubsOverview, toggleJoinClub, updateClub } from "./clubs";
 import { createSport, deleteSport, getSportsOverview, toggleRegisterTrial, updateSport } from "./sports";
+import { getHackathonsOverview, listHackathonTeams, registerHackathonTeam } from "./hackathons";
+import { RegisterHackathonTeamInput } from "@/lib/api/hackathon-schemas";
 import { createCalendarItem, deleteCalendarItem, getCalendarOverview, syncCampusEvents, updateCalendarItem } from "./academic-calendar";
 import {
   CreateAicteActionInput,
@@ -57,6 +59,7 @@ import { dispatchContentDesk } from "./content-desk";
 import { dispatchCurriculum } from "./curriculum";
 import { dispatchCourseRoadmap } from "./course-roadmap";
 import { dispatchIntegrations } from "./integrations";
+import { getAssessmentById, loadDynamicAssessments, submitAssessmentTest } from "./assessments";
 import { platformHealth } from "./platform-pages";
 import { API_AREAS, apiAreaOpen, disabledPairs, pairKey } from "@/lib/module-access";
 import { dispatchExperience, experienceNotifications } from "./experience";
@@ -199,6 +202,10 @@ export const PATTERNS = [
   "PUT sports/:id",
   "POST sports/:id/register",
   "DELETE sports/:id",
+  "GET hackathons",
+  "POST hackathons/register",
+  "POST hackathons/teams",
+  "GET hackathons/teams",
   "GET academic-calendar",
   "POST academic-calendar",
   "PUT academic-calendar/:id",
@@ -570,13 +577,13 @@ export async function dispatch(method: string, segs: string[], rawBody: unknown,
     case "GET clubs":
       return ok(await getClubsOverview(session));
     case "POST clubs": {
-      if (session.role !== "institution" && session.role !== "admin") return forbidden();
+      if (session.role === "recruiter") return forbidden();
       const parsed = CreateClubInput.safeParse(rawBody);
       if (!parsed.success) return err(400, "invalid_body", parsed.error.issues[0]?.message ?? "Invalid club payload.");
       return ok(await createClub(session, parsed.data));
     }
     case "PUT clubs/:id": {
-      if (session.role !== "institution" && session.role !== "admin") return forbidden();
+      if (session.role === "recruiter") return forbidden();
       if (!b) return notFound();
       const parsed = CreateClubInput.partial().safeParse(rawBody);
       if (!parsed.success) return err(400, "invalid_body", "Invalid club payload.");
@@ -622,6 +629,19 @@ export async function dispatch(method: string, segs: string[], rawBody: unknown,
       if (!b) return notFound();
       const success = await deleteSport(session, b);
       return success ? ok({ ok: true }) : notFound();
+    }
+
+    /* ── hackathons & team registration ── */
+    case "GET hackathons":
+      return ok(await getHackathonsOverview(session));
+    case "GET hackathons/teams":
+      return ok(await listHackathonTeams(session));
+    case "POST hackathons/register":
+    case "POST hackathons/teams": {
+      if (session.role === "recruiter") return forbidden();
+      const parsed = RegisterHackathonTeamInput.safeParse(rawBody);
+      if (!parsed.success) return err(400, "invalid_body", parsed.error.issues[0]?.message ?? "Invalid hackathon registration payload.");
+      return ok(await registerHackathonTeam(session, parsed.data));
     }
 
     /* ── academic calendar ── */
@@ -710,53 +730,20 @@ export async function dispatch(method: string, segs: string[], rawBody: unknown,
     }
     case "GET assessments":
       if (!can(session.role, "assessment:attempt")) return forbidden();
-      return ok(MOCK_TEST_SUMMARIES);
+      return ok(await loadDynamicAssessments(session));
     case "GET assessments/:id": {
       if (!can(session.role, "assessment:attempt")) return forbidden();
-      const test = MOCK_TESTS.find((t) => t.id === b);
+      if (!found.id) return notFound();
+      const test = await getAssessmentById(found.id, session);
       return test ? ok(test) : notFound();
     }
     case "POST assessments/:id/submit": {
       if (!can(session.role, "assessment:attempt")) return forbidden();
-      const test = MOCK_TESTS.find((t) => t.id === b);
-      if (!test) return notFound();
+      if (!found.id) return notFound();
       const parsed = SubmitBody.safeParse(rawBody);
       if (!parsed.success) return err(400, "invalid_body", "Invalid submission.");
-      const key = MCQ_KEY[test.id] ?? {};
-      let mcqScore = 0;
-      let mcqMax = 0;
-      const answers: Array<{ questionId: string; correct: boolean | null; explanation: string }> = [];
-      const descriptive = [];
-      for (const q of test.questions) {
-        const given = parsed.data.answers[q.id];
-        if (q.type === "mcq") {
-          mcqMax += q.marks;
-          const k = key[q.id];
-          const correct = typeof given === "number" && k ? given === k.answer : false;
-          if (correct) mcqScore += q.marks;
-          answers.push({ questionId: q.id, correct, explanation: k?.explanation ?? "" });
-        } else {
-          const text = typeof given === "string" ? cleanText(given, 8000) : "";
-          descriptive.push({ questionId: q.id, ...evaluateDescriptive(test.id, q.id, text, q.marks) });
-          answers.push({ questionId: q.id, correct: null, explanation: "Evaluated by the Answer Evaluation Agent — see rubric below." });
-        }
-      }
-      await audit(session.name, "Attempted assessment", `${test.title} · ${mcqScore}/${mcqMax} MCQ marks`, {
-        collegeId: session.college === ALL_COLLEGES ? null : session.college,
-        actorSub: session.sub,
-      });
-      return ok({
-        attemptId: `att-${Date.now().toString(36)}`,
-        mcqScore,
-        mcqMax,
-        answers,
-        descriptive,
-        nextActions: [
-          "Revise the explanations for any incorrect answers.",
-          "Take the adaptive follow-up quiz on your weakest concept.",
-          "Your faculty will confirm the descriptive score — AI marks are provisional.",
-        ],
-      });
+      const result = await submitAssessmentTest(found.id, parsed.data.answers, session);
+      return result ? ok(result) : notFound();
     }
     case "POST ai/evaluate": {
       if (!can(session.role, "assessment:attempt") && !can(session.role, "assessment:create")) return forbidden();

@@ -62,6 +62,7 @@ import { AlumniModule } from "./bespoke/alumni";
 import { MyClassesModule } from "./bespoke/my-classes";
 import { ClassAnalyticsModule } from "./bespoke/class-analytics";
 import { BrandingModule } from "./bespoke/branding";
+import { HackathonsModule } from "./bespoke/hackathons";
 
 const BESPOKE: Record<string, (props: { role: Role }) => React.ReactNode> = {
   branding: () => <BrandingModule />,
@@ -125,6 +126,7 @@ const BESPOKE: Record<string, (props: { role: Role }) => React.ReactNode> = {
   alumni: ({ role }) => <AlumniModule role={role} />,
   "my-classes": ({ role }) => <MyClassesModule role={role} />,
   "class-analytics": () => <ClassAnalyticsModule />,
+  hackathons: ({ role }) => <HackathonsModule role={role} />,
 };
 
 

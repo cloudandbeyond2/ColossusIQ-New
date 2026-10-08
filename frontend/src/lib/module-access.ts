@@ -103,6 +103,7 @@ export const API_AREAS: Record<string, string[]> = {
   "course-roadmap": ["course-roadmap"],
   integrations: ["integrations"],
   sports: ["sports"],
+  hackathons: ["hackathons"],
 };
 
 /** Whether the role may use an API area, given the switched-off pairs. */

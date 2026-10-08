@@ -142,7 +142,7 @@ export const MODULES: ModuleDef[] = [
   { slug: "team-finder", title: "Team Finder", description: "Discover teammates by skills, department, interests and competition goals.", group: "Project & Innovation", roles: ["student"], template: "list", icon: "users", phase: "Phase 3" },
   { slug: "startup-hub", title: "Startup Idea Hub", description: "Problem discovery, business model, market analysis, pitch and MVP planning.", group: "Project & Innovation", roles: ["student"], template: "workflow", icon: "rocket", phase: "Phase 2" },
   { slug: "research", title: "Research Assistant", description: "Research questions, literature discovery and comparison, planning and academic writing.", group: "Project & Innovation", roles: ["student", "faculty"], template: "bespoke", icon: "flask", phase: "Phase 2", agent: "research" },
-  { slug: "hackathons", title: "Hackathon Hub", description: "Upcoming hackathons, teams, problem statements and results.", group: "Project & Innovation", roles: ["student", "incubation"], template: "list", icon: "code", phase: "Phase 3" },
+  { slug: "hackathons", title: "Hackathon Hub", description: "Upcoming hackathons, teams, problem statements and results.", group: "Project & Innovation", roles: ["student", "incubation"], template: "bespoke", icon: "code", phase: "Phase 3" },
   { slug: "project-review", title: "AI Project Review Board", description: "Architecture, documentation, code quality, tests, innovation and risk review for faculty.", group: "Project & Innovation", roles: ["faculty", "hod"], template: "scorecard", icon: "review", phase: "Phase 2" },
 
   // ───────────── Campus Life ─────────────
