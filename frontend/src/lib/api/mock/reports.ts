@@ -12,12 +12,25 @@ import { prisma } from "@/lib/data/postgres/db";
 const reportsStore = sharedState("campus.reports.list.v2", () => new Map<string, ReportItem[]>());
 const scheduledStore = sharedState("campus.reports.scheduled.v2", () => new Map<string, ScheduledReport[]>());
 
+async function withDbTimeout<T>(promise: Promise<T>, timeoutMs = 2500): Promise<T> {
+  let timer: NodeJS.Timeout | undefined;
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error("Database operation timed out")), timeoutMs);
+  });
+  return Promise.race([promise, timeoutPromise]).finally(() => {
+    if (timer) clearTimeout(timer);
+  });
+}
+
 async function getCollegeUuid(collegePublicId: string): Promise<string | null> {
   try {
     const effective = collegePublicId === "all" ? "COL-1001" : collegePublicId;
-    const rows = await prisma().$queryRawUnsafe<Array<{ id: string }>>(
-      `SELECT id::text FROM colleges WHERE public_id = $1 OR id::text = $1 LIMIT 1;`,
-      effective,
+    const rows = await withDbTimeout(
+      prisma().$queryRawUnsafe<Array<{ id: string }>>(
+        `SELECT id::text FROM colleges WHERE public_id = $1 OR id::text = $1 LIMIT 1;`,
+        effective,
+      ),
+      2000,
     );
     return rows[0]?.id ?? null;
   } catch (err) {
@@ -35,12 +48,15 @@ export async function getReportsOverview(session: SessionPayload): Promise<Repor
 
   if (collegeUuid) {
     try {
-      const repRows = await prisma().$queryRawUnsafe<Array<any>>(
-        `SELECT id, report, category, scope, period, formats, file_size, generated_by, author_role, summary, kpis, breakdown, created_at
-         FROM institutional_reports
-         WHERE college_id = $1::uuid
-         ORDER BY created_at DESC;`,
-        collegeUuid,
+      const repRows = await withDbTimeout(
+        prisma().$queryRawUnsafe<Array<any>>(
+          `SELECT id, report, category, scope, period, formats, file_size, generated_by, author_role, summary, kpis, breakdown, created_at
+           FROM institutional_reports
+           WHERE college_id = $1::uuid
+           ORDER BY created_at DESC;`,
+          collegeUuid,
+        ),
+        2500,
       );
 
       if (repRows && repRows.length > 0) {
@@ -63,12 +79,15 @@ export async function getReportsOverview(session: SessionPayload): Promise<Repor
         }));
       }
 
-      const schRows = await prisma().$queryRawUnsafe<Array<any>>(
-        `SELECT id, name, frequency, scope, recipients, next_run, enabled
-         FROM scheduled_reports
-         WHERE college_id = $1::uuid
-         ORDER BY created_at ASC;`,
-        collegeUuid,
+      const schRows = await withDbTimeout(
+        prisma().$queryRawUnsafe<Array<any>>(
+          `SELECT id, name, frequency, scope, recipients, next_run, enabled
+           FROM scheduled_reports
+           WHERE college_id = $1::uuid
+           ORDER BY created_at ASC;`,
+          collegeUuid,
+        ),
+        2500,
       );
 
       if (schRows && schRows.length > 0) {
@@ -146,22 +165,25 @@ export async function createReport(
   // 1. Insert into PostgreSQL institutional_reports table
   if (collegeUuid) {
     try {
-      await prisma().$executeRawUnsafe(
-        `INSERT INTO institutional_reports (id, college_id, report, category, scope, period, formats, file_size, generated_by, author_role, summary, kpis, breakdown, created_at, updated_at)
-         VALUES ($1, $2::uuid, $3, $4, $5, $6, $7::jsonb, $8, $9, $10, $11, $12::jsonb, $13::jsonb, now(), now());`,
-        reportId,
-        collegeUuid,
-        input.report.trim(),
-        input.category,
-        input.scope.trim(),
-        input.period.trim(),
-        JSON.stringify(["PDF", "Excel", "CSV"]),
-        fileSize,
-        authorName,
-        session.role,
-        summary,
-        JSON.stringify(kpis),
-        JSON.stringify(breakdown),
+      await withDbTimeout(
+        prisma().$executeRawUnsafe(
+          `INSERT INTO institutional_reports (id, college_id, report, category, scope, period, formats, file_size, generated_by, author_role, summary, kpis, breakdown, created_at, updated_at)
+           VALUES ($1, $2::uuid, $3, $4, $5, $6, $7::jsonb, $8, $9, $10, $11, $12::jsonb, $13::jsonb, now(), now());`,
+          reportId,
+          collegeUuid,
+          input.report.trim(),
+          input.category,
+          input.scope.trim(),
+          input.period.trim(),
+          JSON.stringify(["PDF", "Excel", "CSV"]),
+          fileSize,
+          authorName,
+          session.role,
+          summary,
+          JSON.stringify(kpis),
+          JSON.stringify(breakdown),
+        ),
+        2500,
       );
     } catch (err) {
       console.warn("Failed inserting report to database:", err);
@@ -197,9 +219,12 @@ export async function deleteReport(session: SessionPayload, reportId: string): P
 
   // 1. Delete from PostgreSQL by primary key ID
   try {
-    await prisma().$executeRawUnsafe(
-      `DELETE FROM institutional_reports WHERE id = $1;`,
-      reportId,
+    await withDbTimeout(
+      prisma().$executeRawUnsafe(
+        `DELETE FROM institutional_reports WHERE id = $1;`,
+        reportId,
+      ),
+      2500,
     );
   } catch (err) {
     console.warn("Failed deleting report from database:", err);
@@ -225,17 +250,23 @@ export async function toggleScheduledReport(
 
   if (collegeUuid) {
     try {
-      await prisma().$executeRawUnsafe(
-        `UPDATE scheduled_reports SET enabled = NOT enabled, updated_at = now() 
-         WHERE id = $1 AND college_id = $2::uuid;`,
-        scheduleId,
-        collegeUuid,
+      await withDbTimeout(
+        prisma().$executeRawUnsafe(
+          `UPDATE scheduled_reports SET enabled = NOT enabled, updated_at = now() 
+           WHERE id = $1 AND college_id = $2::uuid;`,
+          scheduleId,
+          collegeUuid,
+        ),
+        2500,
       );
 
-      const rows = await prisma().$queryRawUnsafe<Array<any>>(
-        `SELECT id, name, frequency, scope, recipients, next_run, enabled 
-         FROM scheduled_reports WHERE id = $1 LIMIT 1;`,
-        scheduleId,
+      const rows = await withDbTimeout(
+        prisma().$queryRawUnsafe<Array<any>>(
+          `SELECT id, name, frequency, scope, recipients, next_run, enabled 
+           FROM scheduled_reports WHERE id = $1 LIMIT 1;`,
+          scheduleId,
+        ),
+        2500,
       );
       if (rows && rows[0]) {
         return {

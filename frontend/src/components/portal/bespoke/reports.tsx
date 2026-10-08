@@ -10,6 +10,7 @@ import {
   type ReportCategory,
   type ReportItem,
   type ScheduledReport,
+  type ReportsOverview,
   type CreateReportInput,
 } from "@/lib/api/schemas";
 import { z } from "zod";
@@ -45,39 +46,7 @@ import { toCsv } from "@/lib/csv";
 import { cn } from "@/lib/utils";
 
 /* ── Data Interfaces ────────────────────────────────── */
-
-export type ReportCategory =
-  | "Academic"
-  | "Department"
-  | "Placement"
-  | "Compliance"
-  | "Faculty"
-  | "Institution";
-
-export interface ReportItem {
-  id: string;
-  report: string;
-  category: ReportCategory;
-  scope: string;
-  period: string;
-  formats: string[];
-  generated: string;
-  fileSize: string;
-  generatedBy: string;
-  summary: string;
-  kpis: { label: string; value: string; delta?: string }[];
-  breakdown: { item: string; evaluated: number; score: number; status: string }[];
-}
-
-export interface ScheduledReport {
-  id: string;
-  name: string;
-  frequency: "Weekly" | "Bi-Weekly" | "Monthly" | "End of Term";
-  scope: string;
-  recipients: string;
-  nextRun: string;
-  enabled: boolean;
-}
+export type { ReportCategory, ReportItem, ScheduledReport, ReportsOverview, CreateReportInput };
 
 /* ── Initial Mock Data ──────────────────────────────── */
 
@@ -502,7 +471,7 @@ export function ReportsModule({ role }: { role?: Role }) {
       await qc.cancelQueries({ queryKey: ["reports"] });
       const prevData = qc.getQueryData<ReportsOverview>(["reports"]);
       if (prevData) {
-        const nextReports = prevData.reports.filter((r) => r.id !== reportId);
+        const nextReports = prevData.reports.filter((r: ReportItem) => r.id !== reportId);
         qc.setQueryData(["reports"], {
           ...prevData,
           reports: nextReports,
@@ -544,7 +513,7 @@ export function ReportsModule({ role }: { role?: Role }) {
 
   // Filtered reports
   const filteredReports = useMemo(() => {
-    return reports.filter((r) => {
+    return reports.filter((r: ReportItem) => {
       const q = search.toLowerCase().trim();
       const matchesSearch =
         !q ||
@@ -851,7 +820,7 @@ export function ReportsModule({ role }: { role?: Role }) {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-line">
-                    {paginatedReports.map((r) => (
+                    {paginatedReports.map((r: ReportItem) => (
                       <tr
                         key={r.id}
                         onClick={() => setPreviewReport(r)}
@@ -895,7 +864,7 @@ export function ReportsModule({ role }: { role?: Role }) {
 
                         <td className="px-4 py-3.5">
                           <div className="flex items-center gap-1">
-                            {r.formats.map((fmt) => (
+                            {r.formats.map((fmt: string) => (
                               <button
                                 key={fmt}
                                 type="button"
