@@ -92,6 +92,13 @@ export async function apiFetch<S extends z.ZodTypeAny>(
     throw new ApiError(401, "unauthenticated", "Your session has ended. Please sign in again.");
   }
 
+  // Academic-year fee lock: send the user to the one page they can use until it is cleared.
+  if (res.status === 423 && typeof window !== "undefined") {
+    const role = window.location.pathname.split("/")[1] ?? "";
+    const target = role === "student" ? "/student/fee-payment" : `/${role}/locked`;
+    if (/^[a-z]+$/.test(role) && window.location.pathname !== target) window.location.assign(target);
+  }
+
   let json: unknown = null;
   const text = await res.text();
   if (text) {

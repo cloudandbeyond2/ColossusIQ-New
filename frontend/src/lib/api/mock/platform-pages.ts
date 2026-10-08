@@ -10,7 +10,7 @@ import type { PlatformHealth } from "@/lib/api/module-control-schemas";
 import { disabledPairs } from "@/lib/module-access";
 
 /*
- * Live data for the Super Admin's platform pages: Billing & Plans, AI Observability, AI Governance, Agent Store,
+ * Live data for the Super Admin's platform pages: AI Observability, AI Governance, Agent Store,
  * Integrations and Developer API. Everything here is read from the running platform (colleges, users, AI provider
  * settings, the AI request log, Module Control, the API routes) rather than from sample figures.
  */
@@ -26,36 +26,6 @@ function providerState(id: ProviderId): { label: string; tone: Tone } {
   if (!p.enabled) return { label: "Switched off", tone: "neutral" };
   if (!p.apiKey) return { label: "Key missing", tone: "amber" };
   return { label: cfg.defaultProvider === id ? "Connected · default" : "Connected · fallback", tone: "teal" };
-}
-
-/* ── Billing & Plans: each college's plan, status and seats in use (no prices are shown). ── */
-export async function billingPage(): Promise<ListData> {
-  const { universityOverview } = await import("./router");
-  const o = await universityOverview();
-  return {
-    template: "list",
-    columns: [
-      { key: "college", label: "College", kind: "text" },
-      { key: "plan", label: "Plan", kind: "badge" },
-      { key: "status", label: "Status", kind: "badge" },
-      { key: "capacity", label: "Student capacity", kind: "number" },
-      { key: "users", label: "Accounts", kind: "number" },
-      { key: "staff", label: "Active staff", kind: "number" },
-      { key: "use", label: "Seats used", kind: "progress" },
-      { key: "areas", label: "Areas switched on", kind: "text" },
-    ],
-    rows: o.colleges.map((c) => ({
-      college: `${c.name}, ${c.city}`,
-      plan: c.plan || "Standard",
-      status: c.status,
-      capacity: c.capacity,
-      users: c.counts.users,
-      staff: c.counts.staff,
-      use: c.capacity ? Math.min(100, Math.round((c.counts.users / c.capacity) * 100)) : 0,
-      areas: c.modules.length ? `${c.modules.length} optional areas` : "All areas",
-    })),
-    filterKey: "plan",
-  };
 }
 
 /* ── AI Observability: the most recent AI requests (metadata only). ── */

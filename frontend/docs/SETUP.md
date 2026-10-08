@@ -94,13 +94,30 @@ characters are shown.
 | Email | SMTP (Google Workspace, Microsoft 365, Zoho…), SendGrid, Resend, Amazon SES | Notices, sign-in, admissions, digests | For Google Workspace use `smtp.gmail.com:587`, STARTTLS and an app password. Set SPF, DKIM and DMARC for your domain. |
 | WhatsApp | WhatsApp Cloud API (Meta), Twilio | Urgent notices, exam and fee reminders, placement updates | Meta Business Manager → WhatsApp → API setup: phone number ID, business account ID and a permanent system-user token. Business-initiated messages need approved templates. |
 | SMS | MSG91, Twilio | Sign-in codes, urgent alerts | Register your entity and templates on a DLT portal (TRAI) first, then use the DLT IDs in MSG91. |
-| Online payments | Razorpay | Admission and examination fees | Razorpay Dashboard → Settings → API keys and Webhooks. |
+| Payments (one card per gateway) | Razorpay, PayU, CCAvenue, PayPal | Students' yearly app fee (Fees & Payments) | Razorpay: Dashboard → API keys; add the webhook `<PUBLIC_APP_URL>/api/payments/razorpay/webhook` (event `payment_link.paid`). PayU: merchant key and salt. CCAvenue: merchant ID, access code and working key, with this site's address registered. PayPal: REST app client ID and secret. Use test / sandbox mode first. |
 | Single sign-on | Google Workspace, Microsoft Entra ID | Sign-in | Create an OAuth / OpenID Connect web app for your domain (Google Cloud Console or Entra admin center). MFA still applies. |
 | Online classes | Zoom (Server-to-Server OAuth), Jitsi Meet | My Classes, events, placement interviews | Zoom Marketplace → Build App → Server-to-Server OAuth (scopes: meeting:write). |
 | ERP / SIS webhook | HTTPS webhook | Admissions, certificates, attendance | Your ERP's endpoint URL; every event is signed: `X-ColossusIQ-Signature: sha256=<HMAC-SHA256(body, secret)>`. |
 
 *Test connection* makes one small read-only request to the provider (no email, message or payment is created; the
 ERP webhook receives a signed `ping` event). Addresses on the server itself or a private network are refused.
+
+### Student app fees and the academic-year lock
+
+In **Platform → Subscriptions & Billing → Settings** the Super Admin sets the academic year, the due date, a grace
+period and the yearly app fee per plan (a college can also have its own fee). Saving opens fee collection: each
+student then sees the fee under **Fees & Payments** and pays online with any gateway that is switched on, or records
+an offline payment (cash, DD, cheque, bank transfer) with a photo of the receipt for the Super Admin to approve under
+**Payments**. The Super Admin can also waive a fee or mark it paid under **Students**.
+
+With *Lock unpaid accounts automatically* on, a student whose fee is still due after the due date plus the grace
+period can only open Fees & Payments and the Notice Board until it is paid; every other page and API answers
+`423 fees_due`. With *Also lock college staff* on, staff of a college stay on an "awaiting clearance" page until the
+Super Admin clears the college under **Colleges**. *Start <next year>* moves every date on by a year, so every fee
+becomes due again. The Super Admin and recruiters are never locked.
+
+Online payments are confirmed only after the gateway's signature (Razorpay HMAC, PayU SHA-512 hash, CCAvenue
+encryption, PayPal capture) checks out and the amount matches the fee; the amount always comes from the server.
 
 ## 7. Production checklist
 

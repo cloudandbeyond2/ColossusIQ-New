@@ -21,6 +21,8 @@ export const LOCKED_FOR_ADMIN = new Set(["module-control", "colleges", "users", 
 export const pairKey = (slug: string, role: Role) => `${slug}|${role}`;
 
 export function isLocked(slug: string, role: Role): boolean {
+  // Students must always be able to pay: an unpaid fee locks every other page.
+  if (role === "student" && slug === "fee-payment") return true;
   return role === "admin" && LOCKED_FOR_ADMIN.has(slug);
 }
 

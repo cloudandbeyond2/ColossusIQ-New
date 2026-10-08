@@ -28,6 +28,9 @@ import { prefetchExamPrepAi } from "@/lib/api/mock/exam-prep-ai";
 import { prefetchContentAi } from "@/lib/api/mock/content-desk-ai";
 import { prefetchCurriculumAi } from "@/lib/api/mock/curriculum";
 import { prefetchIntegrationTest } from "@/lib/api/mock/integrations";
+import { prefetchFeeCheckout } from "@/lib/api/mock/billing";
+import { accessState, allowedWhileLocked } from "@/lib/billing/dues";
+import { siteOrigin } from "@/lib/billing/gateways";
 import { refreshAiConfig } from "@/lib/ai/ai-config";
 import { KB_MAX_BODY_BYTES } from "@/lib/api/knowledge-schemas";
 import { rateLimit } from "@/lib/api/mock/rate-limit";
@@ -167,7 +170,7 @@ async function handle(req: NextRequest, ctx: { params: Promise<{ path: string[] 
     if (!csrfValid(req)) return error(403, "csrf", "Security token missing or invalid. Refresh the page and try again.");
   }
 
-  const parsedBody = method === "GET" ? { ok: true as const, body: undefined } : await readJson(req, route === "media" ? MAX_MEDIA_BODY_BYTES : route === "knowledge/documents" ? KB_MAX_BODY_BYTES : method === "PUT" && /^learning-courses\/[^/]+$/.test(route) ? COURSE_MAX_BODY_BYTES : MAX_BODY_BYTES);
+  const parsedBody = method === "GET" ? { ok: true as const, body: undefined } : await readJson(req, route === "media" || route === "fees/me/offline" ? MAX_MEDIA_BODY_BYTES : route === "knowledge/documents" ? KB_MAX_BODY_BYTES : method === "PUT" && /^learning-courses\/[^/]+$/.test(route) ? COURSE_MAX_BODY_BYTES : MAX_BODY_BYTES);
   if (!parsedBody.ok) return parsedBody.res;
   const body = parsedBody.body;
 
@@ -254,6 +257,16 @@ async function handle(req: NextRequest, ctx: { params: Promise<{ path: string[] 
   // Everything below requires a session.
   const session = await verifySession(req.cookies.get(SESSION_COOKIE)?.value);
   if (!session) return error(401, "unauthenticated", "Please sign in.");
+  // Academic-year fee lock: a student whose fee is due (or staff of a college the University has not cleared) can
+  // only reach the fee page, sign-in housekeeping and notices until it is cleared. Checked before any AI work starts.
+  if (session.mfa && !allowedWhileLocked(segs, session.role)) {
+    const lock = await withRequestContext({ scope: session.college, sub: session.sub, readOnly: true }, () => accessState(session));
+    if (lock.locked) {
+      return lock.reason === "student_due"
+        ? error(423, "fees_due", `Your app fee for ${lock.academicYear} is due. Pay it under Fees & Payments to continue.`)
+        : error(423, "college_uncleared", `Access for ${lock.academicYear} is waiting for the University to clear your college.`);
+    }
+  }
   // Which AI providers are on (AI Providers settings), re-read at most every 30 s, before any AI work starts.
   await refreshAiConfig();
   // Slow AI drafting (AI Course Studio) runs here, before the request's database transaction opens and its 30 s clock starts.
@@ -288,6 +301,9 @@ async function handle(req: NextRequest, ctx: { params: Promise<{ path: string[] 
   // Integration connection tests call outside services, so they also run before the transaction.
   const itEarly = await prefetchIntegrationTest(method, segs, body, session);
   if (itEarly) return json(itEarly.body, itEarly.status);
+  // Online fee checkout calls the payment gateway, so it also runs before the transaction.
+  const feeEarly = await prefetchFeeCheckout(method, segs, body, session, siteOrigin(req.nextUrl.origin));
+  if (feeEarly) return json(feeEarly.body, feeEarly.status);
   // Quiz Builder questions are written before the transaction too.
   const qzEarly = await prefetchQuizAi(method, segs, body, session);
   if (qzEarly) return json(qzEarly.body, qzEarly.status);

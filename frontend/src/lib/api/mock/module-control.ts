@@ -47,7 +47,7 @@ export async function dispatchModuleControl(method: string, segs: string[], rawB
     const [slug, role] = k.split("|") as [string, (typeof ROLES)[number]];
     const mod = MODULES.find((m) => m.slug === slug);
     if (!mod || !(ROLES as readonly string[]).includes(role) || !mod.roles.includes(role)) return err(422, "validation", `“${k}” is not a module granted to that role.`);
-    if (isLocked(slug, role)) return err(422, "locked", `${mod.title} cannot be switched off for the Super Admin.`);
+    if (isLocked(slug, role)) return err(422, "locked", role === "student" ? `${mod.title} stays on for students: they need it to pay their fee.` : `${mod.title} cannot be switched off for the Super Admin.`);
     next.add(k);
   }
   const before = await disabledPairs();

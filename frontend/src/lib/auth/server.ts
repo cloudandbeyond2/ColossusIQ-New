@@ -1,5 +1,5 @@
 import "server-only";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import type { ModuleDef } from "@/config/modules";
 import { ALL_COLLEGES, TOGGLEABLE_GROUPS } from "@/config/tenancy";
@@ -9,6 +9,8 @@ import type { Stream } from "@/config/streams";
 import { SESSION_COOKIE, verifySession, type SessionPayload } from "./session";
 import type { Role } from "./roles";
 import { blockedSlugs } from "@/lib/module-access";
+import { accessState } from "@/lib/billing/dues";
+import type { AccessState } from "@/lib/api/billing-schemas";
 
 export async function getSession(): Promise<SessionPayload | null> {
   const store = await cookies();
@@ -23,7 +25,23 @@ export async function requireRole(role: Role): Promise<SessionPayload> {
   if (session.role !== role) redirect("/forbidden");
   // A college suspended by the university loses access immediately, even with a valid session.
   if (session.college !== ALL_COLLEGES && !(await withRequestContext({ scope: "all", readOnly: true }, () => isCollegeActive(session.college)))) redirect("/login?reason=suspended");
+  // Academic-year fee lock: a student with an unpaid fee only reaches Fees & Payments (and notices); staff of a
+  // college the University has not cleared see the "awaiting clearance" page.
+  const lock = await feeLock(session);
+  if (lock.locked) {
+    const path = (await headers()).get("x-pathname") ?? "";
+    if (!lockedPaths(role).includes(path)) redirect(lockedPaths(role)[0]!);
+  }
   return session;
+}
+
+/** The pages a locked account can still open; the first is where it is sent. */
+export function lockedPaths(role: Role): string[] {
+  return role === "student" ? ["/student/fee-payment", "/student/notice-board"] : [`/${role}/locked`, `/${role}/notice-board`];
+}
+
+export async function feeLock(session: SessionPayload): Promise<AccessState> {
+  return withRequestContext({ scope: session.college, sub: session.sub, readOnly: true }, () => accessState(session));
 }
 
 export interface CollegeContext {

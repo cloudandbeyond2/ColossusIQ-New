@@ -25,7 +25,8 @@ function buildCsp(nonce: string): string {
     // Lesson videos embed only through YouTube's privacy-enhanced domain.
     `frame-src https://www.youtube-nocookie.com`,
     `base-uri 'self'`,
-    `form-action 'self'`,
+    // Fee payments: PayU and CCAvenue take the student to their hosted checkout with a form POST.
+    `form-action 'self' https://secure.payu.in https://test.payu.in https://secure.ccavenue.com https://test.ccavenue.com`,
     `frame-ancestors 'none'`,
     isDev ? "" : "upgrade-insecure-requests",
   ]
@@ -45,6 +46,9 @@ export async function proxy(request: NextRequest) {
 
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set("x-nonce", nonce);
+  // The page path, for server-side guards that depend on it (the academic-year fee lock). Always set here, so a
+  // client-supplied value never reaches the server.
+  requestHeaders.set("x-pathname", pathname);
   requestHeaders.set("Content-Security-Policy", csp);
 
   const portalRole = roleForPath(pathname);

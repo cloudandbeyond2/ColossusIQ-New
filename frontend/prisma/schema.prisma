@@ -1912,3 +1912,90 @@ model PlatformIntegration {
 
   @@map("platform_integrations")
 }
+
+/// Student app fees: the University's settings (one row), per-college clearance, per-student dues and payments.
+model BillingSettings {
+  id           Int      @id @default(1) @db.SmallInt
+  academicYear String   @map("academic_year")
+  yearStart    DateTime @map("year_start") @db.Date
+  dueDate      DateTime @map("due_date") @db.Date
+  graceDays    Int      @default(15) @map("grace_days")
+  reminderDays Int      @default(15) @map("reminder_days")
+  currency     String   @default("INR")
+  autoLock     Boolean  @default(false) @map("auto_lock")
+  lockStaff    Boolean  @default(false) @map("lock_staff")
+  fees         Json     @default("{}")
+  updatedBy    String   @default("") @map("updated_by")
+  updatedAt    DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@map("billing_settings")
+}
+
+model CollegeBilling {
+  collegeId    String    @map("college_id") @db.Uuid
+  academicYear String    @map("academic_year")
+  feeOverride  Decimal?  @map("fee_override") @db.Decimal(12, 2)
+  cleared      Boolean   @default(false)
+  clearedBy    String    @default("") @map("cleared_by")
+  clearedAt    DateTime? @map("cleared_at") @db.Timestamptz(6)
+
+  @@id([collegeId, academicYear])
+  @@map("college_billing")
+}
+
+model StudentDue {
+  userSub      String    @map("user_sub")
+  academicYear String    @map("academic_year")
+  collegeId    String    @map("college_id") @db.Uuid
+  studentName  String    @default("") @map("student_name")
+  amount       Decimal   @db.Decimal(12, 2)
+  status       String    @default("Due")
+  method       String    @default("")
+  clearedBy    String    @default("") @map("cleared_by")
+  clearedAt    DateTime? @map("cleared_at") @db.Timestamptz(6)
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@id([userSub, academicYear])
+  @@index([collegeId, academicYear], map: "student_dues_college_idx")
+  @@map("student_dues")
+}
+
+model FeePayment {
+  id               String   @id
+  receiptNo        String   @default("") @map("receipt_no")
+  userSub          String   @map("user_sub")
+  studentName      String   @default("") @map("student_name")
+  collegeId        String   @map("college_id") @db.Uuid
+  academicYear     String   @map("academic_year")
+  amount           Decimal  @db.Decimal(12, 2)
+  currency         String
+  gateway          String
+  gatewayOrderId   String   @default("") @map("gateway_order_id")
+  gatewayPaymentId String   @default("") @map("gateway_payment_id")
+  status           String
+  offlineMode      String   @default("") @map("offline_mode")
+  offlineRef       String   @default("") @map("offline_ref")
+  proofMediaId     String   @default("") @map("proof_media_id")
+  reviewedBy       String   @default("") @map("reviewed_by")
+  reviewNote       String   @default("") @map("review_note")
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@index([userSub, academicYear], map: "fee_payments_user_idx")
+  @@index([collegeId, academicYear, status], map: "fee_payments_college_idx")
+  @@map("fee_payments")
+}
+
+model FeeReminder {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  collegeId    String   @map("college_id") @db.Uuid
+  academicYear String   @map("academic_year")
+  userSub      String?  @map("user_sub")
+  message      String
+  sentBy       String   @map("sent_by")
+  sentRole     String   @map("sent_role")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([collegeId, academicYear, createdAt(sort: Desc)], map: "fee_reminders_college_idx")
+  @@map("fee_reminders")
+}

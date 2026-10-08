@@ -144,6 +144,21 @@ export async function testIntegration(e: EffectiveIntegration): Promise<TestResu
       return verdict(await http(`https://api.twilio.com/2010-04-01/Accounts/${encodeURIComponent(v.accountSid!)}.json`, { headers: { authorization: basic(v.accountSid!, s.authToken!) } }), "Connected: Twilio accepted the account SID and token.");
     case "payments:razorpay":
       return verdict(await http("https://api.razorpay.com/v1/payments?count=1", { headers: { authorization: basic(v.keyId!, s.keySecret!) } }), "Connected: Razorpay accepted the key.");
+    case "payments-payu:payu": {
+      if (!/^[A-Za-z0-9]{4,40}$/.test(v.merchantKey ?? "")) return { ok: false, message: "A PayU merchant key is letters and digits only.", ms: 0 };
+      const host = v.mode === "Live" ? "https://info.payu.in" : "https://test.payu.in";
+      const command = "verify_payment";
+      const var1 = "CIQ-CONNECTION-TEST";
+      const hash = createHash("sha512").update(`${v.merchantKey}|${command}|${var1}|${s.salt}`).digest("hex");
+      const body = new URLSearchParams({ key: v.merchantKey!, command, var1, hash }).toString();
+      return verdict(await http(`${host}/merchant/postservice?form=2`, { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" }, body }), "PayU answered. The merchant key and salt are checked by the first payment.");
+    }
+    case "payments-ccavenue:ccavenue":
+      if (!/^\d{1,20}$/.test(v.merchantId ?? "")) return { ok: false, message: "A CCAvenue merchant ID is digits only.", ms: 0 };
+      if (!/^[A-Za-z0-9]{32}$/.test(s.workingKey ?? "")) return { ok: false, message: "A CCAvenue working key is 32 letters and digits.", ms: 0 };
+      return verdict(await http(v.mode === "Live" ? "https://secure.ccavenue.com/" : "https://test.ccavenue.com/"), "CCAvenue is reachable and the keys look right. CCAvenue has no test call: the first payment confirms them.");
+    case "payments-paypal:paypal":
+      return verdict(await http(`${v.mode === "Live" ? "https://api-m.paypal.com" : "https://api-m.sandbox.paypal.com"}/v1/oauth2/token`, { method: "POST", headers: { authorization: basic(v.clientId!, s.clientSecret!), "content-type": "application/x-www-form-urlencoded" }, body: "grant_type=client_credentials" }), "Connected: PayPal issued an access token.");
     case "sso:google":
       if (!/\.apps\.googleusercontent\.com$/.test(v.clientId ?? "")) return { ok: false, message: "A Google client ID ends with .apps.googleusercontent.com.", ms: 0 };
       return verdict(await http("https://accounts.google.com/.well-known/openid-configuration"), "Google sign-in is reachable. The client secret is checked at the first sign-in.");

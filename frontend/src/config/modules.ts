@@ -73,6 +73,8 @@ export const MODULE_GROUPS = [
 
 export const MODULES: ModuleDef[] = [
   // ───────────── Overview ─────────────
+  { slug: "student-fees", title: "Student Fees", description: "Every student's app fee for this academic year: paid, waived, awaiting verification or due. Send fee reminders through the portal.", group: "Institution", roles: ["institution", "admin"], template: "bespoke", icon: "credit", phase: "MVP" },
+  { slug: "fee-payment", title: "Fees & Payments", description: "Pay your yearly app fee online or record an offline payment, and download your receipts.", group: "Overview", roles: ["student"], template: "bespoke", icon: "credit", phase: "MVP" },
   { slug: "notice-board", title: "Notice Board", description: "Important announcements from your faculty, HOD, Principal and the University, with read and acknowledgement tracking.", group: "Overview", roles: ["student", "faculty", "hod", "placement", "incubation", "institution", "admin"], template: "bespoke", icon: "bell", phase: "MVP" },
   // ───────────── Student Success ─────────────
   { slug: "mentor", title: "AI Mentor", description: "Your persistent academic & career mentor that knows your progress, goals and weak areas.", group: "Student Success", roles: ["student"], template: "bespoke", icon: "bot", phase: "MVP", agent: "mentor" },
@@ -221,7 +223,7 @@ export const MODULES: ModuleDef[] = [
   { slug: "curriculum", title: "Curriculum Studio", description: "Prepare programme curricula: semesters, courses, credits, L-T-P, syllabus units and course outcomes, drafted with AI and published to every college.", group: "University", roles: ["admin", "institution", "hod", "faculty"], template: "bespoke", icon: "layers", phase: "MVP" },
   { slug: "colleges", title: "Colleges", description: "Onboard, configure, suspend and remove colleges; switch module areas on or off per college.", group: "University", roles: ["admin"], template: "crud", resource: "colleges", icon: "building", phase: "MVP" },
   { slug: "users", title: "User Management", description: "Create accounts, assign roles, suspend access and enforce MFA.", group: "Staff & Users", roles: ["admin", "institution"], template: "crud", resource: "users", icon: "userlock", phase: "MVP" },
-  { slug: "billing", title: "Subscriptions & Billing", description: "Plans, seats and AI consumption metering.", group: "Platform", roles: ["admin"], template: "list", icon: "credit", phase: "Phase 4" },
+  { slug: "billing", title: "Subscriptions & Billing", description: "Each college's plan and seats, the yearly app fee per student, online and offline collection, waivers, and the academic-year lock.", group: "Platform", roles: ["admin"], template: "bespoke", icon: "credit", phase: "MVP", notice: "Fees are paid by students from their own portal. Gateways are set up under Integrations & Setup; every approval, waiver and clearance is audit-logged." },
   { slug: "ai-governance", title: "AI Governance", description: "Model, prompt and agent registries, safety policies, bias tests and human review.", group: "Platform", roles: ["admin"], template: "dashboard", icon: "shield", phase: "Phase 3" },
   { slug: "ai-observability", title: "AI Observability", description: "Every AI request: tenant, agent, model, prompt version, sources, tokens, latency, cost.", group: "Platform", roles: ["admin"], template: "list", icon: "eye", phase: "Phase 3" },
   { slug: "agent-store", title: "Agent Store", description: "Enable domain agents per institution — GATE, NEET, coding, accounting, law and more.", group: "Platform", roles: ["admin", "institution"], template: "gallery", icon: "cpu", phase: "Phase 4" },
@@ -277,7 +279,7 @@ export const SUPER_ADMIN_NAV = new Set([
   "billing",
   "developer-api",
 ]);
-export const SUPER_ADMIN_COLLEGE_NAV = new Set(["admissions", "staff", "departments", "course-management", "question-bank", "events", "college-website", "gallery", "knowledge-base", "certificate-authority", "hospital-dashboard", "nmc-compliance"]);
+export const SUPER_ADMIN_COLLEGE_NAV = new Set(["student-fees", "admissions", "staff", "departments", "course-management", "question-bank", "events", "college-website", "gallery", "knowledge-base", "certificate-authority", "hospital-dashboard", "nmc-compliance"]);
 
 /** Whether a module is listed in the role's menu (all roles but the Super Admin list every module they have). */
 export function inNav(role: Role, slug: string, allColleges: boolean): boolean {

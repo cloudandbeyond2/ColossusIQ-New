@@ -60,6 +60,9 @@ import { JobsModule } from "./bespoke/jobs";
 import { AlumniModule } from "./bespoke/alumni";
 import { MyClassesModule } from "./bespoke/my-classes";
 import { ClassAnalyticsModule } from "./bespoke/class-analytics";
+import { FeePaymentModule } from "./bespoke/fee-payment";
+import { BillingModule } from "./bespoke/billing";
+import { StudentFeesModule } from "./bespoke/student-fees";
 
 const BESPOKE: Record<string, (props: { role: Role }) => React.ReactNode> = {
   "aicte-compliance": ({ role }) => <AicteComplianceModule role={role} />,
@@ -121,6 +124,9 @@ const BESPOKE: Record<string, (props: { role: Role }) => React.ReactNode> = {
   alumni: ({ role }) => <AlumniModule role={role} />,
   "my-classes": ({ role }) => <MyClassesModule role={role} />,
   "class-analytics": () => <ClassAnalyticsModule />,
+  "fee-payment": () => <FeePaymentModule />,
+  billing: () => <BillingModule />,
+  "student-fees": () => <StudentFeesModule />,
 };
 
 

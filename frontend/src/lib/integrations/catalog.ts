@@ -221,11 +221,11 @@ export const INTEGRATIONS: IntegrationDef[] = [
   },
   {
     id: "payments",
-    name: "Online payments",
+    name: "Razorpay",
     category: "Payments",
     icon: "credit-card",
-    description: "Collects admission and examination fees online (UPI, cards, net banking).",
-    usedBy: ["Admissions", "Subscriptions & Billing"],
+    description: "Students pay their app fee online through Razorpay (UPI, cards, net banking, wallets). For payment confirmation when a student closes the browser early, add the webhook https://<your site>/api/payments/razorpay/webhook (event payment_link.paid) in the Razorpay dashboard.",
+    usedBy: ["Fees & Payments", "Subscriptions & Billing"],
     envProvider: "PAYMENTS_PROVIDER",
     providers: [
       {
@@ -237,6 +237,73 @@ export const INTEGRATIONS: IntegrationDef[] = [
           { key: "keyId", label: "Key ID", kind: "text", required: true, env: "RAZORPAY_KEY_ID", placeholder: "rzp_live_…", max: 40 },
           { key: "keySecret", label: "Key secret", kind: "secret", required: true, env: "RAZORPAY_KEY_SECRET", max: 80 },
           { key: "webhookSecret", label: "Webhook secret", kind: "secret", env: "RAZORPAY_WEBHOOK_SECRET", max: 120 },
+        ],
+      },
+    ],
+  },
+  {
+    id: "payments-payu",
+    name: "PayU",
+    category: "Payments",
+    icon: "credit-card",
+    description: "Students pay their app fee online through PayU's hosted checkout (INR only).",
+    usedBy: ["Fees & Payments"],
+    envProvider: "PAYU_PROVIDER",
+    providers: [
+      {
+        id: "payu",
+        name: "PayU India",
+        blurb: "UPI, cards, net banking and EMI on PayU's hosted page.",
+        testable: true,
+        fields: [
+          { key: "merchantKey", label: "Merchant key", kind: "text", required: true, env: "PAYU_MERCHANT_KEY", max: 40 },
+          { key: "salt", label: "Merchant salt", kind: "secret", required: true, env: "PAYU_SALT", max: 120 },
+          { key: "mode", label: "Mode", kind: "select", options: ["Test", "Live"], env: "PAYU_MODE" },
+        ],
+      },
+    ],
+  },
+  {
+    id: "payments-ccavenue",
+    name: "CCAvenue",
+    category: "Payments",
+    icon: "credit-card",
+    description: "Students pay their app fee online through CCAvenue's hosted checkout. Register this site's address with CCAvenue first.",
+    usedBy: ["Fees & Payments"],
+    envProvider: "CCAVENUE_PROVIDER",
+    providers: [
+      {
+        id: "ccavenue",
+        name: "CCAvenue",
+        blurb: "Cards, net banking, UPI and wallets on CCAvenue's hosted page.",
+        testable: true,
+        fields: [
+          { key: "merchantId", label: "Merchant ID", kind: "text", required: true, env: "CCAVENUE_MERCHANT_ID", max: 20 },
+          { key: "accessCode", label: "Access code", kind: "text", required: true, env: "CCAVENUE_ACCESS_CODE", max: 40 },
+          { key: "workingKey", label: "Working key", kind: "secret", required: true, env: "CCAVENUE_WORKING_KEY", max: 64 },
+          { key: "mode", label: "Mode", kind: "select", options: ["Test", "Live"], env: "CCAVENUE_MODE" },
+        ],
+      },
+    ],
+  },
+  {
+    id: "payments-paypal",
+    name: "PayPal",
+    category: "Payments",
+    icon: "credit-card",
+    description: "Students pay their app fee with PayPal (useful for international students). The fee currency must be one your PayPal account accepts.",
+    usedBy: ["Fees & Payments"],
+    envProvider: "PAYPAL_PROVIDER",
+    providers: [
+      {
+        id: "paypal",
+        name: "PayPal",
+        blurb: "PayPal balance and cards through PayPal Checkout (Orders v2).",
+        testable: true,
+        fields: [
+          { key: "clientId", label: "Client ID", kind: "text", required: true, env: "PAYPAL_CLIENT_ID", max: 120 },
+          { key: "clientSecret", label: "Client secret", kind: "secret", required: true, env: "PAYPAL_CLIENT_SECRET", max: 120 },
+          { key: "mode", label: "Mode", kind: "select", options: ["Sandbox", "Live"], env: "PAYPAL_MODE" },
         ],
       },
     ],
