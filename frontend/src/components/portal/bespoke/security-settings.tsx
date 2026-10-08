@@ -78,6 +78,83 @@ function calculateSecurityScore(values: Record<string, string | boolean>): {
   return { score: capped, grade: "C Needs Attention", tone: "rose" };
 }
 
+function SecurityScoreGauge({ score, tone }: { score: number; tone: "teal" | "gold" | "rose" }) {
+  const r = 32;
+  const c = 2 * Math.PI * r;
+  const strokeColor = tone === "teal" ? "var(--teal)" : tone === "gold" ? "var(--gold)" : "var(--rose)";
+  return (
+    <div className="relative size-20 shrink-0">
+      <svg viewBox="0 0 80 80" className="size-full -rotate-90" aria-hidden>
+        <circle cx="40" cy="40" r={r} fill="none" stroke="var(--surface-2)" strokeWidth="7" />
+        <circle
+          cx="40"
+          cy="40"
+          r={r}
+          fill="none"
+          stroke={strokeColor}
+          strokeWidth="7"
+          strokeLinecap="round"
+          strokeDasharray={c}
+          strokeDashoffset={c * (1 - score / 100)}
+          className="transition-[stroke-dashoffset] duration-700"
+        />
+      </svg>
+      <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
+        <span className="text-xl font-black leading-none text-ink">{score}</span>
+        <span className="mt-0.5 text-[10px] font-bold text-ink-3">/ 100</span>
+      </div>
+    </div>
+  );
+}
+
+function SecurityToggleItem({
+  title,
+  description,
+  checked,
+  onToggle,
+  id,
+}: {
+  title: string;
+  description: string;
+  checked: boolean;
+  onToggle: () => void;
+  id: string;
+}) {
+  return (
+    <div
+      className="flex cursor-pointer items-start justify-between gap-4 rounded-xl p-2.5 transition-colors hover:bg-surface-2/60"
+      onClick={onToggle}
+    >
+      <div>
+        <p className="text-sm font-semibold text-ink">{title}</p>
+        <p className="mt-0.5 text-xs text-ink-3">{description}</p>
+      </div>
+      <button
+        id={id}
+        type="button"
+        role="switch"
+        aria-checked={checked}
+        onClick={(e) => {
+          e.stopPropagation();
+          onToggle();
+        }}
+        className={cn(
+          "relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-brand/50 focus:ring-offset-1",
+          checked ? "bg-teal" : "bg-line",
+        )}
+      >
+        <span
+          aria-hidden="true"
+          className={cn(
+            "pointer-events-none inline-block size-5 transform rounded-full bg-white shadow-md transition-transform duration-200 ease-in-out",
+            checked ? "translate-x-5" : "translate-x-0",
+          )}
+        />
+      </button>
+    </div>
+  );
+}
+
 export function SecuritySettingsModule() {
   const qc = useQueryClient();
   const [toast, setToast] = useState<{ message: string; tone: "teal" | "rose" | "brand" } | null>(null);
