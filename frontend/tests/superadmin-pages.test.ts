@@ -37,6 +37,7 @@ const BESPOKE_API: Record<string, string[]> = {
   "skill-booster": ["teaching/booster"],
   "department-faculty": ["faculty"],
   "my-classes": ["faculty/me/allocations"],
+  "class-analytics": ["faculty/analytics"],
   "department-skills": ["department-skills"],
   "early-warning": ["early-warning"],
   "placement-board": ["placement/board"],
