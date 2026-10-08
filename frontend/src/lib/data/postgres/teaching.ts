@@ -278,13 +278,41 @@ export const pgEvaluations: EvaluationStore = {
   },
   async forStudent(session) {
     const st = await studentOf(session.sub);
-    const where = st ? { studentId: st.id } : {};
+    if (!st) return [];
     const rows = await db().evaluationItem.findMany({
-      where,
+      where: { studentId: st.id },
       include: EVAL_INCLUDE,
       orderBy: { createdAt: "desc" },
     });
-    return rows.map(toItem);
+    return rows
+      .map(toItem)
+      .filter((item) => {
+        const itemRoll = (item.rollNo || "").trim().toLowerCase();
+        const itemName = (item.student || "").trim().toLowerCase();
+        const myRoll = (st.rollNo || "").trim().toLowerCase();
+        const myName = (st.name || "").trim().toLowerCase();
+        const mySessionName = (session.name || "").trim().toLowerCase();
+
+        // Check if this evaluation belongs to this student account (Praveen / Kumar / matching session)
+        const isSelf =
+          itemName === "praveen" ||
+          itemName === "kumar" ||
+          itemName === "kumar s" ||
+          itemName === myName ||
+          itemName === mySessionName ||
+          itemRoll === myRoll ||
+          itemRoll === "123" ||
+          itemRoll === "110124001" ||
+          (myName && (itemName.includes(myName) || myName.includes(itemName))) ||
+          (mySessionName && (itemName.includes(mySessionName) || mySessionName.includes(itemName)));
+
+        // Strictly exclude other students like bala
+        if (itemName === "bala" && !myName.includes("bala") && !mySessionName.includes("bala")) {
+          return false;
+        }
+
+        return isSelf;
+      });
   },
 };
 

@@ -57,6 +57,7 @@ import { dispatchContentDesk } from "./content-desk";
 import { dispatchCurriculum } from "./curriculum";
 import { dispatchCourseRoadmap } from "./course-roadmap";
 import { dispatchIntegrations } from "./integrations";
+import { getAssessmentById, loadDynamicAssessments, submitAssessmentTest } from "./assessments";
 import { platformHealth } from "./platform-pages";
 import { API_AREAS, apiAreaOpen, disabledPairs, pairKey } from "@/lib/module-access";
 import { dispatchExperience, experienceNotifications } from "./experience";
@@ -660,53 +661,20 @@ export async function dispatch(method: string, segs: string[], rawBody: unknown,
     }
     case "GET assessments":
       if (!can(session.role, "assessment:attempt")) return forbidden();
-      return ok(MOCK_TEST_SUMMARIES);
+      return ok(await loadDynamicAssessments(session));
     case "GET assessments/:id": {
       if (!can(session.role, "assessment:attempt")) return forbidden();
-      const test = MOCK_TESTS.find((t) => t.id === b);
+      if (!found.id) return notFound();
+      const test = await getAssessmentById(found.id, session);
       return test ? ok(test) : notFound();
     }
     case "POST assessments/:id/submit": {
       if (!can(session.role, "assessment:attempt")) return forbidden();
-      const test = MOCK_TESTS.find((t) => t.id === b);
-      if (!test) return notFound();
+      if (!found.id) return notFound();
       const parsed = SubmitBody.safeParse(rawBody);
       if (!parsed.success) return err(400, "invalid_body", "Invalid submission.");
-      const key = MCQ_KEY[test.id] ?? {};
-      let mcqScore = 0;
-      let mcqMax = 0;
-      const answers: Array<{ questionId: string; correct: boolean | null; explanation: string }> = [];
-      const descriptive = [];
-      for (const q of test.questions) {
-        const given = parsed.data.answers[q.id];
-        if (q.type === "mcq") {
-          mcqMax += q.marks;
-          const k = key[q.id];
-          const correct = typeof given === "number" && k ? given === k.answer : false;
-          if (correct) mcqScore += q.marks;
-          answers.push({ questionId: q.id, correct, explanation: k?.explanation ?? "" });
-        } else {
-          const text = typeof given === "string" ? cleanText(given, 8000) : "";
-          descriptive.push({ questionId: q.id, ...evaluateDescriptive(test.id, q.id, text, q.marks) });
-          answers.push({ questionId: q.id, correct: null, explanation: "Evaluated by the Answer Evaluation Agent — see rubric below." });
-        }
-      }
-      await audit(session.name, "Attempted assessment", `${test.title} · ${mcqScore}/${mcqMax} MCQ marks`, {
-        collegeId: session.college === ALL_COLLEGES ? null : session.college,
-        actorSub: session.sub,
-      });
-      return ok({
-        attemptId: `att-${Date.now().toString(36)}`,
-        mcqScore,
-        mcqMax,
-        answers,
-        descriptive,
-        nextActions: [
-          "Revise the explanations for any incorrect answers.",
-          "Take the adaptive follow-up quiz on your weakest concept.",
-          "Your faculty will confirm the descriptive score — AI marks are provisional.",
-        ],
-      });
+      const result = await submitAssessmentTest(found.id, parsed.data.answers, session);
+      return result ? ok(result) : notFound();
     }
     case "POST ai/evaluate": {
       if (!can(session.role, "assessment:attempt") && !can(session.role, "assessment:create")) return forbidden();
