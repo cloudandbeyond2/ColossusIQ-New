@@ -1,6 +1,18 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { apiFetch } from "@/lib/api/client";
+import {
+  ReportsOverviewSchema,
+  ReportItemSchema,
+  ScheduledReportSchema,
+  type ReportCategory,
+  type ReportItem,
+  type ScheduledReport,
+  type CreateReportInput,
+} from "@/lib/api/schemas";
+import { z } from "zod";
 import {
   FileText,
   Search,
@@ -401,9 +413,34 @@ const INITIAL_SCHEDULED: ScheduledReport[] = [
 /* ── Main Component ─────────────────────────────────── */
 
 export function ReportsModule({ role }: { role?: Role }) {
-  // Main state
-  const [reports, setReports] = useState<ReportItem[]>([]);
-  const [scheduledReports, setScheduledReports] = useState<ScheduledReport[]>([]);
+  const qc = useQueryClient();
+
+  // Backend Query
+  const query = useQuery({
+    queryKey: ["reports"],
+    queryFn: async () => {
+      try {
+        const res = await apiFetch("/api/v1/reports", ReportsOverviewSchema);
+        if (typeof window !== "undefined") {
+          localStorage.setItem("ciq_saved_reports_cache", JSON.stringify(res.reports));
+        }
+        return res;
+      } catch (e) {
+        console.warn("Failed fetching from backend, falling back to local cache:", e);
+        const cached = typeof window !== "undefined" ? localStorage.getItem("ciq_saved_reports_cache") : null;
+        return {
+          collegeId: "COL-1001",
+          reports: cached ? JSON.parse(cached) : INITIAL_REPORTS,
+          scheduledReports: INITIAL_SCHEDULED,
+        };
+      }
+    },
+  });
+
+  const reports = query.data?.reports ?? [];
+  const scheduledReports = query.data?.scheduledReports ?? [];
+
+  // Active tab state
   const [activeTab, setActiveTab] = useState<"all" | "scheduled">("all");
 
   // Filtering state
@@ -430,6 +467,80 @@ export function ReportsModule({ role }: { role?: Role }) {
   const [genIncludeGrades, setGenIncludeGrades] = useState(true);
   const [genIncludePlacements, setGenIncludePlacements] = useState(true);
   const [isGenerating, setIsGenerating] = useState(false);
+
+  // Create Mutation
+  const createMutation = useMutation({
+    mutationFn: async (payload: CreateReportInput) => {
+      return apiFetch("/api/v1/reports", ReportItemSchema, {
+        method: "POST",
+        body: payload,
+      });
+    },
+    onSuccess: (newRep) => {
+      qc.invalidateQueries({ queryKey: ["reports"] });
+      setIsGenerating(false);
+      setIsGenerateOpen(false);
+      setPage(1);
+      setToast(`Report "${newRep.report}" compiled and permanently saved to institutional archive!`);
+      setTimeout(() => setToast(null), 4000);
+    },
+    onError: (err) => {
+      setIsGenerating(false);
+      setToast("Error saving report: " + (err instanceof Error ? err.message : "Network error"));
+      setTimeout(() => setToast(null), 4000);
+    },
+  });
+
+  // Delete Mutation
+  const deleteMutation = useMutation({
+    mutationFn: async (reportId: string) => {
+      return apiFetch(`/api/v1/reports/${reportId}`, z.object({ ok: z.boolean() }), {
+        method: "DELETE",
+      });
+    },
+    onMutate: async (reportId: string) => {
+      await qc.cancelQueries({ queryKey: ["reports"] });
+      const prevData = qc.getQueryData<ReportsOverview>(["reports"]);
+      if (prevData) {
+        const nextReports = prevData.reports.filter((r) => r.id !== reportId);
+        qc.setQueryData(["reports"], {
+          ...prevData,
+          reports: nextReports,
+        });
+        if (typeof window !== "undefined") {
+          localStorage.setItem("ciq_saved_reports_cache", JSON.stringify(nextReports));
+        }
+      }
+      return { prevData };
+    },
+    onError: (err, _, context) => {
+      if (context?.prevData) {
+        qc.setQueryData(["reports"], context.prevData);
+      }
+      setToast("Failed to delete report: " + (err instanceof Error ? err.message : "Error"));
+      setTimeout(() => setToast(null), 3000);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["reports"] });
+      setToast("Report deleted from archive.");
+      setTimeout(() => setToast(null), 2500);
+      setPage((prevPage) => (prevPage > 1 && paginatedReports.length <= 1 ? prevPage - 1 : prevPage));
+    },
+  });
+
+  // Toggle Schedule Mutation
+  const toggleScheduleMutation = useMutation({
+    mutationFn: async (scheduleId: string) => {
+      return apiFetch(`/api/v1/reports/scheduled/${scheduleId}/toggle`, ScheduledReportSchema, {
+        method: "POST",
+      });
+    },
+    onSuccess: (updated) => {
+      qc.invalidateQueries({ queryKey: ["reports"] });
+      setToast(`Updated schedule "${updated.name}".`);
+      setTimeout(() => setToast(null), 2000);
+    },
+  });
 
   // Filtered reports
   const filteredReports = useMemo(() => {
@@ -502,39 +613,15 @@ export function ReportsModule({ role }: { role?: Role }) {
   // Handle generation of new report
   const handleCreateReport = () => {
     setIsGenerating(true);
-
-    setTimeout(() => {
-      const newRep: ReportItem = {
-        id: `rep-${Date.now().toString(36)}`,
-        report: genTitle,
-        category: genCategory,
-        scope: genScope,
-        period: genPeriod,
-        formats: ["PDF", "Excel", "CSV"],
-        generated: "Just now",
-        fileSize: "3.4 MB",
-        generatedBy: "Principal Office",
-        summary: `Custom generated ${genCategory.toLowerCase()} report for ${genScope} (${genPeriod}) synthesizing live attendance, outcome attainment, and department metrics.`,
-        kpis: [
-          { label: "Target Scope", value: genScope },
-          { label: "Overall Rating", value: "93.4%" },
-          { label: "Cohorts Assessed", value: "860" },
-          { label: "Status", value: "Verified" },
-        ],
-        breakdown: [
-          { item: `${genScope} - Core Faculty Benchmark`, evaluated: 120, score: 94.0, status: "Excellent" },
-          { item: `${genScope} - Student Attainment`, evaluated: 450, score: 91.2, status: "Target Met" },
-          { item: `${genScope} - Lab Infrastructure Index`, evaluated: 14, score: 96.0, status: "Operational" },
-        ],
-      };
-
-      setReports((prev) => [newRep, ...prev]);
-      setIsGenerating(false);
-      setIsGenerateOpen(false);
-      setPage(1);
-      setToast(`Report "${genTitle}" generated and added to institutional archive!`);
-      setTimeout(() => setToast(null), 4000);
-    }, 1400);
+    createMutation.mutate({
+      report: genTitle,
+      category: genCategory,
+      scope: genScope,
+      period: genPeriod,
+      includeGrades: genIncludeGrades,
+      includeRisk: genIncludeRisk,
+      includePlacements: genIncludePlacements,
+    });
   };
 
   return (
@@ -865,12 +952,13 @@ export function ReportsModule({ role }: { role?: Role }) {
                             </button>
                             <button
                               type="button"
-                              onClick={() => {
-                                setReports((prev) => prev.filter((item) => item.id !== r.id));
-                                setToast(`Archived "${r.report}".`);
-                                setTimeout(() => setToast(null), 2500);
+                              disabled={deleteMutation.isPending}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                e.preventDefault();
+                                deleteMutation.mutate(r.id);
                               }}
-                              className="rounded p-1 text-ink-3 hover:text-rose hover:bg-rose-soft transition-colors"
+                              className="rounded p-1 text-ink-3 hover:text-rose hover:bg-rose-soft transition-colors disabled:opacity-50"
                               title="Delete Report"
                             >
                               <Trash2 className="size-3.5" />
@@ -998,16 +1086,11 @@ export function ReportsModule({ role }: { role?: Role }) {
                       <input
                         type="checkbox"
                         checked={sch.enabled}
+                        disabled={toggleScheduleMutation.isPending}
                         onChange={() => {
-                          setScheduledReports((prev) =>
-                            prev.map((item) =>
-                              item.id === sch.id ? { ...item, enabled: !item.enabled } : item
-                            ),
-                          );
-                          setToast(`Updated schedule "${sch.name}".`);
-                          setTimeout(() => setToast(null), 2000);
+                          toggleScheduleMutation.mutate(sch.id);
                         }}
-                        className="rounded border-line text-brand focus:ring-brand size-4"
+                        className="rounded border-line text-brand focus:ring-brand size-4 cursor-pointer"
                       />
                     </label>
                   </div>
@@ -1258,12 +1341,12 @@ export function ReportsModule({ role }: { role?: Role }) {
               <Button
                 variant="primary"
                 size="sm"
-                disabled={isGenerating || !genTitle}
+                disabled={isGenerating || createMutation.isPending || !genTitle}
                 onClick={handleCreateReport}
                 className="gap-1.5"
               >
-                {isGenerating ? <Spinner /> : <Sparkles className="size-3.5" />}
-                {isGenerating ? "Compiling Report…" : "Compile & Save Report"}
+                {isGenerating || createMutation.isPending ? <Spinner /> : <Sparkles className="size-3.5" />}
+                {isGenerating || createMutation.isPending ? "Compiling & Saving…" : "Compile & Save Report"}
               </Button>
             </div>
           </div>

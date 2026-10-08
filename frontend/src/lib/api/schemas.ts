@@ -1006,5 +1006,79 @@ export const UpdateAicteActionStatusInput = z.object({
 });
 export type UpdateAicteActionStatusInput = z.infer<typeof UpdateAicteActionStatusInput>;
 
+/* ── Institutional Reports ────────────────────────────── */
+export const ReportCategorySchema = z.enum([
+  "Academic",
+  "Department",
+  "Placement",
+  "Compliance",
+  "Faculty",
+  "Institution",
+]);
+export type ReportCategory = z.infer<typeof ReportCategorySchema>;
+
+export const ReportKpiSchema = z.object({
+  label: z.string(),
+  value: z.string(),
+  delta: z.string().optional(),
+});
+export type ReportKpi = z.infer<typeof ReportKpiSchema>;
+
+export const ReportBreakdownItemSchema = z.object({
+  item: z.string(),
+  evaluated: z.number(),
+  score: z.number(),
+  status: z.string(),
+});
+export type ReportBreakdownItem = z.infer<typeof ReportBreakdownItemSchema>;
+
+export const ReportItemSchema = z.object({
+  id: z.string(),
+  report: z.string(),
+  category: ReportCategorySchema,
+  scope: z.string(),
+  period: z.string(),
+  formats: z.array(z.string()).default(["PDF", "Excel", "CSV"]),
+  generated: z.string().default("Just now"),
+  fileSize: z.string().default("3.2 MB"),
+  generatedBy: z.string(),
+  summary: z.string(),
+  kpis: z.array(ReportKpiSchema),
+  breakdown: z.array(ReportBreakdownItemSchema),
+  collegeId: z.string().optional(),
+  authorRole: z.string().optional(),
+  createdAt: z.string().optional(),
+});
+export type ReportItem = z.infer<typeof ReportItemSchema>;
+
+export const ScheduledReportSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  frequency: z.enum(["Weekly", "Bi-Weekly", "Monthly", "End of Term"]),
+  scope: z.string(),
+  recipients: z.string(),
+  nextRun: z.string(),
+  enabled: z.boolean(),
+});
+export type ScheduledReport = z.infer<typeof ScheduledReportSchema>;
+
+export const ReportsOverviewSchema = z.object({
+  collegeId: z.string(),
+  reports: z.array(ReportItemSchema),
+  scheduledReports: z.array(ScheduledReportSchema),
+});
+export type ReportsOverview = z.infer<typeof ReportsOverviewSchema>;
+
+export const CreateReportInputSchema = z.object({
+  report: z.string().min(2, "Report title is required"),
+  category: ReportCategorySchema,
+  scope: z.string(),
+  period: z.string(),
+  includeGrades: z.boolean().default(true),
+  includeRisk: z.boolean().default(true),
+  includePlacements: z.boolean().default(true),
+});
+export type CreateReportInput = z.infer<typeof CreateReportInputSchema>;
+
 
 
