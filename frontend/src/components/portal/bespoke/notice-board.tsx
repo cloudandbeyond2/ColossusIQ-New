@@ -18,6 +18,63 @@ type Filter = "all" | "unread" | "important" | "ack";
 
 const PRIORITY_STYLE = { Urgent: { bar: "bg-rose", tone: "rose" }, Important: { bar: "bg-amber", tone: "amber" }, Normal: { bar: "bg-brand/40", tone: "neutral" } } as const;
 const CATEGORY_ICON: Record<string, string> = { Academic: "book-alt", Examination: "edit", Event: "calendar", Placement: "briefcase", Holiday: "umbrella-beach", Fees: "money", "Hostel & Transport": "bus-alt", General: "megaphone" };
+
+const EMOJI_MAP: Record<string, { icon: string; color: string }> = {
+  "🚀": { icon: "rocket-lunch", color: "text-brand" },
+  "✨": { icon: "sparkles", color: "text-gold" },
+  "💼": { icon: "briefcase", color: "text-teal" },
+  "🏆": { icon: "trophy", color: "text-gold" },
+  "🌟": { icon: "sparkles", color: "text-amber" },
+  "📍": { icon: "marker", color: "text-rose" },
+  "📅": { icon: "calendar", color: "text-brand" },
+  "📌": { icon: "thumbtack", color: "text-gold" },
+  "📝": { icon: "edit", color: "text-brand" },
+  "📢": { icon: "megaphone", color: "text-brand" },
+  "🎓": { icon: "graduation-cap", color: "text-brand" },
+  "🎉": { icon: "party-horn", color: "text-amber" },
+  "🎊": { icon: "party-horn", color: "text-amber" },
+  "🚌": { icon: "bus-alt", color: "text-teal" },
+  "🏢": { icon: "building", color: "text-ink-3" },
+  "🏛️": { icon: "building", color: "text-ink-3" },
+  "⏰": { icon: "clock", color: "text-amber" },
+  "⚠️": { icon: "triangle-warning", color: "text-rose" },
+  "🎯": { icon: "bullseye-arrow", color: "text-rose" },
+  "💡": { icon: "bulb", color: "text-amber" },
+  "🔥": { icon: "flame", color: "text-rose" },
+  "⭐": { icon: "star", color: "text-gold" },
+};
+
+function renderTextWithFlaticons(text: string) {
+  if (!text) return null;
+  const regex = /(\p{Extended_Pictographic})/gu;
+  const parts = text.split(regex);
+  return parts.map((part, index) => {
+    if (!part) return null;
+    if (/\p{Extended_Pictographic}/u.test(part) || /[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/u.test(part)) {
+      const matched = EMOJI_MAP[part] ?? { icon: "sparkles", color: "text-brand" };
+      return (
+        <span key={index} className="inline-flex items-center mx-1 align-baseline">
+          <Fi name={matched.icon} className={cn("text-base", matched.color)} />
+        </span>
+      );
+    }
+    return part;
+  });
+}
+
+function getCategoryIcon(category: string, title: string, body?: string) {
+  const t = (title + " " + (body ?? "")).toLowerCase();
+  if (t.includes("placement") || t.includes("career") || t.includes("job") || t.includes("recruitment") || t.includes("💼") || category === "Placement") return "briefcase";
+  if (t.includes("sports") || t.includes("tournament") || t.includes("match") || t.includes("athletic") || t.includes("🏆")) return "trophy";
+  if (t.includes("cultural") || t.includes("fest") || t.includes("celebration") || t.includes("gala") || t.includes("🌟") || t.includes("🎉")) return "sparkles";
+  if (t.includes("exam") || t.includes("assessment") || t.includes("test") || t.includes("quiz") || category === "Examination") return "edit";
+  if (t.includes("seminar") || t.includes("workshop") || t.includes("lecture") || t.includes("conference")) return "chalkboard-user";
+  if (t.includes("holiday") || category === "Holiday") return "umbrella-beach";
+  if (t.includes("fee") || category === "Fees") return "money";
+  if (t.includes("hostel") || t.includes("transport") || t.includes("bus") || category === "Hostel & Transport") return "bus-alt";
+  return CATEGORY_ICON[category] ?? "megaphone";
+}
+
 const blank = (): NoticeBody => ({ title: "", body: "", category: "Academic", priority: "Normal", audience: "students", department: "", year: 0, pinned: false, requiresAck: false, linkUrl: "", expiresOn: null });
 const when = (iso: string) => new Date(iso).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 const ROLE_LABEL: Record<string, string> = { faculty: "Faculty", hod: "HOD", placement: "Placement Office", incubation: "Incubation", institution: "Principal", admin: "University" };
@@ -132,13 +189,13 @@ function NoticeCard({ n, preview = false }: { n: NoticeView; preview?: boolean }
         <div className="flex flex-wrap items-start justify-between gap-2">
           <div className="flex min-w-0 items-start gap-3">
             <span className={cn("mt-0.5 grid size-9 shrink-0 place-items-center rounded-xl", n.priority === "Urgent" ? "bg-rose-soft text-rose" : n.priority === "Important" ? "bg-amber-soft text-amber" : "bg-brand-soft text-brand")}>
-              <Fi name={CATEGORY_ICON[n.category] ?? "megaphone"} />
+              <Fi name={getCategoryIcon(n.category, n.title, n.body)} />
             </span>
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-1.5">
                 {n.pinned ? <Fi name="thumbtack" className="text-xs text-gold" /> : null}
                 {!n.read && !preview ? <span className="size-2 rounded-full bg-brand" aria-label="Unread" /> : null}
-                <h3 className="font-semibold text-ink">{n.title || "Notice title"}</h3>
+                <h3 className="font-semibold text-ink">{renderTextWithFlaticons(n.title) || "Notice title"}</h3>
               </div>
               <p className="mt-0.5 text-xs text-ink-3">
                 {n.university ? "University" : (ROLE_LABEL[n.authorRole] ?? n.authorRole)} · {n.authorName} · {preview ? "now" : when(n.createdAt)} · {audience}
@@ -152,7 +209,7 @@ function NoticeCard({ n, preview = false }: { n: NoticeView; preview?: boolean }
             {n.expired ? <Badge tone="neutral">Expired</Badge> : null}
           </div>
         </div>
-        <div className={cn("mt-3 whitespace-pre-line text-sm leading-relaxed text-ink-2", !open && long && "line-clamp-3")}>{n.body || "Your notice text appears here."}</div>
+        <div className={cn("mt-3 whitespace-pre-line text-sm leading-relaxed text-ink-2", !open && long && "line-clamp-3")}>{renderTextWithFlaticons(n.body) || "Your notice text appears here."}</div>
         <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
           <div className="flex flex-wrap items-center gap-3 text-xs">
             {long ? (
