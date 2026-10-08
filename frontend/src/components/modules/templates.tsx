@@ -565,14 +565,27 @@ export function SettingsTemplate({ data, mod }: { data: SettingsData; mod?: Modu
                 return (
                   <div
                     key={f.id}
-                    className="flex cursor-pointer items-start justify-between gap-4 rounded-xl p-2 transition-colors hover:bg-surface-2/40"
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        toggleValue();
+                      }
+                    }}
+                    className={cn(
+                      "group flex cursor-pointer items-center justify-between gap-4 rounded-xl border p-3.5 transition-all duration-200",
+                      isChecked
+                        ? "border-emerald-500/30 bg-emerald-500/[0.03] shadow-sm hover:border-emerald-500/50 hover:bg-emerald-500/[0.06]"
+                        : "border-line/70 bg-surface hover:border-line hover:bg-surface-2/50",
+                    )}
                     onClick={toggleValue}
                   >
-                    <div>
-                      <label htmlFor={id} className="cursor-pointer text-sm font-medium text-ink">
+                    <div className="min-w-0 flex-1">
+                      <label htmlFor={id} className="cursor-pointer text-sm font-semibold text-ink group-hover:text-brand transition-colors">
                         {f.label}
                       </label>
-                      {f.help ? <p className="mt-0.5 text-xs text-ink-3">{f.help}</p> : null}
+                      {f.help ? <p className="mt-0.5 text-xs text-ink-3 leading-relaxed">{f.help}</p> : null}
                     </div>
                     <button
                       id={id}
@@ -584,14 +597,14 @@ export function SettingsTemplate({ data, mod }: { data: SettingsData; mod?: Modu
                         toggleValue();
                       }}
                       className={cn(
-                        "relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-brand/50 focus:ring-offset-1",
-                        isChecked ? "bg-teal" : "bg-line",
+                        "relative inline-flex h-7 w-12 shrink-0 cursor-pointer items-center rounded-full p-1 transition-colors duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-emerald-500/40 focus:ring-offset-2",
+                        isChecked ? "bg-emerald-600 dark:bg-emerald-500 shadow-sm" : "bg-line hover:bg-line-2",
                       )}
                     >
                       <span
                         aria-hidden="true"
                         className={cn(
-                          "pointer-events-none inline-block size-5 transform rounded-full bg-white shadow-md transition-transform duration-200 ease-in-out",
+                          "pointer-events-none inline-block size-5 transform rounded-full bg-white shadow-md ring-0 transition-transform duration-300 ease-in-out",
                           isChecked ? "translate-x-5" : "translate-x-0",
                         )}
                       />
