@@ -69,10 +69,13 @@ export function chatReply(agent: string, message: string): ChatReply {
     return gen(agent, "Let's practise! **Hindi greetings**\n\n- नमस्ते (*namaste*) — Hello\n- आप कैसे हैं? (*aap kaise hain?*) — How are you?\n- मैं ठीक हूँ (*main theek hoon*) — I am fine\n\nNow you try: say *\"Hello, how are you?\"* in Hindi.", 0.92);
   if (agent === "research")
     return gen(agent, "**Possible research questions — IoT for agriculture**\n\n1. Can low-cost capacitive sensors match lab-grade soil-moisture accuracy within ±5%?\n2. How does LoRaWAN coverage affect data completeness in rural Tamil Nadu farms?\n3. Does a vernacular voice interface increase farmer adoption of sensor advice?\n\n_Verify related work in IEEE Xplore or Google Scholar before finalising — I haven't cited specific papers._", 0.72);
-  if (/explain|what is|how does/.test(m))
-    return gen(agent, `Here's a clear explanation:\n\n**Concept.** ${message.replace(/^(explain|what is|how does)\s*/i, "").slice(0, 120) || "This topic"} is best understood by starting from the problem it solves.\n\n**Example.** Consider a table \`Student(RollNo, Name, DeptId, DeptName)\`. Because \`DeptName\` depends on \`DeptId\` rather than the key, updates can become inconsistent.\n\n**Practice.** Try identifying the functional dependencies in \`Order(OrderId, CustomerId, CustomerCity)\`.\n\nWould you like a quiz on this?`, 0.78);
+  if (/^(ha?i|hello|hey|greetings|good\s*(morning|afternoon|evening)|hi\b)/i.test(m) || m === "hi" || m === "hai")
+    return gen(agent, "Hello! 👋 I'm here to assist you with your academic goals, concept explanations, exam preparation, and career readiness. How can I help you today?", 0.95);
 
-  return gen(agent, "I can help with that. To give you a precise answer, tell me which subject, project or goal this relates to — or pick one of the suggestions above.", 0.6);
+  if (/explain|what is|how does/.test(m))
+    return gen(agent, `Here's a clear explanation:\n\n**Concept.** ${message.replace(/^(explain|what is|how does)\s*/i, "").slice(0, 120) || "This topic"} is best understood by starting from the problem it solves.\n\n**Example.** Consider a table \`Student(RollNo, Name, DeptId, DeptName)\`. Because \`DeptName\` depends on \`DeptId\` rather than the key, updates can become inconsistent.\n\n**Practice.** Try identifying the functional dependencies in \`Order(OrderId, CustomerId, CustomerCity)\`.\n\nWould you like a quiz on this?`, 0.88);
+
+  return gen(agent, "I'm here to help! You can ask me to explain any topic, generate revision notes, review your project, or prepare for upcoming assessments and placement interviews. What would you like to explore?", 0.85);
 }
 
 function inst(agent: string, message: string, titles: string[]): ChatReply {
