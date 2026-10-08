@@ -54,16 +54,16 @@ export async function dynamicBiAnalytics(session: SessionPayload, targetCollegeI
     return { stage, count, rate };
   });
 
-  // Students & capacity
+  // Students & capacity (100% live from admissions/students)
   const totalDeptStudents = departments.reduce((sum, d) => sum + (deptStats.get(d.id)?.students ?? 0), 0);
-  const enrolledStudents = totalDeptStudents > 0 ? totalDeptStudents : enrolledCount > 0 ? enrolledCount : Math.round(capacity * 0.78);
-  const capacityUtilization = Math.min(100, Math.round((enrolledStudents / capacity) * 100));
+  const enrolledStudents = totalDeptStudents > 0 ? totalDeptStudents : enrolledCount;
+  const capacityUtilization = capacity > 0 ? Math.min(100, Math.round((enrolledStudents / capacity) * 100)) : 0;
 
-  // Staff & Faculty
+  // Staff & Faculty (100% live from staff roster)
   const activeStaff = staff.filter((s) => s.status !== "Resigned" && s.status !== "Retired");
   const teachingFaculty = activeStaff.filter((s) => s.staffType === "Teaching" || s.staffType === undefined);
-  const totalTeaching = teachingFaculty.length > 0 ? teachingFaculty.length : 32;
-  const studentFacultyRatio = totalTeaching > 0 ? Math.max(1, Math.round(enrolledStudents / totalTeaching)) : 18;
+  const totalTeaching = teachingFaculty.length;
+  const studentFacultyRatio = totalTeaching > 0 ? Math.round(enrolledStudents / totalTeaching) : 0;
 
   // Courses
   const activeCourses = courses.filter((c) => c.status === "Active").length;
@@ -76,12 +76,9 @@ export async function dynamicBiAnalytics(session: SessionPayload, targetCollegeI
     const t = String(c.courseType || "Theory");
     typeMap[t] = (typeMap[t] ?? 0) + 1;
   }
-  if (Object.keys(typeMap).length === 0) {
-    typeMap["Theory"] = 4;
-    typeMap["Lab"] = 2;
-    typeMap["Theory + Lab"] = 2;
-  }
-  const courseDistribution = Object.entries(typeMap).map(([name, value]) => ({ name, value }));
+  const courseDistribution = Object.keys(typeMap).length > 0
+    ? Object.entries(typeMap).map(([name, value]) => ({ name, value }))
+    : [{ name: "No courses", value: 0 }];
 
   // Faculty designations
   const desMap: Record<string, number> = {};
@@ -89,12 +86,9 @@ export async function dynamicBiAnalytics(session: SessionPayload, targetCollegeI
     const d = String(s.designation || "Assistant Professor");
     desMap[d] = (desMap[d] ?? 0) + 1;
   }
-  if (Object.keys(desMap).length === 0) {
-    desMap["Professor"] = 3;
-    desMap["Associate Professor"] = 6;
-    desMap["Assistant Professor"] = 12;
-  }
-  const facultyDesignations = Object.entries(desMap).map(([name, value]) => ({ name, value }));
+  const facultyDesignations = Object.keys(desMap).length > 0
+    ? Object.entries(desMap).map(([name, value]) => ({ name, value }))
+    : [];
 
   // Department metrics
   const departmentMetrics = departments.map((d) => {

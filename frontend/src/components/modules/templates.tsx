@@ -556,26 +556,58 @@ export function SettingsTemplate({ data, mod }: { data: SettingsData; mod?: Modu
               const id = `setting-${f.id}`;
               const v = values[f.id];
               if (f.type === "toggle") {
+                const isChecked = v === true;
+                const toggleValue = () => {
+                  setSaved(false);
+                  setSaveError(null);
+                  setValues((p) => ({ ...p, [f.id]: !(p[f.id] === true) }));
+                };
                 return (
-                  <div key={f.id} className="flex items-start justify-between gap-4">
-                    <div>
-                      <label htmlFor={id} className="text-sm font-medium text-ink">
+                  <div
+                    key={f.id}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        toggleValue();
+                      }
+                    }}
+                    className={cn(
+                      "group flex cursor-pointer items-center justify-between gap-4 rounded-xl border p-3.5 transition-all duration-200",
+                      isChecked
+                        ? "border-emerald-500/30 bg-emerald-500/[0.03] shadow-sm hover:border-emerald-500/50 hover:bg-emerald-500/[0.06]"
+                        : "border-line/70 bg-surface hover:border-line hover:bg-surface-2/50",
+                    )}
+                    onClick={toggleValue}
+                  >
+                    <div className="min-w-0 flex-1">
+                      <label htmlFor={id} className="cursor-pointer text-sm font-semibold text-ink group-hover:text-brand transition-colors">
                         {f.label}
                       </label>
-                      {f.help ? <p className="text-xs text-ink-3">{f.help}</p> : null}
+                      {f.help ? <p className="mt-0.5 text-xs text-ink-3 leading-relaxed">{f.help}</p> : null}
                     </div>
                     <button
                       id={id}
+                      type="button"
                       role="switch"
-                      aria-checked={v === true}
-                      onClick={() => {
-                        setSaved(false);
-                        setSaveError(null);
-                        setValues((p) => ({ ...p, [f.id]: !(p[f.id] === true) }));
+                      aria-checked={isChecked}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleValue();
                       }}
-                      className={cn("relative h-6 w-11 shrink-0 rounded-full transition-colors", v === true ? "bg-teal" : "bg-line")}
+                      className={cn(
+                        "relative inline-flex h-7 w-12 shrink-0 cursor-pointer items-center rounded-full p-1 transition-colors duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-emerald-500/40 focus:ring-offset-2",
+                        isChecked ? "bg-emerald-600 dark:bg-emerald-500 shadow-sm" : "bg-line hover:bg-line-2",
+                      )}
                     >
-                      <span className={cn("absolute top-0.5 size-5 rounded-full bg-white shadow transition-transform", v === true ? "translate-x-5" : "translate-x-0.5")} />
+                      <span
+                        aria-hidden="true"
+                        className={cn(
+                          "pointer-events-none inline-block size-5 transform rounded-full bg-white shadow-md ring-0 transition-transform duration-300 ease-in-out",
+                          isChecked ? "translate-x-5" : "translate-x-0",
+                        )}
+                      />
                     </button>
                   </div>
                 );
