@@ -62,16 +62,16 @@ interface ScopeData {
   admissions: ResourceRecord[];
   session?: SessionPayload;
 }
+import { getAicteComplianceOverview } from "./aicte-compliance";
 import {
-  aicteCompliance,
   cbcsElectives,
   competencyLogbook,
   hospitalDashboard,
-  naacReadiness,
   nmcCompliance,
   osceStations,
   relabelSubjects,
 } from "./stream-content";
+import { dynamicNaacReadiness } from "./naac-readiness";
 
 /* ── small builders ─────────────────────────────── */
 type Tone = Kpi["tone"];
@@ -170,8 +170,20 @@ const DATA: Record<string, (collegeScope: string, live: ScopeData) => ModuleData
   osce: osceStations,
   "hospital-dashboard": hospitalDashboard,
   "nmc-compliance": nmcCompliance,
-  "naac-readiness": naacReadiness,
-  "aicte-compliance": aicteCompliance,
+  "naac-readiness": (scope, live) => dynamicNaacReadiness(scope, live.session),
+  "aicte-compliance": async (scope, live) => {
+    const session = live.session ?? { college: scope, sub: "demo-institution", role: "institution" as const, name: "Principal", tenant: "TNTU", mfa: true, exp: 0 };
+    const d = await getAicteComplianceOverview(session);
+    return {
+      template: "scorecard",
+      headline: `AICTE approval conditions — ${d.overallStatus}`,
+      overall: d.overallScore,
+      dimensions: d.norms.map((n) => ({ name: n.name, score: n.score, target: 100 })),
+      strengths: d.strengths,
+      gaps: d.deficiencies,
+      plan: d.actions.filter((a) => a.status !== "Resolved").slice(0, 4).map((a) => a.title),
+    };
+  },
   "cbcs-electives": (_scope, live) => cbcsElectives(live.stream),
   "bi-analytics": async (scope, live) => {
     const session = live.session ?? { college: scope, sub: "demo-institution", role: "institution" as const, name: "Principal", tenant: "TNTU", mfa: true, exp: 0 };

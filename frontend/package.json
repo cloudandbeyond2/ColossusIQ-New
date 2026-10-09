@@ -20,7 +20,8 @@
     "db:dev-accounts": "tsx db/scripts/dev-accounts.ts",
     "db:seed-drives": "tsx db/scripts/seed-drives.ts",
     "db:seed-fees": "tsx db/scripts/seed-fees.ts",
-    "db:seed-policy-docs": "tsx db/scripts/seed-policy-docs.ts"
+    "db:seed-policy-docs": "tsx db/scripts/seed-policy-docs.ts",
+    "db:seed-aicte": "tsx db/scripts/seed-aicte.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "0.131.0",

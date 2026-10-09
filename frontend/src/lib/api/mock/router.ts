@@ -29,6 +29,8 @@ import {
   CreateSupportActionInput,
   EvaluationQueueItem,
   UpdateAicteActionStatusInput,
+  UpdateAicteCommitteeInput,
+  UpdateAicteProfileInput,
   UpdateReviewStatusInput,
   CreateReportInputSchema,
 } from "@/lib/api/schemas";
@@ -40,7 +42,15 @@ import {
 } from "./reports";
 import { createIntervention, getDepartmentSkillsOverview } from "./department-skills";
 import { createSupportAction, getEarlyWarningOverview, updateReviewStatus } from "./early-warning";
-import { createAicteAction, getAicteComplianceOverview, updateAicteActionStatus } from "./aicte-compliance";
+import {
+  canManageAicte,
+  createAicteAction,
+  deleteAicteAction,
+  getAicteComplianceOverview,
+  updateAicteActionStatus,
+  updateAicteCommittee,
+  updateAicteProfile,
+} from "./aicte-compliance";
 import { dispatchRecords } from "./records-router";
 import { dispatchLearning } from "./learning";
 import { dispatchCourses } from "./course-builder";
@@ -197,6 +207,9 @@ export const PATTERNS = [
   "GET aicte-compliance",
   "POST aicte-compliance/actions",
   "PATCH aicte-compliance/actions/:id",
+  "DELETE aicte-compliance/actions/:id",
+  "PATCH aicte-compliance/committees/:id",
+  "PUT aicte-compliance/profile",
   "GET notifications",
   "GET search",
   "GET home/:id",
@@ -412,17 +425,41 @@ export async function dispatch(method: string, segs: string[], rawBody: unknown,
       return ok(await getAicteComplianceOverview(session));
     }
     case "POST aicte-compliance/actions": {
-      if (session.role !== "institution" && session.role !== "admin" && session.role !== "hod") return forbidden();
+      if (session.role !== "institution" && session.role !== "admin") return forbidden();
+      if (!canManageAicte(session)) return err(409, "choose_college", "Choose a college first; AICTE compliance is recorded per college.");
       const parsed = CreateAicteActionInput.safeParse(rawBody);
       if (!parsed.success) return err(400, "invalid_body", parsed.error.issues[0]?.message ?? "Invalid action payload.");
       return ok(await createAicteAction(session, parsed.data));
     }
     case "PATCH aicte-compliance/actions/:id": {
-      if (session.role !== "institution" && session.role !== "admin" && session.role !== "hod") return forbidden();
+      if (session.role !== "institution" && session.role !== "admin") return forbidden();
+      if (!canManageAicte(session)) return err(409, "choose_college", "Choose a college first; AICTE compliance is recorded per college.");
       const actionId = found.id ?? segs[2] ?? "";
       const parsed = UpdateAicteActionStatusInput.safeParse({ ...(typeof rawBody === "object" && rawBody !== null ? rawBody : {}), actionId });
       if (!parsed.success) return err(400, "invalid_body", parsed.error.issues[0]?.message ?? "Invalid action status payload.");
-      return ok(await updateAicteActionStatus(session, parsed.data));
+      const res = await updateAicteActionStatus(session, parsed.data);
+      return res.ok ? ok(res) : err(404, "not_found", "That action no longer exists.");
+    }
+    case "DELETE aicte-compliance/actions/:id": {
+      if (session.role !== "institution" && session.role !== "admin") return forbidden();
+      if (!canManageAicte(session)) return err(409, "choose_college", "Choose a college first; AICTE compliance is recorded per college.");
+      const removed = await deleteAicteAction(session, found.id ?? segs[2] ?? "");
+      return removed ? ok({ ok: true }) : err(404, "not_found", "That action no longer exists.");
+    }
+    case "PATCH aicte-compliance/committees/:id": {
+      if (session.role !== "institution" && session.role !== "admin") return forbidden();
+      if (!canManageAicte(session)) return err(409, "choose_college", "Choose a college first; AICTE compliance is recorded per college.");
+      const parsed = UpdateAicteCommitteeInput.safeParse(rawBody);
+      if (!parsed.success) return err(400, "invalid_body", parsed.error.issues[0]?.message ?? "Invalid committee payload.");
+      const saved = await updateAicteCommittee(session, found.id ?? segs[2] ?? "", parsed.data);
+      return saved ? ok({ ok: true }) : err(404, "not_found", "Unknown committee.");
+    }
+    case "PUT aicte-compliance/profile": {
+      if (session.role !== "institution" && session.role !== "admin") return forbidden();
+      if (!canManageAicte(session)) return err(409, "choose_college", "Choose a college first; AICTE compliance is recorded per college.");
+      const parsed = UpdateAicteProfileInput.safeParse(rawBody);
+      if (!parsed.success) return err(400, "invalid_body", parsed.error.issues[0]?.message ?? "Invalid AICTE id.");
+      return ok(await updateAicteProfile(session, parsed.data));
     }
 
     /* ── session & shell ── */
