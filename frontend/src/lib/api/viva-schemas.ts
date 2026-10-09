@@ -109,6 +109,17 @@ export const VivaOverview = z.object({
   aiLive: z.boolean(),
   subjects: z.array(z.object({ code: z.string(), title: z.string(), shortName: z.string(), units: z.array(z.string()) })),
   project: z.object({ name: z.string() }),
+  projects: z
+    .array(
+      z.object({
+        id: z.string(),
+        title: z.string(),
+        domain: z.string(),
+        stage: z.string(),
+        brief: z.string().optional(),
+      }),
+    )
+    .default([]),
   active: VivaSession.nullable(),
   history: z.array(VivaHistoryItem),
   stats: z.object({ sessions: z.number(), best: z.number().nullable(), average: z.number().nullable(), last: z.number().nullable() }),

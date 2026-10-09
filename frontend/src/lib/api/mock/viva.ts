@@ -19,6 +19,7 @@ import {
 import { stillActive } from "./ai-guard";
 import { rateLimit } from "./rate-limit";
 import { generateDynamicStudentDashboard, getStudentAcademicProfile, type StudentAcademicProfile } from "./student-profile";
+import { listProjects } from "./projects";
 import { studentStateStore } from "./student-state-store";
 import type { MockResult } from "./router";
 
@@ -266,8 +267,24 @@ async function overview(s: SessionPayload, st: StoredViva): Promise<VivaOverview
     profile = null;
   }
   let project = "";
+  let projectsList: Array<{ id: string; title: string; domain: string; stage: string; brief?: string }> = [];
   try {
-    project = (await generateDynamicStudentDashboard(s)).project.name;
+    const pl = await listProjects(s);
+    if (pl && pl.length > 0) {
+      project = pl[0]!.title;
+      projectsList = pl.map((p) => ({
+        id: p.id,
+        title: p.title,
+        domain: p.domain,
+        stage: p.stage,
+        brief: `${p.domain} project at ${p.stage} stage. Mentor: ${p.mentor}.`,
+      }));
+    } else {
+      project = (await generateDynamicStudentDashboard(s)).project.name;
+      if (project) {
+        projectsList = [{ id: "dash-proj", title: project, domain: "AI/ML", stage: "Development" }];
+      }
+    }
   } catch {
     project = "";
   }
@@ -276,6 +293,7 @@ async function overview(s: SessionPayload, st: StoredViva): Promise<VivaOverview
     aiLive: geminiEnabled(),
     subjects: (profile?.enrolledSubjects ?? []).map((x) => ({ code: x.code, title: x.title, shortName: x.shortName, units: x.units.map((u) => u.title) })),
     project: { name: project },
+    projects: projectsList,
     active: st.active,
     history: st.history.map(historyItem),
     stats: { sessions: st.history.length, best: scores.length ? Math.max(...scores) : null, average: scores.length ? Math.round(mean(scores)) : null, last: st.history[0]?.report?.overall ?? null },

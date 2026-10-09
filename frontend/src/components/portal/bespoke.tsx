@@ -67,8 +67,14 @@ import { BillingModule } from "./bespoke/billing";
 import { StudentFeesModule } from "./bespoke/student-fees";
 import { BrandingModule } from "./bespoke/branding";
 import { HackathonsModule } from "./bespoke/hackathons";
+import { TeamFinderModule } from "./bespoke/team-finder";
+import { ProjectIdeasModule } from "./bespoke/project-ideas";
+import { ProjectReviewModule } from "./bespoke/project-review";
 
 const BESPOKE: Record<string, (props: { role: Role }) => React.ReactNode> = {
+  "project-review": () => <ProjectReviewModule />,
+  "team-finder": () => <TeamFinderModule />,
+  "project-ideas": () => <ProjectIdeasModule />,
   branding: () => <BrandingModule />,
   "aicte-compliance": ({ role }) => <AicteComplianceModule role={role} />,
   "early-warning": ({ role }) => <EarlyWarningModule role={role} />,

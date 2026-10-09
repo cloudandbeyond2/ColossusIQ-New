@@ -19,6 +19,10 @@ import { createClub, deleteClub, getClubsOverview, toggleJoinClub, updateClub } 
 import { createSport, deleteSport, getSportsOverview, toggleRegisterTrial, updateSport } from "./sports";
 import { getHackathonsOverview, listHackathonTeams, registerHackathonTeam } from "./hackathons";
 import { RegisterHackathonTeamInput } from "@/lib/api/hackathon-schemas";
+import { createProject, deleteProject, listProjects, reviewProject, updateProjectStage } from "./projects";
+import { CreateProjectInput, FacultyReviewInput, UpdateProjectStageInput } from "@/lib/api/project-schemas";
+import { applyToTeamRequest, createTeamRequest, getTeamFinderOverview, inviteStudentToProject } from "./team-finder";
+import { AddTeammateInput, CreateTeamRequestInput } from "@/lib/api/team-finder-schemas";
 import { createCalendarItem, deleteCalendarItem, getCalendarOverview, syncCampusEvents, updateCalendarItem } from "./academic-calendar";
 import {
   CreateAicteActionInput,
@@ -255,6 +259,14 @@ export const PATTERNS = [
   "POST evaluations/submit",
   "GET evaluations/mine",
   "GET projects",
+  "POST projects",
+  "PATCH projects/:id/stage",
+  "POST projects/:id/review",
+  "DELETE projects/:id",
+  "GET team-finder",
+  "POST team-finder/requests",
+  "POST team-finder/invite",
+  "POST team-finder/apply",
   "POST ai/chat",
   "POST ai/generate",
   "POST ai/interview/start",
@@ -855,8 +867,95 @@ export async function dispatch(method: string, segs: string[], rawBody: unknown,
       );
     }
     case "GET projects":
+      if (session.role !== "student" && session.role !== "faculty" && session.role !== "admin" && session.role !== "hod") return forbidden();
+      return ok(await listProjects(session));
+
+    case "POST projects": {
       if (session.role !== "student" && session.role !== "faculty" && session.role !== "admin") return forbidden();
-      return ok(PROJECTS);
+      let body = rawBody;
+      if (typeof body === "string") {
+        try { body = JSON.parse(body); } catch {}
+      }
+      const data = (body as { data?: unknown })?.data ?? body;
+      const parsed = CreateProjectInput.safeParse(data);
+      if (!parsed.success) return err(400, "invalid_body", parsed.error.issues[0]?.message ?? "Invalid project payload.");
+      return ok(await createProject(session, parsed.data));
+    }
+
+    case "PATCH projects/:id/stage": {
+      if (!b) return notFound();
+      let body = rawBody;
+      if (typeof body === "string") {
+        try { body = JSON.parse(body); } catch {}
+      }
+      const data = (body as { data?: unknown })?.data ?? body;
+      const parsed = UpdateProjectStageInput.safeParse(data);
+      if (!parsed.success) return err(400, "invalid_body", parsed.error.issues[0]?.message ?? "Invalid stage payload.");
+      const updated = await updateProjectStage(session, b, parsed.data);
+      if (!updated) return notFound();
+      return ok(updated);
+    }
+
+    case "POST projects/:id/review": {
+      if (session.role !== "faculty" && session.role !== "hod" && session.role !== "admin") return forbidden();
+      if (!b) return notFound();
+      let body = rawBody;
+      if (typeof body === "string") {
+        try { body = JSON.parse(body); } catch {}
+      }
+      const data = (body as { data?: unknown })?.data ?? body;
+      const parsed = FacultyReviewInput.safeParse(data);
+      if (!parsed.success) return err(400, "invalid_body", parsed.error.issues[0]?.message ?? "Invalid review payload.");
+      const updated = await reviewProject(session, b, parsed.data);
+      if (!updated) return notFound();
+      return ok(updated);
+    }
+
+    case "DELETE projects/:id": {
+      if (session.role !== "student" && session.role !== "faculty" && session.role !== "admin" && session.role !== "hod") return forbidden();
+      if (!b) return notFound();
+      const deleted = await deleteProject(session, b);
+      if (!deleted) return notFound();
+      return ok({ ok: true, deleted: b });
+    }
+
+    /* ── Team Finder ── */
+    case "GET team-finder":
+      return ok(await getTeamFinderOverview(session));
+
+    case "POST team-finder/requests": {
+      if (session.role !== "student" && session.role !== "admin") return forbidden();
+      let body = rawBody;
+      if (typeof body === "string") {
+        try { body = JSON.parse(body); } catch {}
+      }
+      const data = (body as { data?: unknown })?.data ?? body;
+      const parsed = CreateTeamRequestInput.safeParse(data);
+      if (!parsed.success) return err(400, "invalid_body", parsed.error.issues[0]?.message ?? "Invalid team request.");
+      return ok(await createTeamRequest(session, parsed.data));
+    }
+
+    case "POST team-finder/invite": {
+      if (session.role !== "student" && session.role !== "admin") return forbidden();
+      let body = rawBody;
+      if (typeof body === "string") {
+        try { body = JSON.parse(body); } catch {}
+      }
+      const data = (body as { data?: unknown })?.data ?? body;
+      const parsed = AddTeammateInput.safeParse(data);
+      if (!parsed.success) return err(400, "invalid_body", parsed.error.issues[0]?.message ?? "Invalid invite payload.");
+      return ok(await inviteStudentToProject(session, parsed.data));
+    }
+
+    case "POST team-finder/apply": {
+      let body = rawBody;
+      if (typeof body === "string") {
+        try { body = JSON.parse(body); } catch {}
+      }
+      const requestId = (body as { requestId?: string })?.requestId || "";
+      if (!requestId) return err(400, "invalid_body", "Request ID required.");
+      return ok(await applyToTeamRequest(session, requestId));
+    }
 
     /* ── AI ── */
     case "POST ai/chat": {

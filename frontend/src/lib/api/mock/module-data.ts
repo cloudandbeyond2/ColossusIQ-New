@@ -55,6 +55,7 @@ import {
   generateDynamicTeamFinder,
 } from "./student-profile";
 import { getFacultyAllocationProfile } from "./faculty-allocation";
+import { listProjects } from "./projects";
 
 /** Live data a builder may need, fetched once per request. */
 interface ScopeData {
@@ -1038,8 +1039,63 @@ const DATA: Record<string, (collegeScope: string, live: ScopeData) => ModuleData
   career: (scope, live) => generateDynamicCareer(live.session ?? { college: scope, sub: "demo-student" }),
   readiness: (scope, live) => generateDynamicReadiness(live.session ?? { college: scope, sub: "demo-student" }),
   communication: (scope, live) => generateDynamicCommunication(live.session ?? { college: scope, sub: "demo-student" }),
-  "project-review": () =>
-    score("Smart Campus AI — review report", [["Architecture", 82, 75], ["Documentation", 64, 75], ["Code quality", 76, 75], ["Test coverage", 58, 70], ["Innovation", 88, 70], ["Presentation", 70, 75]], ["Clear modular architecture", "Strong novelty for campus context"], ["README lacks setup steps", "Unit tests cover only 41% of services"], ["Add architecture decision records", "Raise coverage on attendance service", "Rehearse demo with viva questions"]),
+  "project-review": async (scope, live) => {
+    let projects: any[] = [];
+    try {
+      projects = await listProjects(live.session ?? { college: scope, sub: "demo-faculty", role: "faculty" });
+    } catch {}
+
+    const reviewed = projects.find((p) => p.review && (p.review.architecture > 0 || p.review.testing > 0)) || projects[0];
+    if (reviewed && reviewed.review) {
+      const r = reviewed.review;
+      const arch = r.architecture || 81;
+      const doc = r.documentation || 81;
+      const code = r.codeQuality || 83;
+      const test = r.testing || 84;
+      const innov = r.innovation || 86;
+      const pres = Math.round((arch + doc + code + test + innov) / 5);
+
+      const strengths: string[] = [];
+      if (innov >= 80) strengths.push(`High innovation index (${innov}%) in ${reviewed.domain}`);
+      if (arch >= 80) strengths.push("Robust modular system architecture verified");
+      if (test >= 80) strengths.push(`Strong testing benchmark at ${test}%`);
+      if (strengths.length === 0) strengths.push("Active milestone deliverables approved");
+
+      const gaps: string[] = [];
+      if (test < 75) gaps.push(`Automated unit and integration test coverage is at ${test}% (target 75%)`);
+      if (doc < 75) gaps.push("Architecture documentation requires updated IEEE citations");
+      if (gaps.length === 0) gaps.push("Maintain commit consistency before final capstone sign-off");
+
+      const plan: string[] = [];
+      if (r.facultyFeedback) {
+        plan.push(`Faculty Guide Directive: "${r.facultyFeedback.slice(0, 85)}..."`);
+      }
+      plan.push("Verify edge battery and live telemetry failover", "Rehearse defense with AI Viva Simulator");
+
+      return score(
+        `${reviewed.title} — review report`,
+        [
+          ["Architecture", arch, 75],
+          ["Documentation", doc, 75],
+          ["Code quality", code, 75],
+          ["Test coverage", test, 70],
+          ["Innovation", innov, 70],
+          ["Presentation", pres, 75],
+        ],
+        strengths,
+        gaps,
+        plan
+      );
+    }
+
+    return score(
+      "Smart Campus AI — review report",
+      [["Architecture", 82, 75], ["Documentation", 64, 75], ["Code quality", 76, 75], ["Test coverage", 58, 70], ["Innovation", 88, 70], ["Presentation", 70, 75]],
+      ["Clear modular architecture", "Strong novelty for campus context"],
+      ["README lacks setup steps", "Unit tests cover only 41% of services"],
+      ["Add architecture decision records", "Raise coverage on attendance service", "Rehearse demo with viva questions"]
+    );
+  },
   "funding-readiness": () =>
     score("AgriSoil Sense", [["Team", 72, 75], ["Problem validation", 81, 75], ["Product", 55, 70], ["Traction", 30, 60], ["Business model", 60, 70], ["Pitch", 66, 75]], ["Well-validated problem", "Complementary founding team"], ["No paying pilots yet", "Unit economics unproven"], ["Run paid pilot with one FPO", "Refine cost model", "Mentor pitch rehearsal"]),
 
