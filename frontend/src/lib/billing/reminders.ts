@@ -78,16 +78,23 @@ export async function collegeFees(s: SessionPayload): Promise<CollegeFees> {
   const [roster, dues, payments, sent, fee] = await Promise.all([studentRoster(college), store.listDues(settings.academicYear, college), store.listPayments({ academicYear: settings.academicYear, college }), store.listReminders(college, settings.academicYear), feeFor(college, settings)]);
   const bySub = new Map<string, CollegeStudentFee>();
   const lastReminder = (sub: string) => sent.find((r) => r.userSub === sub || r.userSub === null)?.createdAt ?? null;
-  for (const u of roster) bySub.set(u.sub, { userSub: u.sub, name: u.name, email: u.email, status: fee > 0 ? "Due" : "Waived", amount: fee, pendingOffline: false, signedIn: false, clearedAt: null, lastReminder: lastReminder(u.sub) });
+  for (const u of roster) bySub.set(u.sub, { userSub: u.sub, name: u.name, email: u.email, status: fee > 0 ? "Due" : "Waived", amount: fee, pendingOffline: false, signedIn: false, clearedAt: null, lastReminder: lastReminder(u.sub), method: "", payments: [] });
   for (const d of dues) {
     const known = bySub.get(d.userSub);
-    bySub.set(d.userSub, { userSub: d.userSub, name: known?.name || d.name, email: known?.email ?? "", status: d.status, amount: d.amount, pendingOffline: false, signedIn: true, clearedAt: d.clearedAt, lastReminder: lastReminder(d.userSub) });
+    bySub.set(d.userSub, { userSub: d.userSub, name: known?.name || d.name, email: known?.email ?? "", status: d.status, amount: d.amount, pendingOffline: false, signedIn: true, clearedAt: d.clearedAt, lastReminder: lastReminder(d.userSub), method: d.method, payments: [] });
   }
-  for (const p of payments) {
+  for (const p of [...payments].sort((a, b) => b.createdAt.localeCompare(a.createdAt))) {
     const row = bySub.get(p.userSub);
-    if (row && p.status === "Pending verification") row.pendingOffline = true;
+    if (!row) continue;
+    if (p.status === "Pending verification") row.pendingOffline = true;
+    if (row.payments.length < 10) row.payments.push({ receiptNo: p.receiptNo, amount: p.amount, status: p.status, via: p.gateway === "offline" ? p.offlineMode || "Offline" : String(p.gateway), reference: p.offlineRef || p.gatewayPaymentId, at: p.updatedAt || p.createdAt, note: p.reviewNote });
   }
   const students = [...bySub.values()].sort((a, b) => a.name.localeCompare(b.name));
+  // Money: what has actually been paid, and what students who still owe would add. Waived students owe nothing.
+  const collected = payments.filter((p) => p.status === "Paid").reduce((a, p) => a + p.amount, 0);
+  const outstanding = students.filter((x) => x.status === "Due").reduce((a, x) => a + x.amount, 0);
+  const expected = collected + outstanding;
+  const summary = { collected, outstanding, expected, rate: expected > 0 ? Math.round((collected / expected) * 100) : 0 };
   return {
     configured,
     academicYear: settings.academicYear,
@@ -98,6 +105,7 @@ export async function collegeFees(s: SessionPayload): Promise<CollegeFees> {
     reminderFrom: addDays(settings.dueDate, -settings.reminderDays),
     lockActive: lockActive(settings),
     canRemind: configured && CAN_REMIND.has(s.role),
+    summary: configured ? summary : { collected: 0, outstanding: 0, expected: 0, rate: 0 },
     students: configured ? students : [],
     sent: sent.slice(0, 20).map((r) => ({ ...notice(r), to: r.userSub === null ? "All students with fees due" : (bySub.get(r.userSub)?.name ?? "1 student") })),
   };

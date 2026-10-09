@@ -191,6 +191,10 @@ export const CollegeStudentFee = z.object({
   signedIn: z.boolean(),
   clearedAt: z.string().nullable(),
   lastReminder: z.string().nullable(),
+  /** How a cleared fee was settled (gateway, offline mode or waiver); empty while due. */
+  method: z.string().default(""),
+  /** This year's payment attempts, newest first (receipt images are never included). */
+  payments: z.array(z.object({ receiptNo: z.string(), amount: z.number(), status: PaymentStatus, via: z.string(), reference: z.string(), at: z.string(), note: z.string() })).default([]),
 });
 export type CollegeStudentFee = z.infer<typeof CollegeStudentFee>;
 
@@ -204,6 +208,8 @@ export const CollegeFees = z.object({
   reminderFrom: z.string(),
   lockActive: z.boolean(),
   canRemind: z.boolean(),
+  /** Money for the year: collected so far, still owed, total payable, and the share of payable fees collected (0-100). */
+  summary: z.object({ collected: z.number(), outstanding: z.number(), expected: z.number(), rate: z.number() }).default({ collected: 0, outstanding: 0, expected: 0, rate: 0 }),
   students: z.array(CollegeStudentFee),
   sent: z.array(FeeNotice.extend({ to: z.string() })),
 });

@@ -20,7 +20,9 @@ const statusOf = (s: CollegeStudentFee) => (s.status === "Due" && s.pendingOffli
 /** Principal: every student's app fee status for this year, and fee reminders sent through the portal. */
 export function StudentFeesModule() {
   const qc = useQueryClient();
-  const q = useQuery({ queryKey: KEY, queryFn: () => apiFetch("/api/v1/fees/college", CollegeFees) });
+  // Payments and offline approvals happen elsewhere, so the list refreshes itself while the page is open.
+  const q = useQuery({ queryKey: KEY, queryFn: () => apiFetch("/api/v1/fees/college", CollegeFees), refetchInterval: 30_000, refetchOnWindowFocus: true });
+  const [open, setOpen] = useState<string | null>(null);
   const [filter, setFilter] = useState<Filter>("all");
   const [search, setSearch] = useState("");
   const [picked, setPicked] = useState<Set<string>>(new Set());
@@ -87,6 +89,31 @@ export function StudentFeesModule() {
         </div>
       </Card>
 
+      <Card className="space-y-3 p-5">
+        <div className="flex flex-wrap items-end justify-between gap-x-8 gap-y-3">
+          <div className="flex flex-wrap gap-x-8 gap-y-3">
+            <Money label="Collected" value={money(d.summary.collected, d.currency)} tone="text-teal" />
+            <Money label="Still to collect" value={money(d.summary.outstanding, d.currency)} tone={d.summary.outstanding ? "text-rose" : "text-ink"} />
+            <Money label="Total payable" value={money(d.summary.expected, d.currency)} />
+          </div>
+          <div className="flex items-center gap-3 text-xs text-ink-3">
+            <span>Updated {new Date(q.dataUpdatedAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}</span>
+            <Button size="sm" variant="ghost" onClick={() => void q.refetch()} disabled={q.isFetching}>
+              {q.isFetching ? <Spinner /> : <Fi name="refresh" />} Refresh
+            </Button>
+          </div>
+        </div>
+        <div>
+          <div className="mb-1 flex justify-between text-xs text-ink-3">
+            <span>Collection progress</span>
+            <span>{d.summary.rate}%</span>
+          </div>
+          <div className="h-2 overflow-hidden rounded-full bg-surface-2" role="progressbar" aria-valuenow={d.summary.rate} aria-valuemin={0} aria-valuemax={100} aria-label="Share of payable fees collected">
+            <div className="h-full rounded-full bg-teal transition-all" style={{ width: `${d.summary.rate}%` }} />
+          </div>
+        </div>
+      </Card>
+
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         <Stat label="Students" value={d.students.length} onClick={() => setFilter("all")} active={filter === "all"} />
         <Stat label="Paid" value={paid} tone="teal" onClick={() => setFilter("Paid")} active={filter === "Paid"} />
@@ -131,8 +158,10 @@ export function StudentFeesModule() {
                   <th className="px-3 py-2 font-medium">Student</th>
                   <th className="px-3 py-2 font-medium">Fee</th>
                   <th className="px-3 py-2 font-medium">Status</th>
+                  <th className="px-3 py-2 font-medium">Paid via</th>
                   <th className="px-3 py-2 font-medium">Cleared on</th>
-                  <th className="px-5 py-2 font-medium">Last reminder</th>
+                  <th className="px-3 py-2 font-medium">Last reminder</th>
+                  <th className="px-5 py-2 font-medium"><span className="sr-only">Details</span></th>
                 </tr>
               </thead>
               <tbody>
@@ -152,8 +181,14 @@ export function StudentFeesModule() {
                       <td className="px-3 py-3">
                         <Badge tone={st.tone}>{st.label}</Badge>
                       </td>
+                      <td className="px-3 py-3 capitalize text-ink-3">{s.method || "—"}</td>
                       <td className="px-3 py-3 text-ink-3">{day(s.clearedAt)}</td>
-                      <td className="px-5 py-3 text-ink-3">{s.status === "Due" ? day(s.lastReminder) : "—"}</td>
+                      <td className="px-3 py-3 text-ink-3">{s.status === "Due" ? day(s.lastReminder) : "—"}</td>
+                      <td className="px-5 py-3 text-right">
+                        <Button size="sm" variant="ghost" onClick={() => setOpen(s.userSub)} aria-label={`Payment details for ${s.name || "student"}`}>
+                          Details
+                        </Button>
+                      </td>
                     </tr>
                   );
                 })}
@@ -181,6 +216,8 @@ export function StudentFeesModule() {
         </Card>
       ) : null}
 
+      {open ? <Detail data={d} sub={open} onClose={() => setOpen(null)} /> : null}
+
       {compose ? (
         <Compose
           data={d}
@@ -194,6 +231,87 @@ export function StudentFeesModule() {
           }}
         />
       ) : null}
+    </div>
+  );
+}
+
+function Money({ label, value, tone = "text-ink" }: { label: string; value: string; tone?: string }) {
+  return (
+    <div>
+      <p className="text-xs text-ink-3">{label}</p>
+      <p className={`text-xl font-semibold ${tone}`}>{value}</p>
+    </div>
+  );
+}
+
+const payTone = (s: string) => (s === "Paid" ? ("teal" as const) : s === "Pending verification" ? ("sky" as const) : s === "Created" ? ("neutral" as const) : ("rose" as const));
+
+/** One student's fee: status, how it was settled, and every payment attempt this year. */
+function Detail({ data: d, sub, onClose }: { data: CollegeFees; sub: string; onClose: () => void }) {
+  const s = d.students.find((x) => x.userSub === sub);
+  if (!s) return null;
+  const st = statusOf(s);
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4" role="dialog" aria-modal="true" aria-label={`Fee details for ${s.name}`}>
+      <Card className="max-h-[85vh] w-full max-w-lg space-y-4 overflow-y-auto p-6">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-lg font-semibold text-ink">{s.name || "Student"}</p>
+            <p className="text-sm text-ink-3">{s.email || "No email on file"}</p>
+          </div>
+          <Badge tone={st.tone}>{st.label}</Badge>
+        </div>
+        <dl className="grid grid-cols-2 gap-3 text-sm">
+          <div>
+            <dt className="text-xs text-ink-3">Fee for {d.academicYear}</dt>
+            <dd className="font-medium text-ink">{money(s.amount, d.currency)}</dd>
+          </div>
+          <div>
+            <dt className="text-xs text-ink-3">Cleared on</dt>
+            <dd className="font-medium text-ink">{day(s.clearedAt)}</dd>
+          </div>
+          <div>
+            <dt className="text-xs text-ink-3">Settled by</dt>
+            <dd className="font-medium capitalize text-ink">{s.method || "—"}</dd>
+          </div>
+          <div>
+            <dt className="text-xs text-ink-3">Last reminder</dt>
+            <dd className="font-medium text-ink">{day(s.lastReminder)}</dd>
+          </div>
+        </dl>
+        {!s.signedIn && s.status === "Due" ? <p className="text-xs text-ink-3">This student has not opened Fees &amp; Payments this year.</p> : null}
+        <div>
+          <p className="mb-2 text-sm font-medium text-ink">Payments this year</p>
+          {s.payments.length ? (
+            <ul className="divide-y divide-line rounded-xl border border-line">
+              {s.payments.map((p) => (
+                <li key={`${p.receiptNo}-${p.at}`} className="flex items-start justify-between gap-3 px-4 py-3 text-sm">
+                  <div>
+                    <p className="text-ink">
+                      {money(p.amount, d.currency)} · <span className="capitalize">{p.via}</span>
+                    </p>
+                    <p className="text-xs text-ink-3">
+                      {p.receiptNo ? `Receipt ${p.receiptNo} · ` : ""}
+                      {p.reference ? `Ref ${p.reference} · ` : ""}
+                      {day(p.at)}
+                    </p>
+                    {p.note ? <p className="mt-1 text-xs text-ink-3">Note: {p.note}</p> : null}
+                  </div>
+                  <Badge tone={payTone(p.status)}>{p.status}</Badge>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-sm text-ink-3">No payment has been made or submitted yet.</p>
+          )}
+          {s.pendingOffline ? <p className="mt-2 text-xs text-ink-3">An offline payment is waiting for the University to verify it.</p> : null}
+        </div>
+        <div className="flex justify-end">
+          <Button variant="ghost" onClick={onClose}>
+            Close
+          </Button>
+        </div>
+      </Card>
     </div>
   );
 }

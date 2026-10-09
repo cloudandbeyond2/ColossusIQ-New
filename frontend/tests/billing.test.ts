@@ -303,6 +303,13 @@ describe("Fee reminders", () => {
     const mine = view.students.find((s) => s.userSub === student.sub);
     expect(mine).toMatchObject({ status: "Due", signedIn: true });
     expect(view.students.find((s) => s.userSub === other.sub)?.status).toBe("Waived");
+    // Money summary and payment history come from the live stores: a waived student owes nothing, a due one adds to "outstanding".
+    expect(view.summary.outstanding).toBeGreaterThanOrEqual(mine!.amount);
+    expect(view.summary.expected).toBe(view.summary.collected + view.summary.outstanding);
+    expect(view.summary.rate).toBeGreaterThanOrEqual(0);
+    expect(view.summary.rate).toBeLessThanOrEqual(100);
+    expect(mine!.payments).toEqual([]);
+    expect(view.students.find((s) => s.userSub === other.sub)?.method).toBe("waiver");
 
     // Outside the 15-day window there is no reminder until the college sends one.
     expect(((await call(student, "GET", "fees/me/reminder")).body as { show: boolean }).show).toBe(false);
