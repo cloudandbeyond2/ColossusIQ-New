@@ -13,10 +13,11 @@ import { STREAM_DEFS, STREAMS, streamOfType, type Stream } from "@/config/stream
 import { ChartCard } from "@/components/charts/chart-card";
 import { KpiGrid, TemplateSkeleton } from "@/components/modules/shared";
 import { Fi } from "@/components/ui/icon";
-import { RefreshCw } from "lucide-react";
+import { RefreshCw, Sparkles } from "lucide-react";
 import { Badge, Button, Card, CardBody, CardHeader, LinkButton, Spinner, toneForStatus } from "@/components/ui/primitives";
 import { cn, formatNumber } from "@/lib/utils";
 import { PlatformPanel } from "./platform-panel";
+import { InstitutionalSetupWizard } from "./institutional-setup-wizard";
 
 type College = UniversityOverview["colleges"][number];
 
@@ -95,6 +96,7 @@ export function UniversityHome() {
 
   return (
     <div className="space-y-6">
+      <InstitutionalSetupWizard />
       <section className="bg-hero-glow relative overflow-hidden rounded-3xl px-6 py-7 text-white shadow-lg shadow-brand/20 sm:px-8">
         <div className="pointer-events-none absolute inset-0 opacity-[0.08] [background-image:linear-gradient(to_right,#fff_1px,transparent_1px),linear-gradient(to_bottom,#fff_1px,transparent_1px)] [background-size:28px_28px]" aria-hidden />
         <Fi name="building" className="pointer-events-none absolute -bottom-8 right-6 text-[160px] text-white/[0.06]" />
