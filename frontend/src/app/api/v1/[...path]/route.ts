@@ -15,6 +15,7 @@ import { ROLES } from "@/lib/auth/roles";
 import { dispatch } from "@/lib/api/mock/router";
 import { prefetchCourseAi } from "@/lib/api/mock/course-builder";
 import { prefetchKnowledgeAi } from "@/lib/api/mock/knowledge-base";
+import { prefetchPolicyAi } from "@/lib/api/mock/policy-assistant";
 import { prefetchQuestionAi } from "@/lib/api/mock/question-ai";
 import { prefetchQuizAi } from "@/lib/api/mock/quiz-ai";
 import { prefetchVivaAi } from "@/lib/api/mock/viva";
@@ -316,6 +317,9 @@ async function handle(req: NextRequest, ctx: { params: Promise<{ path: string[] 
   // Exam Prep Hub study notes and Exam Prep Studio drafts are written before the transaction too.
   const xpEarly = await prefetchExamPrepAi(method, segs, body, session);
   if (xpEarly) return json(xpEarly.body, xpEarly.status);
+  // Policy Assistant answers (embedding + model call) are written before the transaction too.
+  const paEarly = await prefetchPolicyAi(method, segs, body, session);
+  if (paEarly) return json(paEarly.body, paEarly.status);
   try {
     return await withRequestContext({ scope: session.college, sub: session.sub }, () => handleSession(req, method, segs, route, body, session));
   } catch (e) {

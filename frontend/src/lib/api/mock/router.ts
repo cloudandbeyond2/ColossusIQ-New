@@ -47,6 +47,7 @@ import { dispatchCourses } from "./course-builder";
 import { dispatchTeaching } from "./teaching";
 import { assignmentNotifications, dispatchAssignments } from "./assignments";
 import { dispatchKnowledge } from "./knowledge-base";
+import { dispatchPolicy } from "./policy-assistant";
 import { dispatchQuestionAi } from "./question-ai";
 import { dispatchMentor, mentorChat } from "./mentor";
 import { dispatchStudyPlanner } from "./study-planner";
@@ -302,6 +303,7 @@ export async function dispatch(method: string, segs: string[], rawBody: unknown,
   if (segs[0] === "teaching") return dispatchTeaching(method, segs, rawBody, session);
   if (segs[0] === "assignments") return dispatchAssignments(method, segs, rawBody, session);
   if (segs[0] === "knowledge") return dispatchKnowledge(method, segs, rawBody, session);
+  if (segs[0] === "policy") return dispatchPolicy(method, segs, rawBody, session);
   if (segs[0] === "mentor") return dispatchMentor(method, segs, session);
   if (segs[0] === "study-planner") return dispatchStudyPlanner(method, segs, rawBody, session);
   if (segs[0] === "languages") return dispatchLanguages(method, segs, rawBody, session);

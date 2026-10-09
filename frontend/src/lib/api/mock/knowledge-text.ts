@@ -266,12 +266,14 @@ export function rank<T extends Passage>(query: string, items: T[], queryVector: 
  * question, each tagged with the passage it came from. `used` lists the passage numbers (1-based) quoted.
  */
 export function extractAnswer(question: string, passages: Array<{ title: string; section: string; content: string }>): { text: string; used: number[] } {
-  const q = new Set(terms(question));
+  const q = [...new Set(terms(question))];
+  // Same leniency as passage search: words of 4+ letters also match longer forms ("attend" and "attendance").
+  const same = (a: string, b: string) => a === b || (Math.min(a.length, b.length) >= 4 && (a.startsWith(b) || b.startsWith(a)));
   const picked: Array<{ n: number; s: string; score: number; order: number }> = [];
   passages.slice(0, 3).forEach((p, idx) => {
     const sentences = p.content.split(/(?<=[.!?])\s+|\n+/).map((s) => s.trim()).filter((s) => s.length >= 20);
     sentences.forEach((s, order) => {
-      const score = terms(s).filter((w) => q.has(w)).length;
+      const score = new Set(terms(s).filter((w) => q.some((x) => same(w, x)))).size;
       picked.push({ n: idx + 1, s, score: score - idx * 0.1, order });
     });
   });

@@ -25,6 +25,7 @@ const BESPOKE_API: Record<string, string[]> = {
   evaluation: ["evaluations/queue"],
   "ai-course-studio": ["learning-courses"],
   "quiz-builder": ["quizzes"],
+  "policy-assistant": ["policy"],
   "issued-certificates": ["certificates"],
   "certificate-authority": ["certificate-desk"],
   languages: ["languages"],
