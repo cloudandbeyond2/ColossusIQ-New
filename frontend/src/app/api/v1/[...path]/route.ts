@@ -81,8 +81,56 @@ function clientKey(req: NextRequest): string {
 /** Rejects cross-site state-changing requests (defence-in-depth alongside SameSite + CSRF token). */
 function sameOrigin(req: NextRequest): boolean {
   const origin = req.headers.get("origin");
-  if (!origin) return req.headers.get("sec-fetch-site") === "same-origin";
-  return origin === req.nextUrl.origin;
+  const secFetchSite = req.headers.get("sec-fetch-site");
+
+  // If origin header is absent, check sec-fetch-site
+  if (!origin) {
+    return !secFetchSite || secFetchSite === "same-origin" || secFetchSite === "same-site";
+  }
+
+  // 1. Direct match with Next.js resolved URL origin
+  if (origin === req.nextUrl.origin) return true;
+
+  // 2. Match with explicitly configured PUBLIC_APP_URL or ALLOWED_ORIGINS
+  const configured = [process.env.PUBLIC_APP_URL, process.env.ALLOWED_ORIGINS]
+    .filter(Boolean)
+    .flatMap((s) => s!.split(","))
+    .map((s) => s.trim().replace(/\/+$/, ""));
+
+  const matchesConfigured = configured.some((c) => {
+    if (!c) return false;
+    if (origin === c) return true;
+    try {
+      return new URL(c).origin === origin;
+    } catch {
+      return false;
+    }
+  });
+  if (matchesConfigured) return true;
+
+  // 3. Match against Host or X-Forwarded-Host behind reverse proxies (Hostinger, Nginx, LiteSpeed, Cloudflare)
+  try {
+    const originUrl = new URL(origin);
+    const hostHeader = (req.headers.get("x-forwarded-host") ?? req.headers.get("host") ?? "").split(",")[0]?.trim();
+    if (hostHeader) {
+      const hostWithoutPort = hostHeader.split(":")[0]?.toLowerCase();
+      if (
+        originUrl.host.toLowerCase() === hostHeader.toLowerCase() ||
+        (hostWithoutPort && originUrl.hostname.toLowerCase() === hostWithoutPort)
+      ) {
+        return true;
+      }
+    }
+  } catch {
+    return false;
+  }
+
+  // 4. If browser metadata confirms this is an authentic same-origin request
+  if (secFetchSite === "same-origin") {
+    return true;
+  }
+
+  return false;
 }
 
 function csrfValid(req: NextRequest): boolean {
