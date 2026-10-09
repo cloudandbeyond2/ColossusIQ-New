@@ -330,23 +330,7 @@ export const nmcCompliance = () =>
     ["Recruit 2 Assistant Professors before the inspection window", "Procure advanced airway and obstetric simulators", "Weekly logbook sign-off drive per department"],
   );
 
-export const naacReadiness = () =>
-  score(
-    "NAAC readiness — seven criteria",
-    [["C1 Curricular aspects", 82, 80], ["C2 Teaching-learning & evaluation", 78, 80], ["C3 Research, innovation & extension", 58, 75], ["C4 Infrastructure & learning resources", 84, 75], ["C5 Student support & progression", 76, 75], ["C6 Governance & leadership", 80, 75], ["C7 Institutional values & best practices", 66, 75]],
-    ["Strong curriculum design with CBCS and value-added courses", "Well-documented infrastructure and ICT resources"],
-    ["Research publications and MoUs are below target", "Best-practice documentation (C7) incomplete"],
-    ["Collect MoU and extension evidence from every department", "Publish two best practices with outcome data", "Run a mock peer-team visit in January"],
-  );
-
-export const aicteCompliance = () =>
-  score(
-    "AICTE approval conditions",
-    [["Faculty-student ratio (1:20)", 90, 100], ["Faculty cadre ratio", 76, 100], ["Laboratories & equipment", 88, 100], ["Built-up area", 100, 100], ["Mandatory disclosures", 70, 100], ["Anti-ragging & grievance cells", 100, 100]],
-    ["Infrastructure and statutory committees fully compliant"],
-    ["Professor cadre short by 3 posts", "Mandatory disclosure page is outdated"],
-    ["Advertise 3 Professor posts", "Update the AICTE mandatory disclosure page this month"],
-  );
+/* NAAC readiness and AICTE compliance are computed from the college's own records: see naac-readiness.ts and aicte-compliance.ts. */
 
 export function cbcsElectives(stream: Stream | null): ListData {
   const rows =

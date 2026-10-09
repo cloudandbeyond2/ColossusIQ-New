@@ -949,8 +949,33 @@ export const AicteCommittee = z.object({
   status: z.string(),
   lastMeetingDate: z.string(),
   momStatus: z.string(),
+  /** True once the Principal has saved this committee's details (otherwise the page shows suggested leads only). */
+  recorded: z.boolean().default(false),
+  /** True when the last meeting was over a year ago (or never recorded) for a constituted committee. */
+  meetingOverdue: z.boolean().default(false),
+  /** Who the records suggest should lead it (shown until the Principal records the real chairperson). */
+  suggestedChairperson: z.string().default(""),
 });
 export type AicteCommittee = z.infer<typeof AicteCommittee>;
+
+export const AICTE_COMMITTEE_STATUSES = ["Constituted & Active", "Pending Reconstitution", "Not Constituted"] as const;
+export const AICTE_MOM_STATUSES = ["Certified by Principal", "Pending", "Not Held"] as const;
+
+export const UpdateAicteCommitteeInput = z.object({
+  status: z.enum(AICTE_COMMITTEE_STATUSES),
+  chairperson: z.string().trim().min(2, "Chairperson is required").max(120),
+  membersCount: z.number().int().min(0).max(60),
+  /** YYYY-MM-DD of the last meeting, or empty when none has been held. */
+  lastMeetingDate: z.string().regex(/^(\d{4}-\d{2}-\d{2})?$/, "Use a date like 2026-09-30"),
+  momStatus: z.enum(AICTE_MOM_STATUSES),
+});
+export type UpdateAicteCommitteeInput = z.infer<typeof UpdateAicteCommitteeInput>;
+
+export const UpdateAicteProfileInput = z.object({
+  /** AICTE permanent id (for example 1-9321458921). Empty goes back to the reference derived from the college code. */
+  pid: z.string().trim().max(40).regex(/^([A-Za-z0-9][A-Za-z0-9\-/. ]{2,39})?$/, "Use letters, digits, - / . only"),
+});
+export type UpdateAicteProfileInput = z.infer<typeof UpdateAicteProfileInput>;
 
 export const AicteActionItem = z.object({
   id: z.string(),
@@ -962,6 +987,10 @@ export const AicteActionItem = z.object({
   status: z.enum(["Open", "In Progress", "Resolved"]),
   notes: z.string(),
   createdAt: z.string(),
+  createdBy: z.string().default(""),
+  resolvedAt: z.string().default(""),
+  /** Computed when read: past its due date and not resolved. */
+  overdue: z.boolean().default(false),
 });
 export type AicteActionItem = z.infer<typeof AicteActionItem>;
 
@@ -987,15 +1016,22 @@ export const AicteComplianceData = z.object({
   deficiencies: z.array(z.string()),
   availableFaculty: z.array(z.string()),
   mandatoryDisclosureUrl: z.string(),
+  /** False when the AICTE permanent id shown is only the reference derived from the college code. */
+  pidRecorded: z.boolean().default(false),
+  actionSummary: z.object({ open: z.number(), inProgress: z.number(), resolved: z.number(), overdue: z.number() }).default({ open: 0, inProgress: 0, resolved: 0, overdue: 0 }),
+  committeeSummary: z.object({ constituted: z.number(), total: z.number(), recorded: z.number() }).default({ constituted: 0, total: 0, recorded: 0 }),
+  /** Who may edit committees, the id and the action plan (the Principal and the Super Admin). */
+  canManage: z.boolean().default(false),
+  generatedAt: z.string().default(""),
 });
 export type AicteComplianceData = z.infer<typeof AicteComplianceData>;
 
 export const CreateAicteActionInput = z.object({
-  title: z.string().min(2, "Title is required"),
-  category: z.string().min(2, "Category is required"),
+  title: z.string().trim().min(2, "Title is required").max(200),
+  category: z.string().trim().min(2, "Category is required").max(80),
   priority: z.enum(["High", "Medium", "Low"]),
-  assignedTo: z.string().min(2, "Assignee is required"),
-  dueDate: z.string().min(4, "Due date is required"),
+  assignedTo: z.string().trim().min(2, "Assignee is required").max(120),
+  dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Due date is required (YYYY-MM-DD)"),
   notes: z.string().max(500).default(""),
 });
 export type CreateAicteActionInput = z.infer<typeof CreateAicteActionInput>;
