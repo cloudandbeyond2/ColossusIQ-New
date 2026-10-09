@@ -5,12 +5,13 @@ import { useMemo, useState } from "react";
 import { apiFetch, ApiError } from "@/lib/api/client";
 import { z } from "zod";
 import {
+  AICTE_COMMITTEE_STATUSES,
+  AICTE_MOM_STATUSES,
   AicteActionItem,
   AicteComplianceData,
   CreateAicteActionInput,
+  type UpdateAicteCommitteeInput,
   type AicteCommittee,
-  type AicteDepartmentCompliance,
-  type AicteNormItem,
 } from "@/lib/api/schemas";
 import { toCsv } from "@/lib/csv";
 import { TemplateSkeleton } from "@/components/modules/shared";
@@ -47,15 +48,50 @@ export function AicteComplianceModule({ role }: { role: Role }) {
   const [newCategory, setNewCategory] = useState("Statutory Committees");
   const [newPriority, setNewPriority] = useState<"High" | "Medium" | "Low">("High");
   const [newAssignee, setNewAssignee] = useState("");
-  const [newDueDate, setNewDueDate] = useState(
-    new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10)
-  );
+  const [newDueDate, setNewDueDate] = useState(() => new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10));
   const [newNotes, setNewNotes] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
+
+  const [editing, setEditing] = useState<AicteCommittee | null>(null);
+  const [editingPid, setEditingPid] = useState<boolean>(false);
 
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ["aicte-compliance"],
     queryFn: () => apiFetch("/api/v1/aicte-compliance", AicteComplianceData),
+    // staff, students and courses change all day, so the ratios are re-read while the page is open
+    refetchInterval: 60_000,
+  });
+
+  const flash = (message: string) => {
+    setFlashMessage(message);
+    setTimeout(() => setFlashMessage(null), 4000);
+  };
+
+  const committeeMutation = useMutation({
+    mutationFn: ({ id, input }: { id: string; input: UpdateAicteCommitteeInput }) =>
+      apiFetch(`/api/v1/aicte-compliance/committees/${id}`, z.any(), { method: "PATCH", body: input }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["aicte-compliance"] });
+      setEditing(null);
+      flash("Committee details saved.");
+    },
+  });
+
+  const pidMutation = useMutation({
+    mutationFn: (pid: string) => apiFetch("/api/v1/aicte-compliance/profile", z.any(), { method: "PUT", body: { pid } }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["aicte-compliance"] });
+      setEditingPid(false);
+      flash("AICTE permanent id saved.");
+    },
+  });
+
+  const deleteActionMutation = useMutation({
+    mutationFn: (actionId: string) => apiFetch(`/api/v1/aicte-compliance/actions/${actionId}`, z.any(), { method: "DELETE" }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["aicte-compliance"] });
+      flash("Action removed.");
+    },
   });
 
   const handleRefresh = async () => {
@@ -218,9 +254,19 @@ export function AicteComplianceModule({ role }: { role: Role }) {
                 <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                   AICTE Regulatory & Approval Tracking
                 </span>
-                <Badge tone="brand">
+                <Badge tone={data.pidRecorded ? "brand" : "neutral"}>
                   PID: {data.college.pid}
+                  {!data.pidRecorded && " (reference)"}
                 </Badge>
+                {data.canManage && (
+                  <button
+                    type="button"
+                    onClick={() => setEditingPid(true)}
+                    className="text-xs font-medium text-primary-600 hover:underline dark:text-primary-400"
+                  >
+                    {data.pidRecorded ? "Change AICTE ID" : "Enter AICTE ID"}
+                  </button>
+                )}
                 <Badge tone="neutral">
                   AY {data.academicYear}
                 </Badge>
@@ -264,14 +310,16 @@ export function AicteComplianceModule({ role }: { role: Role }) {
                 <span>Export Report (CSV)</span>
               </Button>
 
-              <Button
-                size="sm"
-                onClick={() => setShowAddActionModal(true)}
-                className="gap-1.5"
-              >
-                <Fi name="plus" className="h-3.5 w-3.5" />
-                <span>Log Action</span>
-              </Button>
+              {data.canManage && (
+                <Button
+                  size="sm"
+                  onClick={() => setShowAddActionModal(true)}
+                  className="gap-1.5"
+                >
+                  <Fi name="plus" className="h-3.5 w-3.5" />
+                  <span>Log Action</span>
+                </Button>
+              )}
             </div>
           </div>
         </CardBody>
@@ -568,7 +616,14 @@ export function AicteComplianceModule({ role }: { role: Role }) {
                   <div className="flex items-center gap-2">
                     <Fi name="globe" className="h-4 w-4 text-primary-600 dark:text-primary-400" />
                     <h4 className="font-semibold text-foreground">AICTE Mandatory Public Disclosure Portal</h4>
-                    <Badge tone="teal">Online & Active</Badge>
+                    {(() => {
+                      const d = data.norms.find((n) => n.id === "NORM-DISCLOSURE");
+                      return d ? (
+                        <Badge tone={d.status === "Compliant" ? "teal" : d.status === "Needs Attention" ? "amber" : "rose"}>
+                          Profile {d.score}% complete
+                        </Badge>
+                      ) : null;
+                    })()}
                   </div>
                   <p className="mt-1 text-xs text-muted-foreground">
                     Publicly accessible regulatory disclosures containing approved programmes, faculty profiles, grievance mechanism, and fee structure.
@@ -597,7 +652,7 @@ export function AicteComplianceModule({ role }: { role: Role }) {
                     <h4 className="font-semibold text-foreground">{comm.name}</h4>
                     <span className="text-xs text-muted-foreground">{comm.id}</span>
                   </div>
-                  <Badge tone="teal">
+                  <Badge tone={comm.status === "Constituted & Active" ? "teal" : comm.status === "Pending Reconstitution" ? "amber" : comm.status === "Not Constituted" ? "rose" : "neutral"}>
                     {comm.status}
                   </Badge>
                 </div>
@@ -605,28 +660,42 @@ export function AicteComplianceModule({ role }: { role: Role }) {
                   <p className="line-clamp-2 text-muted-foreground">{comm.mandate}</p>
 
                   <div className="border-t border-border/30 pt-2.5">
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between gap-3">
                       <span className="text-muted-foreground">Chairperson / Lead</span>
-                      <span className="font-semibold text-foreground">{comm.chairperson}</span>
+                      <span className="text-right font-semibold text-foreground">
+                        {comm.chairperson || (comm.suggestedChairperson ? `Not assigned (suggest ${comm.suggestedChairperson})` : "Not assigned")}
+                      </span>
                     </div>
                   </div>
 
                   <div className="flex items-center justify-between">
                     <span className="text-muted-foreground">Constituted Members</span>
-                    <span className="font-medium text-foreground">{comm.membersCount} Members</span>
+                    <span className="font-medium text-foreground">{comm.recorded ? `${comm.membersCount} Members` : "—"}</span>
                   </div>
 
                   <div className="flex items-center justify-between">
                     <span className="text-muted-foreground">Last Review Meeting</span>
-                    <span className="font-medium text-foreground">{comm.lastMeetingDate}</span>
+                    <span className={cn("font-medium", comm.meetingOverdue ? "text-amber-600 dark:text-amber-400" : "text-foreground")}>
+                      {comm.lastMeetingDate ? new Date(`${comm.lastMeetingDate}T00:00:00`).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "None recorded"}
+                      {comm.meetingOverdue && " · over a year ago"}
+                    </span>
                   </div>
 
                   <div className="flex items-center justify-between border-t border-border/30 pt-2">
                     <span className="text-muted-foreground">Meeting Minutes (MoM)</span>
-                    <span className="font-semibold text-emerald-600 dark:text-emerald-400">
+                    <span className={cn("font-semibold", comm.momStatus === "Certified by Principal" ? "text-emerald-600 dark:text-emerald-400" : comm.momStatus === "Pending" ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground")}>
                       {comm.momStatus}
                     </span>
                   </div>
+
+                  {data.canManage && (
+                    <div className="border-t border-border/30 pt-2.5">
+                      <Button variant="secondary" size="sm" className="w-full gap-1.5" onClick={() => setEditing(comm)}>
+                        <Fi name="pencil" className="h-3.5 w-3.5" />
+                        <span>{comm.recorded ? "Update details" : "Record committee"}</span>
+                      </Button>
+                    </div>
+                  )}
                 </CardBody>
               </Card>
             ))}
@@ -652,14 +721,18 @@ export function AicteComplianceModule({ role }: { role: Role }) {
               </select>
             </div>
 
-            <Button
-              size="sm"
-              onClick={() => setShowAddActionModal(true)}
-              className="gap-1.5"
-            >
-              <Fi name="plus" className="h-3.5 w-3.5" />
-              <span>Log Action Item</span>
-            </Button>
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="text-xs text-muted-foreground">
+                {data.actionSummary.open} open · {data.actionSummary.inProgress} in progress · {data.actionSummary.resolved} resolved
+                {data.actionSummary.overdue > 0 && <strong className="ml-1 text-rose-600 dark:text-rose-400">· {data.actionSummary.overdue} overdue</strong>}
+              </span>
+              {data.canManage && (
+                <Button size="sm" onClick={() => setShowAddActionModal(true)} className="gap-1.5">
+                  <Fi name="plus" className="h-3.5 w-3.5" />
+                  <span>Log Action Item</span>
+                </Button>
+              )}
+            </div>
           </div>
 
           <Card className="border-border/60">
@@ -682,14 +755,40 @@ export function AicteComplianceModule({ role }: { role: Role }) {
                         <span>
                           <strong className="text-foreground">Assigned to:</strong> {act.assignedTo}
                         </span>
-                        <span>
-                          <strong className="text-foreground">Due:</strong> {act.dueDate}
+                        <span className={act.overdue ? "text-rose-600 dark:text-rose-400" : undefined}>
+                          <strong className={act.overdue ? undefined : "text-foreground"}>Due:</strong> {act.dueDate}
+                          {act.overdue && " · overdue"}
                         </span>
+                        {act.status === "Resolved" && act.resolvedAt && (
+                          <span>
+                            <strong className="text-foreground">Resolved:</strong> {act.resolvedAt}
+                          </span>
+                        )}
+                        {act.createdBy && (
+                          <span>
+                            <strong className="text-foreground">Logged by:</strong> {act.createdBy}
+                          </span>
+                        )}
                       </div>
                     </div>
 
                     <div className="flex items-center gap-2">
+                      {data.canManage && (
+                        <button
+                          type="button"
+                          title="Remove action"
+                          aria-label={`Remove ${act.title}`}
+                          disabled={deleteActionMutation.isPending}
+                          onClick={() => {
+                            if (window.confirm(`Remove "${act.title}" from the action plan?`)) deleteActionMutation.mutate(act.id);
+                          }}
+                          className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-rose-600"
+                        >
+                          <Fi name="trash" className="h-4 w-4" />
+                        </button>
+                      )}
                       <select
+                        disabled={!data.canManage || updateStatusMutation.isPending}
                         value={act.status}
                         onChange={(e) =>
                           updateStatusMutation.mutate({
@@ -726,6 +825,34 @@ export function AicteComplianceModule({ role }: { role: Role }) {
             </div>
           </Card>
         </div>
+      )}
+
+      {editing && (
+        <CommitteeModal
+          key={editing.id}
+          committee={editing}
+          faculty={data.availableFaculty}
+          saving={committeeMutation.isPending}
+          error={committeeMutation.error instanceof ApiError ? committeeMutation.error.message : committeeMutation.error ? "Could not save the committee." : null}
+          onClose={() => {
+            committeeMutation.reset();
+            setEditing(null);
+          }}
+          onSave={(input) => committeeMutation.mutate({ id: editing.id, input })}
+        />
+      )}
+
+      {editingPid && (
+        <PidModal
+          current={data.pidRecorded ? data.college.pid : ""}
+          saving={pidMutation.isPending}
+          error={pidMutation.error instanceof ApiError ? pidMutation.error.message : pidMutation.error ? "Could not save the AICTE id." : null}
+          onClose={() => {
+            pidMutation.reset();
+            setEditingPid(false);
+          }}
+          onSave={(pid) => pidMutation.mutate(pid)}
+        />
       )}
 
       {/* Log Action Modal */}
@@ -852,6 +979,167 @@ export function AicteComplianceModule({ role }: { role: Role }) {
           </Card>
         </div>
       )}
+    </div>
+  );
+}
+
+function CommitteeModal({
+  committee,
+  faculty,
+  saving,
+  error,
+  onClose,
+  onSave,
+}: {
+  committee: AicteCommittee;
+  faculty: string[];
+  saving: boolean;
+  error: string | null;
+  onClose: () => void;
+  onSave: (input: UpdateAicteCommitteeInput) => void;
+}) {
+  const [status, setStatus] = useState<UpdateAicteCommitteeInput["status"]>(
+    (AICTE_COMMITTEE_STATUSES as readonly string[]).includes(committee.status) ? (committee.status as UpdateAicteCommitteeInput["status"]) : "Constituted & Active"
+  );
+  const [chairperson, setChairperson] = useState(committee.chairperson || committee.suggestedChairperson);
+  const [members, setMembers] = useState(String(committee.recorded ? committee.membersCount : 5));
+  const [lastMeeting, setLastMeeting] = useState(committee.lastMeetingDate);
+  const [mom, setMom] = useState<UpdateAicteCommitteeInput["momStatus"]>(
+    (AICTE_MOM_STATUSES as readonly string[]).includes(committee.momStatus) ? (committee.momStatus as UpdateAicteCommitteeInput["momStatus"]) : "Pending"
+  );
+  const [problem, setProblem] = useState<string | null>(null);
+  const listId = `aicte-faculty-${committee.id}`;
+
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const count = Number(members);
+    if (chairperson.trim().length < 2) return setProblem("Name the chairperson or lead.");
+    if (!Number.isInteger(count) || count < 0 || count > 60) return setProblem("Members must be a whole number from 0 to 60.");
+    if (lastMeeting && lastMeeting > new Date().toISOString().slice(0, 10)) return setProblem("The last meeting cannot be in the future.");
+    setProblem(null);
+    onSave({ status, chairperson: chairperson.trim(), membersCount: count, lastMeetingDate: lastMeeting, momStatus: mom });
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+      <Card className="w-full max-w-md border-border/80 shadow-2xl">
+        <div className="flex items-center justify-between border-b border-border/40 px-5 pt-5 pb-3">
+          <div>
+            <h3 className="font-semibold text-foreground">{committee.name}</h3>
+            <p className="text-xs text-muted-foreground">{committee.id}</p>
+          </div>
+          <button onClick={onClose} aria-label="Close" className="text-muted-foreground hover:text-foreground">
+            ✕
+          </button>
+        </div>
+        <form onSubmit={submit}>
+          <CardBody className="space-y-4 p-5 text-xs">
+            {(problem || error) && <div className="rounded border border-destructive/20 bg-destructive/10 p-2.5 text-destructive">{problem ?? error}</div>}
+
+            <div>
+              <label className="mb-1 block font-medium text-foreground">Status</label>
+              <select value={status} onChange={(e) => setStatus(e.target.value as UpdateAicteCommitteeInput["status"])} className={cn(inputClass, "w-full text-xs")}>
+                {AICTE_COMMITTEE_STATUSES.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="mb-1 block font-medium text-foreground">Chairperson / lead</label>
+              <input list={listId} value={chairperson} onChange={(e) => setChairperson(e.target.value)} maxLength={120} className={cn(inputClass, "w-full text-xs")} placeholder="Pick a faculty member or type a name" />
+              <datalist id={listId}>
+                {faculty.map((n) => (
+                  <option key={n} value={n} />
+                ))}
+              </datalist>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="mb-1 block font-medium text-foreground">Members</label>
+                <input type="number" min={0} max={60} value={members} onChange={(e) => setMembers(e.target.value)} className={cn(inputClass, "w-full text-xs")} />
+              </div>
+              <div>
+                <label className="mb-1 block font-medium text-foreground">Last meeting</label>
+                <input type="date" value={lastMeeting} max={new Date().toISOString().slice(0, 10)} onChange={(e) => setLastMeeting(e.target.value)} className={cn(inputClass, "w-full text-xs")} />
+              </div>
+            </div>
+
+            <div>
+              <label className="mb-1 block font-medium text-foreground">Meeting minutes (MoM)</label>
+              <select value={mom} onChange={(e) => setMom(e.target.value as UpdateAicteCommitteeInput["momStatus"])} className={cn(inputClass, "w-full text-xs")}>
+                {AICTE_MOM_STATUSES.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </CardBody>
+          <div className="flex items-center justify-end gap-2 border-t border-border/40 p-4">
+            <Button type="button" variant="secondary" size="sm" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button type="submit" size="sm" disabled={saving}>
+              {saving ? <Spinner className="size-3.5" /> : "Save committee"}
+            </Button>
+          </div>
+        </form>
+      </Card>
+    </div>
+  );
+}
+
+function PidModal({
+  current,
+  saving,
+  error,
+  onClose,
+  onSave,
+}: {
+  current: string;
+  saving: boolean;
+  error: string | null;
+  onClose: () => void;
+  onSave: (pid: string) => void;
+}) {
+  const [pid, setPid] = useState(current);
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+      <Card className="w-full max-w-sm border-border/80 shadow-2xl">
+        <div className="flex items-center justify-between border-b border-border/40 px-5 pt-5 pb-3">
+          <h3 className="font-semibold text-foreground">AICTE permanent id</h3>
+          <button onClick={onClose} aria-label="Close" className="text-muted-foreground hover:text-foreground">
+            ✕
+          </button>
+        </div>
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            onSave(pid.trim());
+          }}
+        >
+          <CardBody className="space-y-3 p-5 text-xs">
+            {error && <div className="rounded border border-destructive/20 bg-destructive/10 p-2.5 text-destructive">{error}</div>}
+            <label className="block font-medium text-foreground" htmlFor="aicte-pid">
+              Permanent id from your AICTE approval letter
+            </label>
+            <input id="aicte-pid" value={pid} onChange={(e) => setPid(e.target.value)} maxLength={40} placeholder="e.g. 1-9321458921" className={cn(inputClass, "w-full text-xs")} />
+            <p className="text-muted-foreground">Leave it empty to go back to the reference derived from the college code.</p>
+          </CardBody>
+          <div className="flex items-center justify-end gap-2 border-t border-border/40 p-4">
+            <Button type="button" variant="secondary" size="sm" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button type="submit" size="sm" disabled={saving}>
+              {saving ? <Spinner className="size-3.5" /> : "Save"}
+            </Button>
+          </div>
+        </form>
+      </Card>
     </div>
   );
 }
