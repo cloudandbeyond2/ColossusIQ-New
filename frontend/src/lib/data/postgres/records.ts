@@ -531,8 +531,14 @@ const usersStore = {
     const base = await userScopeWhere(query.scope, query.college);
     const statusValue = query.status ? maybeEnum("UserStatus", query.status) : undefined;
     if (query.status && !statusValue) return { items: [], total: 0, counts: {} };
+    // Role dropdown: narrows the list and the status chip counts. An unknown role matches nobody.
+    const roleLabel = query.filters?.role;
+    const roleValue = roleLabel ? ROLE_OF[roleLabel] : undefined;
+    if (roleLabel && !roleValue) return { items: [], total: 0, counts: {} };
+    const roleWhere = roleValue ? { AND: [{ role: roleValue }] } : {};
     const where = {
       ...base,
+      ...roleWhere,
       user: {
         ...(statusValue ? { status: statusValue } : {}),
         ...(query.q ? { OR: [{ publicId: { contains: query.q, mode: "insensitive" } }, { fullName: { contains: query.q, mode: "insensitive" } }] } : {}),
@@ -542,7 +548,7 @@ const usersStore = {
     const [rows, total, grouped] = await Promise.all([
       t.roleAssignment.findMany({ where, include: USER_INCLUDE, orderBy: { user: { updatedAt: "desc" } }, skip: (query.page - 1) * query.pageSize, take: query.pageSize }),
       t.roleAssignment.count({ where }),
-      t.roleAssignment.findMany({ where: base as any, select: { user: { select: { status: true } } } }),
+      t.roleAssignment.findMany({ where: { ...base, ...roleWhere } as any, select: { user: { select: { status: true } } } }),
     ]);
     const counts: Record<string, number> = {};
     for (const g of grouped) counts[label("UserStatus", g.user.status)] = (counts[label("UserStatus", g.user.status)] ?? 0) + 1;

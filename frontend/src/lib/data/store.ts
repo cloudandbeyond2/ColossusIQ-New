@@ -25,6 +25,8 @@ export interface RecordListQuery {
   college?: string;
   q?: string;
   status?: string;
+  /** Exact-match filters on the resource's `filterFields` (field name to chosen option), e.g. { role: "Faculty" }. */
+  filters?: Record<string, string>;
   page: number;
   pageSize: number;
 }

@@ -142,7 +142,14 @@ export async function dispatchRecords(method: string, segs: string[], rawBody: u
       const collegeFilter = query.get("college") ?? "";
       const page = Math.min(Math.max(parseInt(query.get("page") ?? "1", 10) || 1, 1), 1000);
       const pageSize = Math.min(Math.max(parseInt(query.get("pageSize") ?? "10", 10) || 10, 5), 50);
-      const result = await store.list(res, { scope: session.college, college: COLLEGE_ID_RE.test(collegeFilter) ? collegeFilter : undefined, q, status, page, pageSize });
+      // Dropdown filters (?filter.role=Faculty): only the resource's own filter fields, and only values it offers.
+      const filters: Record<string, string> = {};
+      for (const name of res.filterFields ?? []) {
+        const v = cleanText(query.get(`filter.${name}`) ?? "", 80);
+        const options = res.fields.find((f) => f.name === name)?.options ?? [];
+        if (v && (options as readonly string[]).includes(v)) filters[name] = v;
+      }
+      const result = await store.list(res, { scope: session.college, college: COLLEGE_ID_RE.test(collegeFilter) ? collegeFilter : undefined, q, status, filters, page, pageSize });
       const items = await withStats(res, result.items.map((r) => present(res, r, canManage, colleges)));
       return ok({ items, total: result.total, page, pageSize, counts: result.counts, canManage });
     }

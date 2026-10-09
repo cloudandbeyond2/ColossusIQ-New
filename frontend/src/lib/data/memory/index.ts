@@ -126,6 +126,8 @@ function listRecords(res: ResourceDef, query: RecordListQuery) {
   const scoped = [...storeFor(res).values()]
     .filter((r) => inScope(res, r, query.scope))
     .filter((r) => !res.scoped || !COLLEGE_ID.test(query.college ?? "") || r.collegeId === query.college)
+    // Dropdown filters (e.g. role) narrow the list and the status chip counts alike.
+    .filter((r) => Object.entries(query.filters ?? {}).every(([name, value]) => !(res.filterFields ?? []).includes(name) || String(r[name] ?? "") === value))
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   const counts: Record<string, number> = {};
   if (res.statusField) for (const r of scoped) counts[String(r[res.statusField])] = (counts[String(r[res.statusField])] ?? 0) + 1;

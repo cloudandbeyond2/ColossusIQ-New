@@ -51,6 +51,8 @@ export interface ResourceDef {
   titleField: string;
   subtitleFields: string[];
   statusField?: string;
+  /** Select fields offered as dropdown filters above the list (each needs fixed `options`). */
+  filterFields?: string[];
   /** Ordered lifecycle shown as a timeline on the detail page. */
   statusFlow?: readonly string[];
   sections: readonly string[];
@@ -223,6 +225,7 @@ export const RESOURCES: Record<string, ResourceDef> = {
     titleField: "fullName",
     subtitleFields: ["role", "department"],
     statusField: "status",
+    filterFields: ["role"],
     sections: ["Account", "Security"],
     strongDeleteConfirm: true,
     deleteWarning: "The user loses access immediately and all active sessions are revoked. This cannot be undone.",

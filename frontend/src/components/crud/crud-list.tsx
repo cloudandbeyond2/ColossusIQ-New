@@ -46,6 +46,8 @@ export function CrudList({
   const [q, setQ] = useState("");
   const [debounced, setDebounced] = useState("");
   const [status, setStatus] = useState("");
+  // Dropdown filters such as "Role" (resource.filterFields), keyed by field name; "" = all.
+  const [filters, setFilters] = useState<Record<string, string>>({});
   const [page, setPage] = useState(1);
   const [toDelete, setToDelete] = useState<ResourceRecord | null>(null);
   const [aiOpen, setAiOpen] = useState(false);
@@ -63,7 +65,14 @@ export function CrudList({
   if (debounced) params.set("q", debounced);
   if (status) params.set("status", status);
   if (showCollege && college) params.set("college", college);
-  const listKey = ["records", resource.key, debounced, status, college, page] as const;
+  const filterFields = (resource.filterFields ?? []).flatMap((name) => {
+    const f = resource.fields.find((x) => x.name === name);
+    return f?.options?.length ? [{ name, label: f.label.replace(/ \(.*\)$/, ""), options: f.options }] : [];
+  });
+  for (const f of filterFields) if (filters[f.name]) params.set(`filter.${f.name}`, filters[f.name]!);
+  const filterKey = filterFields.map((f) => filters[f.name] ?? "").join("|");
+  const filtering = Boolean(filterKey.replace(/\|/g, ""));
+  const listKey = ["records", resource.key, debounced, status, college, filterKey, page] as const;
 
   const { data, isLoading, isFetching, error } = useQuery({
     queryKey: listKey,
@@ -142,6 +151,34 @@ export function CrudList({
             </label>
             <input id="crud-search" value={q} maxLength={80} onChange={(e) => setQ(e.target.value)} placeholder={`Search by name, ID or ${columns.find((c, i) => i > 0 && c.column !== "masked")?.label.replace(/ \(.*\)$/, "").toLowerCase() ?? "details"}…`} className={cn(inputClass, "pl-10")} />
           </div>
+          {filterFields.map((f) => (
+            <div key={f.name} className="sm:w-56">
+              <label htmlFor={`crud-filter-${f.name}`} className="sr-only">
+                Filter by {f.label.toLowerCase()}
+              </label>
+              <select
+                id={`crud-filter-${f.name}`}
+                value={filters[f.name] ?? ""}
+                onChange={(e) => {
+                  setFilters((cur) => ({ ...cur, [f.name]: e.target.value }));
+                  setPage(1);
+                }}
+                className={inputClass}
+              >
+                <option value="">All {f.label.toLowerCase()}s</option>
+                {f.options.map((o) => (
+                  <option key={o} value={o}>
+                    {o}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ))}
+          {filtering ? (
+            <button type="button" onClick={() => { setFilters({}); setPage(1); }} className="shrink-0 text-sm font-medium text-brand hover:underline">
+              Clear filters
+            </button>
+          ) : null}
           {showCollege ? (
             <div className="relative sm:w-64">
               <Fi name="school" className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-sm text-ink-3" />
@@ -184,9 +221,9 @@ export function CrudList({
         ) : data && data.items.length === 0 ? (
           <div className="p-6">
             <EmptyState
-              title={debounced || status ? "No matching records" : `No ${resource.title.toLowerCase()} yet`}
-              body={debounced || status ? "Try a different search or status." : undefined}
-              action={canManage && !debounced && !status ? <LinkButton href={`${base}/new`}><Fi name="plus" /> Add the first one</LinkButton> : undefined}
+              title={debounced || status || filtering ? "No matching records" : `No ${resource.title.toLowerCase()} yet`}
+              body={debounced || status || filtering ? "Try a different search, status or filter." : undefined}
+              action={canManage && !debounced && !status && !filtering ? <LinkButton href={`${base}/new`}><Fi name="plus" /> Add the first one</LinkButton> : undefined}
             />
           </div>
         ) : data ? (
