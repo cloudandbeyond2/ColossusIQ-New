@@ -11,7 +11,13 @@ import { cn } from "@/lib/utils";
 
 const STORAGE_KEY = "ciq_institutional_setup_completed";
 
-const COLOR_PRESETS = [
+interface ColorPreset {
+  name: string;
+  primary: string;
+  accent: string;
+}
+
+const COLOR_PRESETS: readonly ColorPreset[] = [
   { name: "Royal Navy", primary: "#1e2a5a", accent: "#c9962b" },
   { name: "Oxford Blue", primary: "#0f3a60", accent: "#0284c7" },
   { name: "Emerald Tech", primary: "#064e3b", accent: "#10b981" },
@@ -20,6 +26,12 @@ const COLOR_PRESETS = [
   { name: "Slate Minimal", primary: "#1e293b", accent: "#64748b" },
 ];
 
+const DEFAULT_COLOR_PRESET: ColorPreset = COLOR_PRESETS[0] ?? {
+  name: "Royal Navy",
+  primary: "#1e2a5a",
+  accent: "#c9962b",
+};
+
 export function InstitutionalSetupWizard({ onCompleted }: { onCompleted?: () => void }) {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
@@ -27,7 +39,7 @@ export function InstitutionalSetupWizard({ onCompleted }: { onCompleted?: () => 
   const [shortName, setShortName] = useState(UNIVERSITY.shortName || "");
   const [campusName, setCampusName] = useState("Main Campus / School of Engineering");
   const [domain, setDomain] = useState("campus.edu");
-  const [selectedColor, setSelectedColor] = useState(COLOR_PRESETS[0]);
+  const [selectedColor, setSelectedColor] = useState<ColorPreset>(DEFAULT_COLOR_PRESET);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
