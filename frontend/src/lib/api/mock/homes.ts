@@ -34,7 +34,7 @@ export const ROLE_HOMES: Record<Exclude<Role, "student">, RoleHome> = {
   hod: {
     greeting: "Department of Computer Science & Engineering",
     kpis: [
-      { label: "Students", value: "1,284", tone: "brand" },
+      { label: "Students", value: "0", tone: "brand" },
       { label: "Pass percentage", value: "91.4%", delta: "+2.1%", tone: "teal" },
       { label: "Placement readiness", value: "66%", delta: "+5%", tone: "gold" },
       { label: "Faculty upskilling", value: "72%", delta: "on track", tone: "sky" },
