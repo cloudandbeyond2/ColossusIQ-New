@@ -15,6 +15,7 @@ import type {
 import type { SessionPayload } from "@/lib/auth/session";
 import { getStore } from "@/lib/data";
 import { computeReadiness } from "./learning";
+import { sharedState } from "./global-state";
 import { getCollege, listColleges } from "./records";
 
 interface StudentCaseRecord {
@@ -24,9 +25,21 @@ interface StudentCaseRecord {
   lastActionDate?: string;
 }
 
-// In-memory case management persistent per college
-const collegeStudentCases = new Map<string, Map<string, StudentCaseRecord>>();
-const collegeInterventions = new Map<string, EarlyWarningIntervention[]>();
+// In-memory case management persistent across Next.js reloads & bundles per college
+const collegeStudentCases = sharedState("earlyWarning.cases", () => new Map<string, Map<string, StudentCaseRecord>>());
+const collegeInterventions = sharedState("earlyWarning.interventions", () => new Map<string, EarlyWarningIntervention[]>());
+
+async function resolveCollegeId(sessionCollege: string | null | undefined): Promise<string> {
+  let collegeId = sessionCollege && sessionCollege !== ALL_COLLEGES ? sessionCollege : "COL-1001";
+  const college = await getCollege(collegeId);
+  if (!college) {
+    const all = await listColleges();
+    if (all.length > 0 && all[0]) {
+      collegeId = all[0].id;
+    }
+  }
+  return collegeId;
+}
 
 function getCollegeCases(collegeId: string): Map<string, StudentCaseRecord> {
   let cases = collegeStudentCases.get(collegeId);
@@ -59,7 +72,7 @@ export async function createSupportAction(
   session: SessionPayload,
   input: CreateSupportActionInput
 ): Promise<EarlyWarningIntervention> {
-  const collegeId = session.college !== ALL_COLLEGES ? session.college : "COL-1001";
+  const collegeId = await resolveCollegeId(session.college);
   const now = new Date().toISOString();
 
   const item: EarlyWarningIntervention = {
@@ -106,7 +119,7 @@ export async function updateReviewStatus(
   session: SessionPayload,
   input: UpdateReviewStatusInput
 ): Promise<{ ok: boolean; status: string; notes?: string }> {
-  const collegeId = session.college !== ALL_COLLEGES ? session.college : "COL-1001";
+  const collegeId = await resolveCollegeId(session.college);
   const cases = getCollegeCases(collegeId);
   const existing = cases.get(input.studentId) ?? { status: "Pending review" };
 
@@ -127,16 +140,8 @@ export async function getEarlyWarningOverview(
   filterRiskLevel = "all",
   searchQuery = ""
 ): Promise<EarlyWarningData> {
-  let collegeId = session.college !== ALL_COLLEGES ? session.college : "COL-1001";
-  let college = await getCollege(collegeId);
-  if (!college) {
-    const all = await listColleges();
-    if (all.length > 0 && all[0]) {
-      college = all[0];
-      collegeId = college.id;
-    }
-  }
-
+  const collegeId = await resolveCollegeId(session.college);
+  const college = await getCollege(collegeId);
   const collegeTitle = String(college?.name ?? "College");
   const store = getStore();
 
