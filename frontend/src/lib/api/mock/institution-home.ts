@@ -89,7 +89,7 @@ export async function dynamicInstitutionHome(session: SessionPayload): Promise<R
         )
       : 72;
 
-  const studentCount = totalDeptStudents > 0 ? totalDeptStudents : capacity > 0 ? capacity : enrolled;
+  const studentCount = totalDeptStudents > 0 ? totalDeptStudents : enrolled;
   const facultyCount = teachingStaff > 0 ? teachingStaff : totalDeptFaculty > 0 ? totalDeptFaculty : activeStaff;
 
   // Rotations for medical stream

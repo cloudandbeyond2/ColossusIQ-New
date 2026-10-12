@@ -8,6 +8,7 @@ import { ALL_COLLEGES, TOGGLEABLE_GROUPS, UNIVERSITY } from "@/config/tenancy";
 import { getStore } from "@/lib/data";
 import { collegeStream, enabledGroups, getCollege, listColleges } from "./records";
 import { cleanText } from "@/lib/security/sanitize";
+import { formatNumber } from "@/lib/utils";
 import { analyzeResume, chatReply, evaluateDescriptive, generate, interviewTurn } from "./ai";
 import { MCQ_KEY, MOCK_TESTS, MOCK_TEST_SUMMARIES, PROJECTS } from "./fixtures";
 import { ROLE_HOMES } from "./homes";
@@ -546,6 +547,16 @@ export async function dispatch(method: string, segs: string[], rawBody: unknown,
       // Placement works from live readiness and drive data; the other roles still show their sample home.
       const home = role === "placement" && inCollege ? placementHome(staticHome, await placementSnapshot(session, session.college)) : staticHome;
       const res = { ...roleHomeFor(home, role, inCollege ? await collegeStream(session.college) : null, inCollege ? String((await getCollege(session.college))?.name ?? "College") : null) };
+      if (res.kpis?.some((k) => k.label.toLowerCase() === "students")) {
+        const collegePublicId = inCollege ? session.college : null;
+        const studentsList = await getStudentsList({ collegeId: collegePublicId });
+        const studentCount = studentsList.length;
+        res.kpis = res.kpis.map((k) =>
+          k.label.toLowerCase() === "students"
+            ? { ...k, value: formatNumber(studentCount) }
+            : k
+        );
+      }
       if (session.name) {
         const hour = new Date().getHours();
         const greet = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
