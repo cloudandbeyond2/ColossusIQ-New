@@ -925,6 +925,13 @@ export const UpdateReviewStatusInput = z.object({
 });
 export type UpdateReviewStatusInput = z.infer<typeof UpdateReviewStatusInput>;
 
+export const UpdateReviewStatusResponse = z.object({
+  ok: z.boolean(),
+  status: z.string(),
+  notes: z.string().optional(),
+});
+export type UpdateReviewStatusResponse = z.infer<typeof UpdateReviewStatusResponse>;
+
 /* ── aicte compliance ── */
 export const AicteNormItem = z.object({
   id: z.string(),

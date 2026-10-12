@@ -332,6 +332,7 @@ export async function getEarlyWarningOverview(
   const criticalCount = students.filter((s) => s.riskLevel === "Critical").length;
   const moderateCount = students.filter((s) => s.riskLevel === "Moderate").length;
   const watchlistCount = students.filter((s) => s.riskLevel === "Watchlist").length;
+  const flaggedCount = criticalCount + moderateCount + watchlistCount;
   const inProgressCases = students.filter((s) => s.reviewStatus === "In progress").length;
   const resolvedCases = students.filter((s) => s.reviewStatus === "Resolved").length;
   const avgReadiness =
@@ -342,7 +343,7 @@ export async function getEarlyWarningOverview(
   const kpis: Kpi[] = [
     {
       label: "Flagged for Attention",
-      value: String(criticalCount + moderateCount),
+      value: String(flaggedCount),
       delta: `${criticalCount} critical`,
       tone: criticalCount > 0 ? "rose" : "amber",
       hint: "Students with academic, certification or interview deficits",
@@ -356,7 +357,7 @@ export async function getEarlyWarningOverview(
     },
     {
       label: "Active Support Plans",
-      value: String(inProgressCases),
+      value: String(interventions.length),
       delta: `${interventions.length} total logged`,
       tone: "sky",
       hint: "Interventions currently assigned and ongoing",

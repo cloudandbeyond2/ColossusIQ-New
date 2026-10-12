@@ -78,27 +78,7 @@ export function SkillBoosterModule({ role }: { role: Role }) {
         </div>
       )}
 
-      {/* PostgreSQL Live Database Status Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-emerald-500/30 bg-emerald-500/5 px-4 py-2.5 text-xs text-ink dark:border-emerald-500/40 dark:bg-emerald-950/20 shadow-xs">
-        <div className="flex items-center gap-2.5">
-          <span className="relative flex size-2.5">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span>
-            <span className="relative inline-flex size-2.5 rounded-full bg-emerald-500"></span>
-          </span>
-          <span className="font-semibold text-emerald-800 dark:text-emerald-300">
-            PostgreSQL Live Database Connected
-          </span>
-          <span className="text-ink-3 hidden sm:inline">•</span>
-          <span className="text-ink-2 hidden sm:inline">
-            Real-time event tracking and step completion active on tables: <code className="font-mono text-[11px] bg-surface px-1.5 py-0.5 rounded border border-line">booster_step_completions</code>, <code className="font-mono text-[11px] bg-surface px-1.5 py-0.5 rounded border border-line">faculty_activity_events</code>
-          </span>
-        </div>
-        <div className="flex items-center gap-1.5 text-[10px] font-mono">
-          <span className="rounded bg-sky-100 dark:bg-sky-950/50 text-sky-700 dark:text-sky-300 px-2 py-0.5 border border-sky-300/40 font-bold">GET (Booster)</span>
-          <span className="rounded bg-emerald-100 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 px-2 py-0.5 border border-emerald-300/40 font-bold">POST (Track/Event)</span>
-          <span className="rounded bg-rose-100 dark:bg-rose-950/50 text-rose-700 dark:text-rose-300 px-2 py-0.5 border border-rose-300/40 font-bold">DELETE (Untoggle)</span>
-        </div>
-      </div>
+
 
       {/* level header */}
       <Card className="overflow-hidden">
