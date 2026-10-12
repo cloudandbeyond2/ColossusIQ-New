@@ -362,7 +362,19 @@ export const Project = z.object({
   stage: z.string(),
   progress: z.number(),
   stages: z.array(z.object({ title: z.string(), status: z.enum(["done", "active", "todo"]) })),
-  review: z.object({ architecture: z.number(), documentation: z.number(), codeQuality: z.number(), testing: z.number(), innovation: z.number() }),
+  review: z.object({
+    architecture: z.number(),
+    documentation: z.number(),
+    codeQuality: z.number(),
+    testing: z.number(),
+    innovation: z.number(),
+    facultyFeedback: z.string().optional(),
+    facultyApproved: z.boolean().optional(),
+  }),
+  repoUrl: z.string().optional(),
+  docUrl: z.string().optional(),
+  demoUrl: z.string().optional(),
+  status: z.string().optional(),
 });
 export type Project = z.infer<typeof Project>;
 

@@ -9,9 +9,9 @@
  */
 
 export const UNIVERSITY = {
-  id: "uni-tntu",
-  name: "Tamil Nadu Technical University",
-  shortName: "TNTU",
+  id: process.env.NEXT_PUBLIC_INSTITUTION_ID || process.env.INSTITUTION_ID || "uni-tntu",
+  name: process.env.NEXT_PUBLIC_INSTITUTION_NAME || process.env.INSTITUTION_NAME || "Tamil Nadu Technical University",
+  shortName: process.env.NEXT_PUBLIC_INSTITUTION_SHORT_NAME || process.env.INSTITUTION_SHORT_NAME || "TNTU",
 } as const;
 
 /** Scope value meaning "every college" — only the University Super Admin may hold it. */

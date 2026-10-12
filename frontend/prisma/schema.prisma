@@ -346,6 +346,7 @@ model College {
   alumniMembers         AlumniMember[]
   alumniRequests        AlumniMentorshipRequest[]
   hackathonTeams        HackathonTeam[]
+  projects              Project[]
 
   @@unique([universityId, code])
   @@unique([universityId, name])
@@ -2037,4 +2038,33 @@ model HackathonTeam {
   @@index([userId])
   @@index([hackathonId])
   @@map("hackathon_teams")
+}
+
+model Project {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  publicId   String   @unique @default(dbgenerated("('PRJ-'::text || nextval('seq_project_public'::regclass))")) @map("public_id")
+  collegeId  String   @map("college_id") @db.Uuid
+  userId     String   @map("user_id") @db.Uuid
+  title      String
+  domain     String
+  mentor     String   @default("Unassigned")
+  mentorId   String?  @map("mentor_id") @db.Uuid
+  team       Json     @default("[]")
+  stage      String   @default("Idea")
+  progress   Int      @default(10)
+  stages     Json     @default("[]")
+  review     Json     @default("{\"architecture\": 0, \"documentation\": 0, \"codeQuality\": 0, \"testing\": 0, \"innovation\": 0}")
+  repoUrl    String   @default("") @map("repo_url")
+  docUrl     String   @default("") @map("doc_url")
+  demoUrl    String   @default("") @map("demo_url")
+  status     String   @default("Active")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  college College @relation(fields: [collegeId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([collegeId])
+  @@index([userId])
+  @@index([mentorId])
+  @@map("projects")
 }

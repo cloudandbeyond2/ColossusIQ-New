@@ -166,16 +166,37 @@ function RemoveDialog({ item, onClose, onDone }: { item: { id: string; title: st
 /* ───────────────────────────── setup ───────────────────────────── */
 function Setup({ o, seed }: { o: VivaOverview; seed: VivaSession["setup"] | null }) {
   const qc = useQueryClient();
+  const projectsList = o.projects && o.projects.length > 0
+    ? o.projects
+    : o.project?.name
+    ? [{ id: "p-0", title: o.project.name, domain: "AI/ML", stage: "Active", brief: `${o.project.name} capstone project.` }]
+    : [];
+
+  const [customTopic, setCustomTopic] = useState("");
+  const initialProject = projectsList[0];
+
   const [f, setF] = useState({
     mode: (seed?.mode ?? "Subject") as VivaMode,
     level: (seed?.level ?? "Standard") as VivaLevel,
     questions: seed?.questions ?? 5,
     subject: seed?.subject ?? o.subjects[0]?.code ?? "",
-    topic: seed?.topic ?? "",
-    brief: seed?.brief ?? "",
+    topic: seed?.topic ?? (initialProject ? initialProject.title : ""),
+    brief: seed?.brief ?? (initialProject?.brief ?? ""),
   });
   const set = <K extends keyof typeof f>(k: K, v: (typeof f)[K]) => setF((x) => ({ ...x, [k]: v }));
-  const pickMode = (m: VivaMode) => setF((x) => ({ ...x, mode: m, topic: m === "Project" && !x.topic ? o.project.name : x.topic }));
+  const pickMode = (m: VivaMode) => {
+    if (m === "Project") {
+      const proj = projectsList.find((p) => p.title === f.topic) || projectsList[0];
+      setF((x) => ({
+        ...x,
+        mode: m,
+        topic: proj ? proj.title : x.topic,
+        brief: proj?.brief || x.brief,
+      }));
+    } else {
+      setF((x) => ({ ...x, mode: m, topic: x.mode === "Project" ? "" : x.topic }));
+    }
+  };
 
   const start = useMutation({
     mutationFn: () =>
@@ -232,14 +253,72 @@ function Setup({ o, seed }: { o: VivaOverview; seed: VivaSession["setup"] | null
             </Field>
           ) : null}
 
-          <Field
-            label={f.mode === "Project" ? "Project title" : f.mode === "Subject" ? "Focus on a unit (optional)" : "Topic"}
-            htmlFor="viva-topic"
-            error={fields.topic}
-            hint={f.mode === "Subject" && unit ? `Units: ${unit.units.slice(0, 5).join(", ")}` : undefined}
-          >
-            <input id="viva-topic" className={inputClass} value={f.topic} maxLength={120} onChange={(e) => set("topic", e.target.value)} placeholder={f.mode === "Project" ? "Your project's name" : f.mode === "Technical" ? "e.g. REST APIs, SQL indexing, React hooks" : "Leave blank to cover the whole subject"} />
-          </Field>
+          {/* PROJECT SELECT DROPDOWN */}
+          {f.mode === "Project" ? (
+            <Field label="Select your Project" htmlFor="viva-project-select" error={fields.topic}>
+              <select
+                id="viva-project-select"
+                className={inputClass}
+                value={projectsList.some((p) => p.title === f.topic) ? f.topic : "__custom__"}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (val === "__custom__") {
+                    setF((x) => ({ ...x, topic: customTopic || "" }));
+                  } else {
+                    const matched = projectsList.find((p) => p.title === val);
+                    setF((x) => ({
+                      ...x,
+                      topic: val,
+                      brief: matched?.brief || x.brief,
+                    }));
+                  }
+                }}
+              >
+                {projectsList.map((p) => (
+                  <option key={p.id} value={p.title}>
+                    {p.title} ({p.stage})
+                  </option>
+                ))}
+                <option value="__custom__">+ Custom Project Title...</option>
+              </select>
+            </Field>
+          ) : null}
+
+          {/* CUSTOM PROJECT TITLE INPUT IF USER SELECTED CUSTOM */}
+          {f.mode === "Project" && !projectsList.some((p) => p.title === f.topic) ? (
+            <Field label="Custom Project title" htmlFor="viva-topic-custom" error={fields.topic}>
+              <input
+                id="viva-topic-custom"
+                className={inputClass}
+                value={f.topic}
+                maxLength={120}
+                onChange={(e) => {
+                  setCustomTopic(e.target.value);
+                  set("topic", e.target.value);
+                }}
+                placeholder="Enter custom project title..."
+              />
+            </Field>
+          ) : null}
+
+          {/* TECHNICAL / SUBJECT TOPIC */}
+          {f.mode !== "Project" ? (
+            <Field
+              label={f.mode === "Subject" ? "Focus on a unit (optional)" : "Topic"}
+              htmlFor="viva-topic"
+              error={fields.topic}
+              hint={f.mode === "Subject" && unit ? `Units: ${unit.units.slice(0, 5).join(", ")}` : undefined}
+            >
+              <input
+                id="viva-topic"
+                className={inputClass}
+                value={f.topic}
+                maxLength={120}
+                onChange={(e) => set("topic", e.target.value)}
+                placeholder={f.mode === "Technical" ? "e.g. REST APIs, SQL indexing, React hooks" : "Leave blank to cover the whole subject"}
+              />
+            </Field>
+          ) : null}
 
           {f.mode === "Project" ? (
             <Field label="What does it do? (optional)" htmlFor="viva-brief" error={fields.brief} hint="A few sentences help the examiner ask about your real project, not a generic one.">
