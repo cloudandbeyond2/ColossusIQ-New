@@ -136,6 +136,42 @@ export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
   ],
 };
 
+export const PERMISSION_GROUPS = ["Learning & assessment", "Administration", "Outcomes", "Platform & governance"] as const;
+export type PermissionGroup = (typeof PERMISSION_GROUPS)[number];
+
+/**
+ * Every permission with its plain-English label and the group it is shown under. Typed as a full Record, so adding a
+ * permission above without describing it here fails the type check and it can never be missing from Roles & Permissions.
+ */
+export const PERMISSION_CATALOG: Record<Permission, { label: string; group: PermissionGroup }> = {
+  "ai:chat": { label: "Use AI mentor / copilots", group: "Learning & assessment" },
+  "assessment:attempt": { label: "Attempt tests", group: "Learning & assessment" },
+  "assessment:create": { label: "Create assessments", group: "Learning & assessment" },
+  "assessment:override-score": { label: "Approve / override AI marks", group: "Learning & assessment" },
+  "student:read-own": { label: "View own student record", group: "Learning & assessment" },
+  "student:read-any": { label: "View student records", group: "Learning & assessment" },
+  "prep:publish": { label: "Publish exam-prep content", group: "Learning & assessment" },
+  "admissions:manage": { label: "Manage admissions", group: "Administration" },
+  "staff:manage": { label: "Manage staff", group: "Administration" },
+  "users:manage": { label: "Manage users & roles", group: "Administration" },
+  "courses:manage": { label: "Manage courses", group: "Administration" },
+  "events:manage": { label: "Manage events", group: "Administration" },
+  "department:manage": { label: "Manage departments", group: "Administration" },
+  "clinical:manage": { label: "Manage clinical postings", group: "Administration" },
+  "website:manage": { label: "Manage college website", group: "Administration" },
+  "knowledge:manage": { label: "Manage knowledge base", group: "Administration" },
+  "certificates:authorize": { label: "Authorize certificates", group: "Administration" },
+  "placement:manage": { label: "Manage placements", group: "Outcomes" },
+  "incubation:manage": { label: "Manage incubation", group: "Outcomes" },
+  "talent:search": { label: "Search verified talent", group: "Outcomes" },
+  "institution:analytics": { label: "Institution analytics", group: "Outcomes" },
+  "colleges:manage": { label: "Manage colleges", group: "Platform & governance" },
+  "tenant:manage": { label: "Manage tenants", group: "Platform & governance" },
+  "ai:governance": { label: "AI governance", group: "Platform & governance" },
+  "audit:read": { label: "Read audit log", group: "Platform & governance" },
+  "billing:manage": { label: "Manage billing", group: "Platform & governance" },
+};
+
 export function can(role: Role, permission: Permission): boolean {
   return ROLE_PERMISSIONS[role].includes(permission);
 }

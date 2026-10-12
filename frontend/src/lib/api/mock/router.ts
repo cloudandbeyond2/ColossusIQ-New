@@ -91,6 +91,7 @@ import { dispatchExperience, experienceNotifications } from "./experience";
 import { dispatchViva } from "./viva";
 import { dispatchResume } from "./resume";
 import { dispatchDrives } from "./drives";
+import { dispatchRolesPermissions } from "./roles-permissions";
 import { dispatchEmployers } from "./employers";
 import { dispatchJobs } from "./jobs";
 import { dispatchAlumni } from "./alumni";
@@ -346,6 +347,7 @@ export async function dispatch(method: string, segs: string[], rawBody: unknown,
   if (segs[0] === "viva") return dispatchViva(method, segs, rawBody, session);
   if (segs[0] === "resume") return dispatchResume(method, segs, rawBody, session);
   if (segs[0] === "interview") return dispatchInterview(method, segs, rawBody, session);
+  if (segs[0] === "roles-permissions") return dispatchRolesPermissions(method, segs, session);
   if (segs[0] === "drives") return dispatchDrives(method, segs, rawBody, session);
   if (segs[0] === "employers") return dispatchEmployers(method, segs, rawBody, session, query);
   if (segs[0] === "jobs") return dispatchJobs(method, segs, rawBody, session, query);
