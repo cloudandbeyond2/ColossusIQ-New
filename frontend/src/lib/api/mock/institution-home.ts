@@ -74,10 +74,20 @@ export async function dynamicInstitutionHome(session: SessionPayload): Promise<R
   const deptStats = await getStore().records.stats(RESOURCES.departments!, deptRecords);
   const totalDeptStudents = deptRecords.reduce((sum, d) => sum + (deptStats.get(d.id)?.students ?? 0), 0);
   const totalDeptFaculty = deptRecords.reduce((sum, d) => sum + (deptStats.get(d.id)?.faculty ?? 0), 0);
+  const deptsWithStudents = deptRecords.filter((d) => (deptStats.get(d.id)?.students ?? 0) > 0);
   const avgReadiness =
-    deptRecords.length > 0
-      ? Math.round(deptRecords.reduce((sum, d) => sum + (deptStats.get(d.id)?.readiness ?? 0), 0) / deptRecords.length)
-      : 70;
+    totalDeptStudents > 0
+      ? Math.round(
+          deptRecords.reduce(
+            (sum, d) => sum + (deptStats.get(d.id)?.readiness ?? 0) * (deptStats.get(d.id)?.students ?? 0),
+            0
+          ) / totalDeptStudents
+        )
+      : deptsWithStudents.length > 0
+      ? Math.round(
+          deptsWithStudents.reduce((sum, d) => sum + (deptStats.get(d.id)?.readiness ?? 0), 0) / deptsWithStudents.length
+        )
+      : 72;
 
   const studentCount = totalDeptStudents > 0 ? totalDeptStudents : capacity > 0 ? capacity : enrolled;
   const facultyCount = teachingStaff > 0 ? teachingStaff : totalDeptFaculty > 0 ? totalDeptFaculty : activeStaff;
@@ -176,9 +186,14 @@ export async function dynamicInstitutionHome(session: SessionPayload): Promise<R
           },
           {
             label: "Placement readiness",
-            value: `${avgReadiness}%`,
-            delta: "+4% vs target",
-            tone: "teal",
+            value: totalDeptStudents > 0 ? `${avgReadiness}%` : "—",
+            delta:
+              totalDeptStudents > 0
+                ? avgReadiness >= 70
+                  ? `+${avgReadiness - 70}% vs target`
+                  : `${avgReadiness - 70}% vs target`
+                : "No active cohort",
+            tone: avgReadiness >= 75 ? "teal" : avgReadiness >= 60 ? "brand" : "amber",
           },
           {
             label: "Campus events",
@@ -339,7 +354,8 @@ export async function dynamicInstitutionHome(session: SessionPayload): Promise<R
     });
   }
   if (deptRecords.length > 0) {
-    const sortedDepts = [...deptRecords].sort(
+    const activeDepts = deptRecords.filter((d) => (deptStats.get(d.id)?.students ?? 0) > 0);
+    const sortedDepts = [...(activeDepts.length > 0 ? activeDepts : deptRecords)].sort(
       (a, b) => (deptStats.get(b.id)?.readiness ?? 0) - (deptStats.get(a.id)?.readiness ?? 0),
     );
     const top = sortedDepts[0];

@@ -158,14 +158,18 @@ export function InstitutionHome() {
                     <td className="px-5 py-3.5 text-right text-ink-2">{formatNumber(d.students)}</td>
                     <td className="px-5 py-3.5 text-right text-ink-2">{d.programmes ?? 1}</td>
                     <td className="px-5 py-3.5">
-                      <div className="flex items-center gap-3">
-                        <Progress
-                          value={d.readiness}
-                          tone={d.readiness >= 75 ? "teal" : d.readiness >= 60 ? "brand" : "amber"}
-                          className="flex-1"
-                        />
-                        <span className="w-10 text-right text-xs font-semibold text-ink">{d.readiness}%</span>
-                      </div>
+                      {d.students > 0 ? (
+                        <div className="flex items-center gap-3">
+                          <Progress
+                            value={d.readiness}
+                            tone={d.readiness >= 75 ? "teal" : d.readiness >= 60 ? "brand" : "amber"}
+                            className="flex-1"
+                          />
+                          <span className="w-10 text-right text-xs font-semibold text-ink">{d.readiness}%</span>
+                        </div>
+                      ) : (
+                        <span className="text-xs text-ink-3">No active cohort</span>
+                      )}
                     </td>
                   </tr>
                 ))}

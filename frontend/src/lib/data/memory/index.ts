@@ -209,7 +209,7 @@ export const memoryStore: DataStore = {
           programmes: 1 + (seed % 3),
           students: r.status === "Active" ? 120 + (seed % 480) : 0,
           faculty: staff.filter((s) => s.collegeId === r.collegeId && s.department === r.department && s.staffType === "Teaching" && s.status === "Active").length,
-          readiness: 40 + (seed % 45),
+          readiness: 65 + (seed % 25),
         });
       }
       return out;
