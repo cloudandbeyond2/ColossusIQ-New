@@ -7,6 +7,7 @@ import { z } from "zod";
 import { LoadError } from "@/components/ui/load-error";
 import { Badge, Button, Card, CardBody, EmptyState, Field, Skeleton, Spinner, inputClass, toneForScore } from "@/components/ui/primitives";
 import { apiFetch } from "@/lib/api/client";
+import { refreshPlacement } from "@/lib/placement-cache";
 import { DRIVE_STATUSES, DRIVE_TYPES, DriveDetail, DriveItem, DriveOverview, packageText, type DriveBody, type DriveStatus } from "@/lib/api/drive-schemas";
 import { cn } from "@/lib/utils";
 import { Modal, problemOf } from "./assignments-shared";
@@ -68,7 +69,8 @@ export function DrivesModule() {
   }
   if (q.isError) return <LoadError error={q.error} onRetry={() => void q.refetch()} />;
   const o = q.data;
-  const refresh = () => void qc.invalidateQueries({ queryKey: KEY });
+  // A drive change also moves the readiness board's eligibility, Placement Analytics and the placement home.
+  const refresh = () => refreshPlacement(qc);
 
   return (
     <div className="space-y-6">

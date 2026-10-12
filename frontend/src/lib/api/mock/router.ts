@@ -13,6 +13,7 @@ import { MCQ_KEY, MOCK_TESTS, MOCK_TEST_SUMMARIES, PROJECTS } from "./fixtures";
 import { ROLE_HOMES } from "./homes";
 import { roleHomeFor, studentCourses, studentDashboard } from "./stream-content";
 import { dynamicInstitutionHome } from "./institution-home";
+import { placementHome, placementSnapshot } from "./placement-stats";
 import { dynamicBiAnalytics } from "./bi-analytics";
 import { moduleData } from "./module-data";
 import { createClub, deleteClub, getClubsOverview, toggleJoinClub, updateClub } from "./clubs";
@@ -526,8 +527,10 @@ export async function dispatch(method: string, segs: string[], rawBody: unknown,
       if (role === "institution") {
         return ok(await dynamicInstitutionHome(session));
       }
-      const home = ROLE_HOMES[role as Exclude<typeof session.role, "student">];
       const inCollege = session.college !== ALL_COLLEGES;
+      const staticHome = ROLE_HOMES[role as Exclude<typeof session.role, "student">];
+      // Placement works from live readiness and drive data; the other roles still show their sample home.
+      const home = role === "placement" && inCollege ? placementHome(staticHome, await placementSnapshot(session, session.college)) : staticHome;
       const res = { ...roleHomeFor(home, role, inCollege ? await collegeStream(session.college) : null, inCollege ? String((await getCollege(session.college))?.name ?? "College") : null) };
       if (session.name) {
         const hour = new Date().getHours();

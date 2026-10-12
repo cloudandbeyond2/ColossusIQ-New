@@ -23,7 +23,7 @@ import type { Stream } from "@/config/streams";
 import { ALL_COLLEGES } from "@/config/tenancy";
 import { getStore, dataBackend } from "@/lib/data";
 import { db } from "@/lib/data/postgres/db";
-import { collegeStream, getCollege, listColleges } from "./records";
+import { collegeStream, getCollege } from "./records";
 import { dynamicBiAnalytics } from "./bi-analytics";
 import { getCollegeClubs } from "./clubs";
 import { getCollegeSports } from "./sports";
@@ -32,7 +32,6 @@ import { getStudentsList } from "./students-store";
 import { kbStore } from "./knowledge-store";
 import { agentStorePage, aiGovernancePage, aiObservabilityPage, developerApiPage } from "./platform-pages";
 import type { SessionPayload } from "@/lib/auth/session";
-import type { ReadinessBase } from "./learning";
 import {
   generateDynamicAcademicTracker,
   generateDynamicAchievements,
@@ -55,6 +54,7 @@ import {
   generateDynamicTeamFinder,
 } from "./student-profile";
 import { getFacultyAllocationProfile } from "./faculty-allocation";
+import { analyticsDashboard, placementSnapshot } from "./placement-stats";
 
 /** Live data a builder may need, fetched once per request. */
 interface ScopeData {
@@ -491,83 +491,9 @@ const DATA: Record<string, (collegeScope: string, live: ScopeData) => ModuleData
       [],
     );
   },
-  "placement-analytics": async (collegeScope) => {
-    const store = getStore();
-    const boards: ReadinessBase[] = [];
-
-    if (collegeScope && collegeScope !== "all") {
-      const col = await getCollege(collegeScope);
-      if (col) {
-        boards.push(...(await store.readiness.board(col.id)));
-      }
-    } else {
-      const allCols = await listColleges();
-      for (const col of allCols) {
-        boards.push(...(await store.readiness.board(col.id)));
-      }
-    }
-
-    if (boards.length === 0) {
-      return dashboard(
-        [
-          k("Placement readiness", "0%", undefined, "teal"),
-          k("Offers", "0", "Season to date", "gold"),
-          k("Resume completion", "0%", undefined, "brand"),
-          k("Mock interview participation", "0%", undefined, "teal"),
-        ],
-        [
-          chart("bar", "Offers by department", [{ category: "No active records", Offers: 0 }], ["Offers"]),
-          chart("line", "Average interview score", [{ category: "Current", Score: 0 }], ["Score"]),
-        ],
-        [],
-      );
-    }
-
-    let resumesCount = 0;
-    let interviewsCount = 0;
-    let totalInterviewScore = 0;
-    let totalOffers = 0;
-    const deptOffers: Record<string, number> = {};
-
-    for (const b of boards) {
-      if (b.resume >= 80) resumesCount++;
-      if (b.interview > 0) interviewsCount++;
-      totalInterviewScore += b.interview;
-
-      const isOffer = (b.aptitude + b.interview + b.resume) / 3 >= 75;
-      if (isOffer) {
-        totalOffers++;
-      }
-
-      const deptName = String(b.department).replace(/Engineering|Department of/gi, "").trim() || "General";
-      deptOffers[deptName] = (deptOffers[deptName] || 0) + (isOffer ? 1 : 0);
-    }
-
-    const totalStudents = boards.length;
-    const resumePct = Math.round((resumesCount / totalStudents) * 100);
-    const interviewPct = Math.round((interviewsCount / totalStudents) * 100);
-    const avgScore = interviewsCount > 0 ? Math.round(totalInterviewScore / totalStudents) : 0;
-
-    const totalReadiness = boards.reduce((acc, b) => acc + (b.resume + b.interview + b.aptitude) / 3, 0);
-    const readinessPct = Math.round(totalReadiness / totalStudents);
-
-    const deptChartData = Object.entries(deptOffers)
-      .map(([dept, count]) => ({ category: dept, Offers: count }))
-      .sort((a, b) => b.Offers - a.Offers);
-
-    return dashboard(
-      [
-        k("Placement readiness", `${readinessPct}%`, undefined, "teal"),
-        k("Offers", `${totalOffers}`, "Season to date", "gold"),
-        k("Resume completion", `${resumePct}%`, undefined, "brand"),
-        k("Mock interview participation", `${interviewPct}%`, undefined, "teal"),
-      ],
-      [
-        chart("bar", "Offers by department", deptChartData.length > 0 ? deptChartData : [{ category: "Active", Offers: 0 }], ["Offers"]),
-        chart("line", "Average interview score", [{ category: "Average", Score: avgScore }], ["Score"]),
-      ],
-      [],
-    );
+  "placement-analytics": async (collegeScope, live) => {
+    const session = live.session ?? ({ college: collegeScope, sub: "demo-placement", role: "placement" } as SessionPayload);
+    return analyticsDashboard(await placementSnapshot(session, collegeScope));
   },
   "ai-governance": () => aiGovernancePage(),
 
