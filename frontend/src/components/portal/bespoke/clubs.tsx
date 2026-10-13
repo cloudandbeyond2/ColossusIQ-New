@@ -23,6 +23,8 @@ import {
   ClubItem,
   ClubsOverview,
   CreateClubInput,
+  FacultyOptions,
+  StudentOptions,
 } from "@/lib/api/schemas";
 import type { Role } from "@/lib/auth/roles";
 import { TemplateSkeleton } from "@/components/modules/shared";
@@ -304,6 +306,7 @@ export function ClubsModule({ role }: { role?: Role }) {
       {/* Start a Club Modal */}
       {isCreateOpen ? (
         <CreateClubModal
+          collegeId={query.data?.collegeId}
           onClose={() => setIsCreateOpen(false)}
           onSuccess={(club) => {
             setIsCreateOpen(false);
@@ -339,9 +342,11 @@ export function ClubsModule({ role }: { role?: Role }) {
 
 /* ─────────────────────────────── Create Club Modal ─────────────────────────────── */
 function CreateClubModal({
+  collegeId,
   onClose,
   onSuccess,
 }: {
+  collegeId?: string;
   onClose: () => void;
   onSuccess: (club: ClubItem) => void;
 }) {
@@ -350,10 +355,33 @@ function CreateClubModal({
   const [description, setDescription] = useState("");
   const [lead, setLead] = useState("");
   const [facultyAdvisor, setFacultyAdvisor] = useState("");
+  const [isCustomLead, setIsCustomLead] = useState(false);
+  const [isCustomFaculty, setIsCustomFaculty] = useState(false);
   const [meetingSchedule, setMeetingSchedule] = useState("");
   const [venue, setVenue] = useState("");
   const [membersCount, setMembersCount] = useState("");
   const [error, setError] = useState<string | null>(null);
+
+  const studentsQuery = useQuery({
+    queryKey: ["student-options", collegeId],
+    queryFn: () =>
+      apiFetch(
+        `/api/v1/students/student-options${collegeId ? `?college=${encodeURIComponent(collegeId)}` : ""}`,
+        StudentOptions,
+      ),
+  });
+
+  const facultyQuery = useQuery({
+    queryKey: ["faculty-options", collegeId],
+    queryFn: () =>
+      apiFetch(
+        `/api/v1/staff/faculty-options${collegeId ? `?college=${encodeURIComponent(collegeId)}` : ""}`,
+        FacultyOptions,
+      ),
+  });
+
+  const studentsList = studentsQuery.data?.students ?? [];
+  const facultyList = facultyQuery.data?.faculty ?? [];
 
   const mutation = useMutation({
     mutationFn: async (payload: CreateClubInput) => {
@@ -373,7 +401,7 @@ function CreateClubModal({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return setError("Please enter a club name.");
-    if (!lead.trim()) return setError("Please enter the student lead name.");
+    if (!lead.trim()) return setError("Please select or enter the student lead name.");
     if (!meetingSchedule.trim()) return setError("Please specify meeting schedule / next activity.");
 
     setError(null);
@@ -452,26 +480,106 @@ function CreateClubModal({
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-ink-3">Student Lead *</label>
-              <input
-                type="text"
-                required
-                placeholder="e.g. Ananya Raman"
-                value={lead}
-                onChange={(e) => setLead(e.target.value)}
-                className={cn(inputClass, "mt-1.5")}
-              />
+              <div className="flex items-center justify-between">
+                <label className="block text-xs font-semibold uppercase tracking-wider text-ink-3">Student Lead *</label>
+                {isCustomLead ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsCustomLead(false);
+                      setLead("");
+                    }}
+                    className="text-xs text-brand hover:underline"
+                  >
+                    Select from dropdown
+                  </button>
+                ) : null}
+              </div>
+              {isCustomLead ? (
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Ananya Raman"
+                  value={lead}
+                  onChange={(e) => setLead(e.target.value)}
+                  className={cn(inputClass, "mt-1.5")}
+                />
+              ) : (
+                <select
+                  required
+                  value={lead}
+                  onChange={(e) => {
+                    if (e.target.value === "__custom__") {
+                      setIsCustomLead(true);
+                      setLead("");
+                    } else {
+                      setLead(e.target.value);
+                    }
+                  }}
+                  className={cn(inputClass, "mt-1.5")}
+                  disabled={studentsQuery.isLoading}
+                >
+                  <option value="">{studentsQuery.isLoading ? "Loading students…" : "Select Student Lead"}</option>
+                  {studentsList.map((s) => (
+                    <option key={s.id} value={s.name}>
+                      {s.name}{s.roll ? ` (${s.roll})` : s.section ? ` (${s.section})` : ""}
+                    </option>
+                  ))}
+                  <option value="__custom__">+ Enter other student name…</option>
+                </select>
+              )}
             </div>
 
             <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-ink-3">Faculty Advisor</label>
-              <input
-                type="text"
-                placeholder="e.g. Dr. Meena Raghavan"
-                value={facultyAdvisor}
-                onChange={(e) => setFacultyAdvisor(e.target.value)}
-                className={cn(inputClass, "mt-1.5")}
-              />
+              <div className="flex items-center justify-between">
+                <label className="block text-xs font-semibold uppercase tracking-wider text-ink-3">Faculty Advisor</label>
+                {isCustomFaculty ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsCustomFaculty(false);
+                      setFacultyAdvisor("");
+                    }}
+                    className="text-xs text-brand hover:underline"
+                  >
+                    Select from dropdown
+                  </button>
+                ) : null}
+              </div>
+              {isCustomFaculty ? (
+                <input
+                  type="text"
+                  placeholder="e.g. Dr. Meena Raghavan"
+                  value={facultyAdvisor}
+                  onChange={(e) => setFacultyAdvisor(e.target.value)}
+                  className={cn(inputClass, "mt-1.5")}
+                />
+              ) : (
+                <select
+                  value={facultyAdvisor}
+                  onChange={(e) => {
+                    if (e.target.value === "__custom__") {
+                      setIsCustomFaculty(true);
+                      setFacultyAdvisor("");
+                    } else {
+                      setFacultyAdvisor(e.target.value);
+                    }
+                  }}
+                  className={cn(inputClass, "mt-1.5")}
+                  disabled={facultyQuery.isLoading}
+                >
+                  <option value="">{facultyQuery.isLoading ? "Loading faculty…" : "Select Faculty Advisor"}</option>
+                  {facultyList.map((f) => {
+                    const details = [f.department, f.designation].filter(Boolean).join(" · ");
+                    return (
+                      <option key={f.id} value={f.name}>
+                        {f.name}{details ? ` (${details})` : ""}
+                      </option>
+                    );
+                  })}
+                  <option value="__custom__">+ Enter other faculty name…</option>
+                </select>
+              )}
             </div>
           </div>
 

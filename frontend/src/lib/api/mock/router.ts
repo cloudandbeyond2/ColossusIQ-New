@@ -205,6 +205,7 @@ export const PATTERNS = [
   "GET university/overview",
   "GET colleges/options",
   "GET staff/faculty-options",
+  "GET students/student-options",
   "GET analytics/bi",
   "GET department-skills",
   "POST department-skills/interventions",
@@ -380,7 +381,7 @@ export async function dispatch(method: string, segs: string[], rawBody: unknown,
         page: 1,
         pageSize: 1000,
       });
-      const faculty = list.items
+      let faculty = list.items
         .filter((s) => s.status !== "Resigned" && s.status !== "Retired")
         .filter(
           (s) =>
@@ -394,8 +395,38 @@ export async function dispatch(method: string, segs: string[], rawBody: unknown,
           department: String(s.department || "").trim(),
           designation: String(s.designation || "").trim(),
         }))
-        .filter((f) => f.name.length > 0)
+        .filter((f) => f.name.length > 0);
+
+      if (faculty.length === 0) {
+        const fallbackFacultyList = await getFacultyList({ collegeId: targetCollege });
+        faculty = fallbackFacultyList.map((f) => ({
+          id: f.id,
+          name: f.name,
+          department: f.department,
+          designation: f.designation,
+        }));
+      }
+
+      if (faculty.length === 0) {
+        faculty = [
+          { id: "fac-1", name: "Dr. Meena Raghavan", department: "Computer Science", designation: "Associate Professor" },
+          { id: "fac-2", name: "Dr. S. Venkatesh", department: "Computer Science", designation: "Professor & HOD" },
+          { id: "fac-3", name: "Prof. R. Balaji", department: "Computer Science", designation: "Assistant Professor" },
+          { id: "fac-4", name: "Dr. K. Anitha", department: "Computer Science", designation: "Professor" },
+          { id: "fac-5", name: "Dr. Joseph Kumar", department: "Computer Science", designation: "Professor" },
+        ];
+      }
+
+      const seenFaculty = new Set<string>();
+      faculty = faculty
+        .filter((f) => {
+          const key = f.name.trim().toLowerCase();
+          if (!key || seenFaculty.has(key)) return false;
+          seenFaculty.add(key);
+          return true;
+        })
         .sort((a, b) => a.name.localeCompare(b.name));
+
       return ok({ faculty });
     }
     case "GET analytics/bi": {
@@ -1122,10 +1153,44 @@ async function dispatchStudents(
   session: SessionPayload,
   query: URLSearchParams
 ): Promise<MockResult> {
+  const collegeId = session.college === ALL_COLLEGES ? query.get("college") || null : session.college;
+
+  // GET /students/student-options or /students/options (available to authenticated users for selection dropdowns)
+  if (method === "GET" && segs.length === 2 && (segs[1] === "student-options" || segs[1] === "options")) {
+    const list = await getStudentsList({ collegeId });
+    let options = list.map((s) => ({
+      id: s.id,
+      name: s.name,
+      roll: s.roll,
+      section: s.section,
+    }));
+    if (options.length === 0) {
+      options = [
+        { id: "stu-1", name: "Ananya Raman", roll: "21CS0101", section: "CSE-A" },
+        { id: "stu-2", name: "Anand Kumar", roll: "21CS0102", section: "CSE-A" },
+        { id: "stu-3", name: "Divya Raman", roll: "21CS0108", section: "CSE-B" },
+        { id: "stu-4", name: "Karthik Raja", roll: "21CS0115", section: "CSE-A" },
+        { id: "stu-5", name: "Meera Nair", roll: "21CS0122", section: "CSE-C" },
+        { id: "stu-6", name: "Rahul Sharma", roll: "21CS0129", section: "CSE-B" },
+        { id: "stu-7", name: "Sneha Iyer", roll: "21CS0136", section: "CSE-A" },
+        { id: "stu-8", name: "Pooja Sundaram", roll: "21CS0140", section: "CSE-B" },
+      ];
+    }
+    const seen = new Set<string>();
+    const uniqueOptions = options
+      .filter((s) => {
+        const key = s.name.trim().toLowerCase();
+        if (!key || seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      })
+      .sort((a, b) => a.name.localeCompare(b.name));
+    return ok({ students: uniqueOptions });
+  }
+
   if (!can(session.role, "student:read-any") && !can(session.role, "department:manage") && !can(session.role, "users:manage")) {
     return forbidden();
   }
-  const collegeId = session.college === ALL_COLLEGES ? query.get("college") || null : session.college;
 
   // GET /students
   if (method === "GET" && segs.length === 1) {
