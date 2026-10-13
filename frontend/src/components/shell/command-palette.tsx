@@ -70,7 +70,7 @@ export function CommandPalette({ role, onClose }: { role: Role; onClose: () => v
         tabIndex={-1}
       />
       <div className="relative w-full max-w-xl overflow-hidden rounded-2xl border border-line bg-surface shadow-2xl animate-in zoom-in-95 duration-150">
-        <div className="flex items-center gap-3 border-b border-line px-4">
+        <div className="flex items-center gap-3.5 border-b border-line px-4 bg-surface">
           <Search className="size-5 text-brand shrink-0" aria-hidden />
           <input
             ref={inputRef}
@@ -87,20 +87,47 @@ export function CommandPalette({ role, onClose }: { role: Role; onClose: () => v
               if (e.key === "Enter" && results[active]) go(results[active].href);
             }}
             placeholder="Search modules, courses, tools…"
-            className="h-14 flex-1 bg-transparent text-base text-ink outline-none placeholder:text-ink-3"
+            className="h-14 flex-1 border-0 border-none bg-transparent px-0 text-base text-ink shadow-none outline-none ring-0 focus:border-0 focus:border-none focus:shadow-none focus:outline-none focus:ring-0 focus-visible:border-none focus-visible:outline-none focus-visible:ring-0 placeholder:text-ink-3"
+            style={{ outline: "none", boxShadow: "none", border: "none" }}
             aria-label="Search query"
             aria-controls="search-results"
           />
+          {q ? (
+            <button
+              type="button"
+              onClick={() => {
+                setQ("");
+                inputRef.current?.focus();
+              }}
+              className="rounded p-1 text-ink-3 hover:text-ink text-xs transition-colors"
+              aria-label="Clear query"
+            >
+              Clear
+            </button>
+          ) : null}
           <kbd className="rounded-md border border-line bg-surface-2 px-2 py-0.5 text-xs font-medium text-ink-3 shadow-xs">
             Esc
           </kbd>
         </div>
         <ul id="search-results" role="listbox" className="max-h-80 overflow-y-auto p-2 divide-y divide-line/20">
           {debounced.length < 2 ? (
-            <li className="px-3 py-8 text-center text-sm text-ink-3">
-              Type at least 2 characters — try <span className="font-semibold text-ink-2">“resume”</span>,{" "}
-              <span className="font-semibold text-ink-2">“interview”</span> or{" "}
-              <span className="font-semibold text-ink-2">“DBMS”</span>.
+            <li className="px-4 py-8 text-center text-sm text-ink-3">
+              Type at least 2 characters or try:
+              <div className="mt-2.5 flex flex-wrap items-center justify-center gap-1.5">
+                {["resume", "interview", "DBMS", "admissions", "sports"].map((tag) => (
+                  <button
+                    key={tag}
+                    type="button"
+                    onClick={() => {
+                      setQ(tag);
+                      inputRef.current?.focus();
+                    }}
+                    className="rounded-lg border border-line bg-surface-2 px-2.5 py-1 text-xs font-medium text-ink hover:border-brand/40 hover:bg-brand-soft hover:text-brand transition-colors cursor-pointer"
+                  >
+                    {tag}
+                  </button>
+                ))}
+              </div>
             </li>
           ) : isFetching && results.length === 0 ? (
             <li className="px-3 py-8 text-center text-sm text-ink-3">Searching…</li>
