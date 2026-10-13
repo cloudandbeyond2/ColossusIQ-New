@@ -11,12 +11,14 @@ import { getStore } from "@/lib/data";
 import { RESOURCES } from "@/config/resources";
 import { ALL_COLLEGES } from "@/config/tenancy";
 import { calendarStore, type CalendarRow } from "./calendar-store";
+import { noticeStore } from "./notice-store";
 import { getStudentAcademicProfile } from "./student-profile";
 
 /*
  * Academic Calendar. Entries are stored with their real category (Assessment, Holiday, Exam cell, Event, Milestone),
  * audience (everyone, students, faculty, staff) and department. Each person sees what is meant for them, and an entry
- * that asks to notify shows up in the bell of exactly those people (see calendarNotifications). Published Campus Events
+ * that asks to notify is posted to the Notice Board for exactly those people (and so reaches their bell), and anything
+ * of theirs starting today or tomorrow is a reminder in the bell (calendarNotifications). Published Campus Events
  * appear alongside, read-only, until they are imported with "Sync Events".
  */
 
@@ -30,7 +32,6 @@ const MANAGERS = new Set<Role>(["institution", "admin", "hod", "faculty"]);
 export const canManageCalendar = (role: Role) => MANAGERS.has(role);
 
 const ALL_DEPARTMENTS = "All Departments";
-const RECENT_DAYS = 14;
 const DAY = 86_400_000;
 
 /** Today in India (the platform's timezone), YYYY-MM-DD. */
@@ -227,6 +228,35 @@ function describeReach(r: Pick<CalendarRow, "audience" | "department">): string 
   return r.department && r.department !== ALL_DEPARTMENTS ? `${who} in ${r.department}` : who;
 }
 
+/** Posts the entry to the Notice Board for the audience (and department) it is meant for. */
+async function announce(session: SessionPayload, row: CalendarRow, changed: boolean): Promise<void> {
+  const audience = row.audience === "All" ? "everyone" : row.audience === "Students" ? "students" : "staff";
+  const category = row.tag === "Holiday" ? "Holiday" : row.tag === "Event" ? "Event" : row.tag === "Assessment" || row.tag === "Exam cell" ? "Examination" : "Academic";
+  const narrowed = row.department !== ALL_DEPARTMENTS && audience !== "staff";
+  const details = [`${row.tag} · ${span(row)} · ${row.time}`, row.venue ? `Venue: ${row.venue}` : "", row.description].filter(Boolean).join("\n");
+  try {
+    await noticeStore().create({
+      title: `${changed ? "Updated: " : ""}${row.title}`.slice(0, 140),
+      body: details,
+      category,
+      priority: row.tag === "Assessment" || row.tag === "Exam cell" ? "Important" : "Normal",
+      audience,
+      department: narrowed ? row.department : "",
+      year: 0,
+      pinned: false,
+      requiresAck: false,
+      linkUrl: "",
+      expiresOn: row.endDate ?? row.date,
+      college: session.college === ALL_COLLEGES ? null : session.college,
+      authorSub: session.sub,
+      authorName: session.name,
+      authorRole: session.role,
+    });
+  } catch (e) {
+    console.error("calendar: could not post the notice", e);
+  }
+}
+
 export async function createCalendarItem(session: SessionPayload, input: CreateCalendarItemInput): Promise<AcademicCalendarItem> {
   const endDate = input.endDate?.trim() || undefined;
   checkDates(input.date, endDate);
@@ -246,6 +276,7 @@ export async function createCalendarItem(session: SessionPayload, input: CreateC
     createdBySub: session.sub,
     createdByName: session.name,
   });
+  if (row.notify) await announce(session, row, false);
   await audit(session, `Added calendar entry "${row.title}" (${row.tag}) for ${describeReach(row)}${row.notify ? ", notified" : ""}`, row.id);
   return toItem(row);
 }
@@ -276,6 +307,7 @@ export async function updateCalendarItem(
     notify: patch.notify ?? current.notify,
   });
   if (!row) return undefined;
+  if (patch.notify) await announce(session, row, true);
   await audit(session, `Updated calendar entry "${row.title}" (${row.tag}) for ${describeReach(row)}`, row.id);
   return toItem(row);
 }
@@ -321,23 +353,14 @@ export async function syncCampusEvents(session: SessionPayload): Promise<{ synce
 
 /* ── notifications ───────────────────────────────────────────────────────────────────────────── */
 
-function ago(iso: string): string {
-  const m = Math.max(0, Math.round((Date.now() - Date.parse(iso)) / 60_000));
-  if (m < 1) return "just now";
-  if (m < 60) return `${m}m ago`;
-  const h = Math.round(m / 60);
-  return h < 24 ? `${h}h ago` : `${Math.round(h / 24)}d ago`;
-}
-
 function span(r: CalendarRow): string {
   const fmt = (d: string) => new Date(`${d}T00:00:00Z`).toLocaleDateString("en-IN", { day: "numeric", month: "short", timeZone: "UTC" });
   return r.endDate && r.endDate !== r.date ? `${fmt(r.date)} – ${fmt(r.endDate)}` : fmt(r.date);
 }
 
 /**
- * Bell notifications from the calendar: an entry added or changed in the last two weeks that asked to notify and is
- * meant for this person, plus a reminder for anything of theirs that starts today or tomorrow. The person who made
- * the entry is not notified about it.
+ * Bell reminders for anything meant for this person that starts today or tomorrow. New and changed entries reach
+ * people through the Notice Board (see announce), and the Notice Board feeds the bell.
  */
 export async function calendarNotifications(session: SessionPayload): Promise<Notification[]> {
   try {
@@ -350,18 +373,6 @@ export async function calendarNotifications(session: SessionPayload): Promise<No
     for (const r of rows) {
       const where = r.venue ? ` · ${r.venue}` : "";
       const base = `${span(r)} · ${r.time}${where}`;
-      if (r.notify && r.createdBySub !== session.sub && Date.now() - Date.parse(r.updatedAt) < RECENT_DAYS * DAY) {
-        const changed = Date.parse(r.updatedAt) - Date.parse(r.createdAt) > 60_000;
-        out.push({
-          id: `cal-${r.id}-${Date.parse(r.updatedAt)}`,
-          title: `${changed ? "Updated" : "New"} ${r.tag.toLowerCase()}: ${r.title}`,
-          body: r.description ? `${base}. ${r.description.length > 90 ? `${r.description.slice(0, 87)}…` : r.description}` : base,
-          when: ago(r.updatedAt),
-          unread: true,
-          tone: tagToTone(r.tag),
-          at: Date.parse(r.updatedAt),
-        });
-      }
       if (r.date === today || r.date === tomorrow) {
         out.push({
           id: `cal-soon-${r.id}-${r.date}`,

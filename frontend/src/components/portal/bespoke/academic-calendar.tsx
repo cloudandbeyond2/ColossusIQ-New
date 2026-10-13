@@ -1162,7 +1162,7 @@ export function AcademicCalendarModule({ role }: { role: Role }) {
                       {editingItem ? "Notify again about this change" : "Notify the selected people"}
                     </span>
                     <span className="text-ink-3">
-                      {formNotify ? `A notification goes to ${reachText}.` : "Saved on the calendar without sending a notification."}
+                      {formNotify ? `Posted to the Notice Board and notified: ${reachText}.` : "Saved on the calendar only; nothing is posted to the Notice Board."}
                     </span>
                   </span>
                 </label>
