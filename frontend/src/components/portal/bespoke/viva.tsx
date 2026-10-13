@@ -169,7 +169,7 @@ function Setup({ o, seed }: { o: VivaOverview; seed: VivaSession["setup"] | null
   const projectsList = o.projects && o.projects.length > 0
     ? o.projects
     : o.project?.name
-    ? [{ id: "p-0", title: o.project.name, domain: "AI/ML", stage: "Active", brief: `${o.project.name} capstone project.` }]
+    ? [{ id: "p-0", title: o.project.name, domain: "AI/ML", stage: "Active", brief: "" }]
     : [];
 
   const [customTopic, setCustomTopic] = useState("");
@@ -180,8 +180,8 @@ function Setup({ o, seed }: { o: VivaOverview; seed: VivaSession["setup"] | null
     level: (seed?.level ?? "Standard") as VivaLevel,
     questions: seed?.questions ?? 5,
     subject: seed?.subject ?? o.subjects[0]?.code ?? "",
-    topic: seed?.topic ?? (initialProject ? initialProject.title : ""),
-    brief: seed?.brief ?? (initialProject?.brief ?? ""),
+    topic: seed?.topic ?? (seed?.mode === "Project" && initialProject ? initialProject.title : ""),
+    brief: seed?.brief ?? "",
   });
   const set = <K extends keyof typeof f>(k: K, v: (typeof f)[K]) => setF((x) => ({ ...x, [k]: v }));
   const pickMode = (m: VivaMode) => {
@@ -191,10 +191,10 @@ function Setup({ o, seed }: { o: VivaOverview; seed: VivaSession["setup"] | null
         ...x,
         mode: m,
         topic: proj ? proj.title : x.topic,
-        brief: proj?.brief || x.brief,
+        brief: proj?.brief || "",
       }));
     } else {
-      setF((x) => ({ ...x, mode: m, topic: x.mode === "Project" ? "" : x.topic }));
+      setF((x) => ({ ...x, mode: m, topic: x.mode === "Project" ? "" : x.topic, brief: "" }));
     }
   };
 
@@ -269,7 +269,7 @@ function Setup({ o, seed }: { o: VivaOverview; seed: VivaSession["setup"] | null
                     setF((x) => ({
                       ...x,
                       topic: val,
-                      brief: matched?.brief || x.brief,
+                      brief: matched?.brief || "",
                     }));
                   }
                 }}
@@ -322,7 +322,14 @@ function Setup({ o, seed }: { o: VivaOverview; seed: VivaSession["setup"] | null
 
           {f.mode === "Project" ? (
             <Field label="What does it do? (optional)" htmlFor="viva-brief" error={fields.brief} hint="A few sentences help the examiner ask about your real project, not a generic one.">
-              <textarea id="viva-brief" className={cn(inputClass, "min-h-24")} value={f.brief} maxLength={600} onChange={(e) => set("brief", e.target.value)} />
+              <textarea
+                id="viva-brief"
+                className={cn(inputClass, "min-h-24")}
+                value={f.brief}
+                maxLength={600}
+                onChange={(e) => set("brief", e.target.value)}
+                placeholder="Describe what your project does, key technologies, and its core purpose..."
+              />
             </Field>
           ) : null}
 

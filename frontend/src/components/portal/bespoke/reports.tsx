@@ -428,7 +428,7 @@ export function ReportsModule({ role }: { role?: Role }) {
   const [toast, setToast] = useState<string | null>(null);
 
   // Generator form inputs
-  const [genTitle, setGenTitle] = useState("Semester Academic Performance Summary");
+  const [genTitle, setGenTitle] = useState("");
   const [genCategory, setGenCategory] = useState<ReportCategory>("Academic");
   const [genScope, setGenScope] = useState("Institution");
   const [genPeriod, setGenPeriod] = useState("Odd sem 2026");
@@ -449,6 +449,7 @@ export function ReportsModule({ role }: { role?: Role }) {
       qc.invalidateQueries({ queryKey: ["reports"] });
       setIsGenerating(false);
       setIsGenerateOpen(false);
+      setGenTitle("");
       setPage(1);
       setToast(`Report "${newRep.report}" compiled and permanently saved to institutional archive!`);
       setTimeout(() => setToast(null), 4000);
@@ -581,9 +582,15 @@ export function ReportsModule({ role }: { role?: Role }) {
 
   // Handle generation of new report
   const handleCreateReport = () => {
+    const title = genTitle.trim();
+    if (!title) {
+      setToast("Please enter a report title.");
+      setTimeout(() => setToast(null), 3000);
+      return;
+    }
     setIsGenerating(true);
     createMutation.mutate({
-      report: genTitle,
+      report: title,
       category: genCategory,
       scope: genScope,
       period: genPeriod,

@@ -277,12 +277,12 @@ async function overview(s: SessionPayload, st: StoredViva): Promise<VivaOverview
         title: p.title,
         domain: p.domain,
         stage: p.stage,
-        brief: `${p.domain} project at ${p.stage} stage. Mentor: ${p.mentor}.`,
+        brief: "",
       }));
     } else {
       project = (await generateDynamicStudentDashboard(s)).project.name;
       if (project) {
-        projectsList = [{ id: "dash-proj", title: project, domain: "AI/ML", stage: "Development" }];
+        projectsList = [{ id: "dash-proj", title: project, domain: "AI/ML", stage: "Development", brief: "" }];
       }
     }
   } catch {

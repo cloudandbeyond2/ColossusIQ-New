@@ -360,18 +360,10 @@ export async function researchChat(session: SessionPayload, body: ChatBodyInput)
 /* ───────────────────────────── handlers ─────────────────────────── */
 
 async function overview(session: SessionPayload, st: State): Promise<ResearchOverview> {
-  let field = "";
-  if (session.role === "student") {
-    try {
-      field = (await getStudentAcademicProfile(session)).department;
-    } catch {
-      field = "";
-    }
-  }
   return {
     projects: st.projects,
     activeId: st.activeId,
-    defaults: { field, level: session.role === "student" ? "UG" : "Faculty" },
+    defaults: { field: "", level: session.role === "student" ? "UG" : "Faculty" },
     fieldSuggestions: [...FIELD_SUGGESTIONS],
     aiLive: geminiEnabled(),
   };
