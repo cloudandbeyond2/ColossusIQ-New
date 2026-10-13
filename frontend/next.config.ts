@@ -30,6 +30,29 @@ const nextConfig: NextConfig = {
         headers: [{ key: "Cache-Control", value: "no-store, max-age=0" }],
       },
     ];
+  async redirects() {
+    return [
+      {
+        source: "/institution/courses",
+        destination: "/institution/course-management",
+        permanent: false,
+      },
+      {
+        source: "/faculty/courses",
+        destination: "/faculty/course-management",
+        permanent: false,
+      },
+      {
+        source: "/hod/courses",
+        destination: "/hod/course-management",
+        permanent: false,
+      },
+      {
+        source: "/admin/courses",
+        destination: "/admin/course-management",
+        permanent: false,
+      },
+    ];
   },
 };
 

@@ -16,7 +16,7 @@ const SHORTCUTS = [
   { title: "Admissions", href: "/institution/admissions", icon: GraduationCap, desc: "Student application pipeline & enrollment" },
   { title: "Staff Directory", href: "/institution/staff", icon: Users, desc: "Teaching & administrative faculty records" },
   { title: "Departments", href: "/institution/departments", icon: Building2, desc: "Academic departments & performance" },
-  { title: "Courses & Curriculum", href: "/institution/courses", icon: BookOpen, desc: "Active & draft courses across semesters" },
+  { title: "Courses & Curriculum", href: "/institution/course-management", icon: BookOpen, desc: "Active & draft courses across semesters" },
   { title: "Campus Events", href: "/institution/events", icon: Calendar, desc: "Seminars, workshops & campus calendar" },
   { title: "User Accounts", href: "/institution/users", icon: UserCheck, desc: "Role assignments & security credentials" },
   { title: "RAG Knowledge Base", href: "/institution/knowledge-base", icon: Sparkles, desc: "Institutional guidelines & AI syllabus grounding" },

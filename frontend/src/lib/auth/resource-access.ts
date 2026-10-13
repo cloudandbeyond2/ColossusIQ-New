@@ -12,6 +12,9 @@ export async function resolveCrud(
   needManage = false,
 ): Promise<{ role: Role; mod: ModuleDef; resource: ResourceDef; canManage: boolean; ctx: CollegeContext }> {
   if (!isRole(roleParam)) notFound();
+  if (moduleParam === "courses" && ["institution", "faculty", "hod", "admin"].includes(roleParam)) {
+    redirect(`/${roleParam}/course-management`);
+  }
   const session = await requireRole(roleParam);
   const ctx = await collegeContext(session);
   const mod = findModule(moduleParam);
