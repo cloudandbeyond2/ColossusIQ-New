@@ -354,58 +354,33 @@ export function AicteComplianceModule({ role }: { role: Role }) {
       </div>
 
       {/* Interactive Tabs */}
-      <div className="flex flex-wrap items-center gap-1 border-b border-border/60 pb-1">
-        <button
-          onClick={() => setActiveTab("scorecard")}
-          className={cn(
-            "flex items-center gap-2 rounded-md px-3.5 py-2 text-sm font-medium transition-colors",
-            activeTab === "scorecard"
-              ? "bg-primary-500/10 text-primary-700 dark:text-primary-300"
-              : "text-muted-foreground hover:bg-muted hover:text-foreground"
-          )}
-        >
-          <Fi name="shield" className="h-4 w-4" />
-          <span>Norms Scorecard & Analysis</span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab("departments")}
-          className={cn(
-            "flex items-center gap-2 rounded-md px-3.5 py-2 text-sm font-medium transition-colors",
-            activeTab === "departments"
-              ? "bg-primary-500/10 text-primary-700 dark:text-primary-300"
-              : "text-muted-foreground hover:bg-muted hover:text-foreground"
-          )}
-        >
-          <Fi name="grid" className="h-4 w-4" />
-          <span>Department Breakdown ({data.departments.length})</span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab("committees")}
-          className={cn(
-            "flex items-center gap-2 rounded-md px-3.5 py-2 text-sm font-medium transition-colors",
-            activeTab === "committees"
-              ? "bg-primary-500/10 text-primary-700 dark:text-primary-300"
-              : "text-muted-foreground hover:bg-muted hover:text-foreground"
-          )}
-        >
-          <Fi name="users" className="h-4 w-4" />
-          <span>Statutory Committees & Disclosures</span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab("actions")}
-          className={cn(
-            "flex items-center gap-2 rounded-md px-3.5 py-2 text-sm font-medium transition-colors",
-            activeTab === "actions"
-              ? "bg-primary-500/10 text-primary-700 dark:text-primary-300"
-              : "text-muted-foreground hover:bg-muted hover:text-foreground"
-          )}
-        >
-          <Fi name="check-square" className="h-4 w-4" />
-          <span>Compliance Action Plan ({data.actions.length})</span>
-        </button>
+      <div className="flex flex-wrap items-center gap-1 border-b border-line">
+        {[
+          { key: "scorecard", label: "Norms Scorecard & Analysis", icon: "shield" },
+          { key: "departments", label: `Department Breakdown (${data.departments.length})`, icon: "grid" },
+          { key: "committees", label: "Statutory Committees & Disclosures", icon: "users" },
+          { key: "actions", label: `Compliance Action Plan (${data.actions.length})`, icon: "check-square" },
+        ].map((tab) => {
+          const isActive = activeTab === tab.key;
+          return (
+            <button
+              key={tab.key}
+              type="button"
+              role="tab"
+              aria-selected={isActive}
+              onClick={() => setActiveTab(tab.key as TabKey)}
+              className={cn(
+                "-mb-px flex items-center gap-2 border-b-2 px-4 py-3 text-sm font-medium transition-all cursor-pointer rounded-t-lg",
+                isActive
+                  ? "border-brand bg-brand-soft text-brand font-semibold shadow-2xs"
+                  : "border-transparent text-ink-3 hover:border-line hover:text-ink hover:bg-surface-2/60"
+              )}
+            >
+              <Fi name={tab.icon} className={cn("size-4 transition-colors", isActive ? "text-brand" : "text-ink-3")} />
+              <span>{tab.label}</span>
+            </button>
+          );
+        })}
       </div>
 
       {/* TAB 1: NORM SCORECARD & ANALYSIS */}
