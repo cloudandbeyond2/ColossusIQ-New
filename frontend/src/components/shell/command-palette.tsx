@@ -12,14 +12,29 @@ import { cleanText } from "@/lib/security/sanitize";
 import { safeNextPath } from "@/lib/security/redirect";
 import { cn } from "@/lib/utils";
 
+import { createPortal } from "react-dom";
+
 export function CommandPalette({ role, onClose }: { role: Role; onClose: () => void }) {
   const router = useRouter();
   const [q, setQ] = useState("");
   const [debounced, setDebounced] = useState("");
   const [active, setActive] = useState(0);
+  const [mounted, setMounted] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => inputRef.current?.focus(), []);
+  useEffect(() => {
+    setMounted(true);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prevOverflow;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (mounted) inputRef.current?.focus();
+  }, [mounted]);
+
   useEffect(() => {
     const id = setTimeout(() => setDebounced(cleanText(q, 80)), 200);
     return () => clearTimeout(id);
@@ -39,12 +54,24 @@ export function CommandPalette({ role, onClose }: { role: Role; onClose: () => v
     router.push(safe);
   };
 
-  return (
-    <div className="fixed inset-0 z-[60] flex items-start justify-center bg-black/40 px-4 pt-[12vh]" role="dialog" aria-modal="true" aria-label="Search">
-      <button className="absolute inset-0 cursor-default" aria-label="Close search" onClick={onClose} tabIndex={-1} />
-      <div className="relative w-full max-w-xl overflow-hidden rounded-2xl border border-line bg-surface shadow-card">
+  if (!mounted) return null;
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[100] flex items-start justify-center bg-black/60 p-4 pt-[12vh] backdrop-blur-md animate-in fade-in duration-150"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Search"
+    >
+      <button
+        className="absolute inset-0 cursor-default bg-transparent"
+        aria-label="Close search"
+        onClick={onClose}
+        tabIndex={-1}
+      />
+      <div className="relative w-full max-w-xl overflow-hidden rounded-2xl border border-line bg-surface shadow-2xl animate-in zoom-in-95 duration-150">
         <div className="flex items-center gap-3 border-b border-line px-4">
-          <Search className="size-5 text-ink-3" aria-hidden />
+          <Search className="size-5 text-brand shrink-0" aria-hidden />
           <input
             ref={inputRef}
             value={q}
@@ -64,31 +91,57 @@ export function CommandPalette({ role, onClose }: { role: Role; onClose: () => v
             aria-label="Search query"
             aria-controls="search-results"
           />
-          <kbd className="rounded border border-line px-1.5 text-[10px] text-ink-3">Esc</kbd>
+          <kbd className="rounded-md border border-line bg-surface-2 px-2 py-0.5 text-xs font-medium text-ink-3 shadow-xs">
+            Esc
+          </kbd>
         </div>
-        <ul id="search-results" role="listbox" className="max-h-80 overflow-y-auto p-2">
+        <ul id="search-results" role="listbox" className="max-h-80 overflow-y-auto p-2 divide-y divide-line/20">
           {debounced.length < 2 ? (
-            <li className="px-3 py-6 text-center text-sm text-ink-3">Type at least 2 characters — try “resume”, “interview” or “DBMS”.</li>
+            <li className="px-3 py-8 text-center text-sm text-ink-3">
+              Type at least 2 characters — try <span className="font-semibold text-ink-2">“resume”</span>,{" "}
+              <span className="font-semibold text-ink-2">“interview”</span> or{" "}
+              <span className="font-semibold text-ink-2">“DBMS”</span>.
+            </li>
           ) : isFetching && results.length === 0 ? (
-            <li className="px-3 py-6 text-center text-sm text-ink-3">Searching…</li>
+            <li className="px-3 py-8 text-center text-sm text-ink-3">Searching…</li>
           ) : results.length === 0 ? (
-            <li className="px-3 py-6 text-center text-sm text-ink-3">No results.</li>
+            <li className="px-3 py-8 text-center text-sm text-ink-3">No results found.</li>
           ) : (
             results.map((r, i) => (
-              <li key={`${r.href}-${i}`} role="option" aria-selected={i === active}>
+              <li key={`${r.href}-${i}`} role="option" aria-selected={i === active} className="pt-1 first:pt-0">
                 <button
                   onMouseEnter={() => setActive(i)}
                   onClick={() => go(r.href)}
-                  className={cn("flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-left text-sm", i === active ? "bg-brand-soft text-brand" : "text-ink")}
+                  className={cn(
+                    "flex w-full items-center justify-between rounded-xl px-3.5 py-3 text-left text-sm transition-colors",
+                    i === active ? "bg-brand-soft text-brand font-medium" : "text-ink hover:bg-surface-2",
+                  )}
                 >
                   <span className="font-medium">{r.title}</span>
-                  <span className="text-xs text-ink-3">{r.kind}</span>
+                  <span className="rounded-md border border-line px-2 py-0.5 text-xs text-ink-3 bg-surface-2">
+                    {r.kind}
+                  </span>
                 </button>
               </li>
             ))
           )}
         </ul>
+        <div className="flex items-center justify-between border-t border-line/60 bg-surface-2/50 px-4 py-2.5 text-xs text-ink-3">
+          <div className="flex items-center gap-3">
+            <span>
+              <kbd className="rounded border border-line bg-surface px-1.5 py-0.5 text-[10px] font-medium">↑</kbd>{" "}
+              <kbd className="rounded border border-line bg-surface px-1.5 py-0.5 text-[10px] font-medium">↓</kbd> to navigate
+            </span>
+            <span>
+              <kbd className="rounded border border-line bg-surface px-1.5 py-0.5 text-[10px] font-medium">↵</kbd> to select
+            </span>
+          </div>
+          <span>
+            <kbd className="rounded border border-line bg-surface px-1.5 py-0.5 text-[10px] font-medium">Esc</kbd> to close
+          </span>
+        </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
