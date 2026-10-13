@@ -1,5 +1,3 @@
-const { signSession } = require("./test-sign.js");
-
 async function main() {
   const secret = process.env.SESSION_SECRET || "93cdc0093e5c3ff2636adfae6fc7ba82e51c7c2731250ed201ec930a4821ef9b";
   const { signSession } = await import("../src/lib/auth/session");
