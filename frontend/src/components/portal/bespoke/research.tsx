@@ -137,7 +137,7 @@ function NewProject({ data, onClose, onDone }: { data: ResearchOverview; onClose
 }
 
 function ProjectForm({ data, onDone, onCancel }: { data: ResearchOverview; onDone: (o: ResearchOverview) => void; onCancel?: () => void }) {
-  const [f, setF] = useState({ title: "", field: data.defaults.field, level: data.defaults.level as string, stage: "Idea" as string, goal: "" });
+  const [f, setF] = useState({ title: "", field: "", level: data.defaults.level as string, stage: "Idea" as string, goal: "" });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [general, setGeneral] = useState<string | null>(null);
   const create = useMutation({

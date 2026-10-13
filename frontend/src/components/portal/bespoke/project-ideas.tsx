@@ -50,9 +50,9 @@ export function ProjectIdeasModule() {
   const qc = useQueryClient();
   const [department, setDepartment] = useState("CSE");
   const [category, setCategory] = useState("AI/ML");
-  const [skills, setSkills] = useState("Python, React, PyTorch, OpenCV");
-  const [budget, setBudget] = useState("5000");
-  const [teamSize, setTeamSize] = useState("3");
+  const [skills, setSkills] = useState("");
+  const [budget, setBudget] = useState("");
+  const [teamSize, setTeamSize] = useState("");
   const [concepts, setConcepts] = useState<GeneratedConcept[]>([]);
   const [adoptedIds, setAdoptedIds] = useState<Set<string>>(new Set());
   const [toast, setToast] = useState<{ message: string; tone: "success" | "error" } | null>(null);
@@ -68,6 +68,7 @@ export function ProjectIdeasModule() {
       // Generate dynamically tailored concepts based on selected category & department
       await new Promise((r) => setTimeout(r, 700));
 
+      const numBudget = Number(budget) || 5000;
       const generated: GeneratedConcept[] = [
         {
           id: `idea-1-${Date.now()}`,
@@ -75,10 +76,10 @@ export function ProjectIdeasModule() {
             category.includes("Agri") || category.includes("Vision")
               ? "Autonomous Drone-Based Crop Health Scanner"
               : category.includes("IoT")
-              ? "Edge-AI Smart Microgrid & Energy Forecasting Node"
-              : category.includes("Health")
-              ? "Real-Time Tele-Diagnostic ECG Anomaly Detection Suite"
-              : "Smart Campus Real-Time Space & Energy Optimizer",
+                ? "Edge-AI Smart Microgrid & Energy Forecasting Node"
+                : category.includes("Health")
+                  ? "Real-Time Tele-Diagnostic ECG Anomaly Detection Suite"
+                  : "Smart Campus Real-Time Space & Energy Optimizer",
           category,
           problem:
             "Manual diagnostics and monitoring cause prolonged delays, high operational expenses, and low diagnostic yield.",
@@ -86,7 +87,7 @@ export function ProjectIdeasModule() {
             "On-device lightweight neural network inference with localized telemetry and automated anomaly alerts.",
           techStack: ["Python", "YOLOv8", "FastAPI", "React", "PostgreSQL"],
           feasibility: 92,
-          budget: `₹${budget}`,
+          budget: budget ? `₹${budget}` : "₹5,000",
           duration: "12 Weeks (Capstone)",
         },
         {
@@ -95,8 +96,8 @@ export function ProjectIdeasModule() {
             category.includes("Cyber")
               ? "Zero-Trust Behavioral Identity Verification Engine"
               : category.includes("AI")
-              ? "Multimodal Vernacular Lecture Summarizer & Note Generator"
-              : "Decentralized Verifiable Credential & Skill Passport",
+                ? "Multimodal Vernacular Lecture Summarizer & Note Generator"
+                : "Decentralized Verifiable Credential & Skill Passport",
           category,
           problem:
             "Language barriers and static assessment materials limit engagement and technical comprehension.",
@@ -104,7 +105,7 @@ export function ProjectIdeasModule() {
             "Cross-lingual audio transcription combined with contextual retrieval-augmented question generation.",
           techStack: ["Whisper AI", "Next.js", "FastAPI", "LangChain", "Vector DB"],
           feasibility: 88,
-          budget: `₹${Math.round(Number(budget) * 0.8)}`,
+          budget: `₹${Math.round(numBudget * 0.8)}`,
           duration: "8 Weeks (Semester Project)",
         },
         {
@@ -120,7 +121,7 @@ export function ProjectIdeasModule() {
             "FFT vibration harmonics analysis on low-power ESP32 edge microcontroller with cloud dashboard alerting.",
           techStack: ["Embedded C", "ESP32", "MQTT", "Grafana", "Node.js"],
           feasibility: 95,
-          budget: `₹${Math.round(Number(budget) * 1.2)}`,
+          budget: `₹${Math.round(numBudget * 1.2)}`,
           duration: "10 Weeks (Major Project)",
         },
       ];
@@ -235,6 +236,7 @@ export function ProjectIdeasModule() {
                     type="number"
                     value={budget}
                     onChange={(e) => setBudget(e.target.value)}
+                    placeholder="e.g. 5000"
                     className="w-full rounded-xl border border-line bg-surface p-2.5 text-sm text-ink focus:border-teal focus:outline-none"
                   />
                 </div>
@@ -246,6 +248,7 @@ export function ProjectIdeasModule() {
                     max={6}
                     value={teamSize}
                     onChange={(e) => setTeamSize(e.target.value)}
+                    placeholder="e.g. 3"
                     className="w-full rounded-xl border border-line bg-surface p-2.5 text-sm text-ink focus:border-teal focus:outline-none"
                   />
                 </div>

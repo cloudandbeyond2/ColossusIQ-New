@@ -1146,7 +1146,7 @@ const DATA: Record<string, (collegeScope: string, live: ScopeData) => ModuleData
               `${c.title} Practical Lab`,
               `Interactive practical problems, lab assignments and exercises for ${c.code}`,
               c.department.name,
-              "Active (PostgreSQL)",
+              "Active",
               tone,
             ]);
           }
@@ -1176,7 +1176,7 @@ const DATA: Record<string, (collegeScope: string, live: ScopeData) => ModuleData
                 spec.lab,
                 spec.desc,
                 name,
-                "Active (PostgreSQL)",
+                "Active",
                 tone,
               ]);
             }
@@ -1374,11 +1374,11 @@ const CHAT: Record<string, Omit<ChatData, "template">> = {
 
 const GEN: Record<string, Omit<GeneratorData, "template">> = {
   "document-ai": { fields: [{ name: "task", label: "What should AI do?", type: "select", options: ["Summarise", "Create flashcards", "Generate questions", "Revision notes", "Extract key terms"] }, { name: "text", label: "Paste text from your document", type: "textarea", placeholder: "Paste notes or a section of a chapter…" }], cta: "Process document" },
-  "job-prep": { fields: [{ name: "role", label: "Target role", type: "select", options: ["Software Engineer", "Data Analyst", "Data Scientist", "Cloud Engineer", "Product Manager", "Core Engineering (GET)"] }, { name: "company", label: "Company type", type: "select", options: ["Product company", "IT services", "Startup", "PSU / Government", "Core engineering"] }, { name: "weeks", label: "Weeks available", type: "number", defaultValue: "8" }], cta: "Build my preparation plan" },
-  "project-ideas": { fields: [{ name: "department", label: "Department", type: "select", options: ["CSE", "IT", "ECE", "EEE", "Mechanical", "Civil", "AI & DS", "Management"] }, { name: "category", label: "Category", type: "select", options: ["AI/ML", "IoT", "Embedded Systems", "SaaS", "Cybersecurity", "FinTech", "HealthTech", "EdTech", "AgriTech", "GovTech", "ClimateTech", "Robotics", "EV", "Blockchain", "Industry 4.0"] }, { name: "skills", label: "Your skills", type: "text", placeholder: "Python, React, Arduino…" }, { name: "budget", label: "Budget (₹)", type: "number", defaultValue: "5000" }, { name: "team", label: "Team size", type: "number", defaultValue: "3" }], cta: "Generate project ideas" },
-  "event-generator": { fields: [{ name: "brief", label: "Describe the event", type: "textarea", defaultValue: "Create a one-day technology event for 500 students." }, { name: "budget", label: "Budget (₹)", type: "number", defaultValue: "150000" }], cta: "Generate event plan" },
-  copilot: { fields: [{ name: "tool", label: "Tool", type: "select", options: ["Lesson plan", "Lecture notes", "PPT outline", "Assignment", "Rubric", "Quiz", "Lab manual", "Remedial plan"] }, { name: "topic", label: "Topic", type: "text", defaultValue: "Database normalization" }, { name: "duration", label: "Duration (minutes)", type: "number", defaultValue: "45" }, { name: "level", label: "Level", type: "select", options: ["UG Year 1", "UG Year 2", "UG Year 3", "UG Year 4", "PG"] }], cta: "Generate" },
-  "question-generator": { fields: [{ name: "course", label: "Course", type: "text", defaultValue: "CS3492 Database Management Systems" }, { name: "units", label: "Units", type: "select", options: ["Units 1–2", "Units 3–4", "Units 1–5"] }, { name: "marks", label: "Total marks", type: "number", defaultValue: "50" }, { name: "pattern", label: "Pattern", type: "select", options: ["Part A (2 marks) + Part B (13 marks)", "MCQ only", "Descriptive only"] }], cta: "Generate question paper" },
+  "job-prep": { fields: [{ name: "role", label: "Target role", type: "select", options: ["Software Engineer", "Data Analyst", "Data Scientist", "Cloud Engineer", "Product Manager", "Core Engineering (GET)"] }, { name: "company", label: "Company type", type: "select", options: ["Product company", "IT services", "Startup", "PSU / Government", "Core engineering"] }, { name: "weeks", label: "Weeks available", type: "number", placeholder: "e.g. 8" }], cta: "Build my preparation plan" },
+  "project-ideas": { fields: [{ name: "department", label: "Department", type: "select", options: ["CSE", "IT", "ECE", "EEE", "Mechanical", "Civil", "AI & DS", "Management"] }, { name: "category", label: "Category", type: "select", options: ["AI/ML", "IoT", "Embedded Systems", "SaaS", "Cybersecurity", "FinTech", "HealthTech", "EdTech", "AgriTech", "GovTech", "ClimateTech", "Robotics", "EV", "Blockchain", "Industry 4.0"] }, { name: "skills", label: "Your skills", type: "text", placeholder: "Python, React, Arduino…" }, { name: "budget", label: "Budget (₹)", type: "number", placeholder: "e.g. 5000" }, { name: "team", label: "Team size", type: "number", placeholder: "e.g. 3" }], cta: "Generate project ideas" },
+  "event-generator": { fields: [{ name: "brief", label: "Describe the event", type: "textarea", placeholder: "Describe the event…" }, { name: "budget", label: "Budget (₹)", type: "number", placeholder: "e.g. 150000" }], cta: "Generate event plan" },
+  copilot: { fields: [{ name: "tool", label: "Tool", type: "select", options: ["Lesson plan", "Lecture notes", "PPT outline", "Assignment", "Rubric", "Quiz", "Lab manual", "Remedial plan"] }, { name: "topic", label: "Topic", type: "text", placeholder: "e.g. Database normalization" }, { name: "duration", label: "Duration (minutes)", type: "number", placeholder: "e.g. 45" }, { name: "level", label: "Level", type: "select", options: ["UG Year 1", "UG Year 2", "UG Year 3", "UG Year 4", "PG"] }], cta: "Generate" },
+  "question-generator": { fields: [{ name: "course", label: "Course", type: "text", placeholder: "e.g. CS3492 Database Management Systems" }, { name: "units", label: "Units", type: "select", options: ["Units 1–2", "Units 3–4", "Units 1–5"] }, { name: "marks", label: "Total marks", type: "number", placeholder: "e.g. 50" }, { name: "pattern", label: "Pattern", type: "select", options: ["Part A (2 marks) + Part B (13 marks)", "MCQ only", "Descriptive only"] }], cta: "Generate question paper" },
 };
 
 function fallback(mod: ModuleDef): ModuleData {

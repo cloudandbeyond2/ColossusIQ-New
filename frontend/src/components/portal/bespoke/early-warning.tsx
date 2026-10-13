@@ -11,6 +11,7 @@ import {
   type EarlyWarningStudent,
   type Tone,
   UpdateReviewStatusInput,
+  UpdateReviewStatusResponse,
 } from "@/lib/api/schemas";
 import { toCsv } from "@/lib/csv";
 import { TemplateSkeleton } from "@/components/modules/shared";
@@ -52,9 +53,7 @@ export function EarlyWarningModule({ role }: { role: Role }) {
   const [targetStudentName, setTargetStudentName] = useState<string>("");
   const [actionStrategy, setActionStrategy] = useState<string>("1-on-1 Faculty Mentorship");
   const [actionFacultyLead, setActionFacultyLead] = useState<string>("");
-  const [actionTargetDate, setActionTargetDate] = useState<string>(
-    new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10)
-  );
+  const [actionTargetDate, setActionTargetDate] = useState<string>("");
   const [actionNotes, setActionNotes] = useState<string>("");
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -93,7 +92,7 @@ export function EarlyWarningModule({ role }: { role: Role }) {
 
   const updateStatusMut = useMutation({
     mutationFn: (input: UpdateReviewStatusInput) =>
-      apiFetch(`/api/v1/early-warning/reviews/${encodeURIComponent(input.studentId)}`, UpdateReviewStatusInput, {
+      apiFetch(`/api/v1/early-warning/reviews/${encodeURIComponent(input.studentId)}`, UpdateReviewStatusResponse, {
         method: "PATCH",
         body: input,
       }),
@@ -133,6 +132,7 @@ export function EarlyWarningModule({ role }: { role: Role }) {
       setActionStrategy("1-on-1 Faculty Mentorship");
     }
     setActionFacultyLead(q.data?.availableFaculty[0] || "");
+    setActionTargetDate(new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10));
     setActionNotes("");
     setShowActionModal(true);
   };
@@ -222,7 +222,7 @@ export function EarlyWarningModule({ role }: { role: Role }) {
   });
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-12">
       {/* Flash message */}
       {flashMessage && (
         <div className="rounded-xl border border-teal/30 bg-teal-soft/80 p-3.5 text-sm font-medium text-teal backdrop-blur animate-in fade-in slide-in-from-top-2">

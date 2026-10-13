@@ -692,19 +692,122 @@ export function SettingsTemplate({ data, mod }: { data: SettingsData; mod?: Modu
 
 /* ── Gallery ───────────────────────────────────── */
 export function GalleryTemplate({ data }: { data: GalleryData }) {
+  const [selectedTag, setSelectedTag] = useState<string>("All");
+  const [searchQuery, setSearchQuery] = useState<string>("");
+
+  const tags = useMemo(() => {
+    const set = new Set<string>();
+    for (const item of data.items) {
+      if (item.tag) set.add(item.tag);
+    }
+    return ["All", ...Array.from(set)];
+  }, [data.items]);
+
+  const filteredItems = useMemo(() => {
+    const q = searchQuery.toLowerCase().trim();
+    return data.items.filter((it) => {
+      if (selectedTag !== "All" && it.tag !== selectedTag) return false;
+      if (q && !it.title.toLowerCase().includes(q) && !it.description.toLowerCase().includes(q) && !it.tag.toLowerCase().includes(q)) {
+        return false;
+      }
+      return true;
+    });
+  }, [data.items, selectedTag, searchQuery]);
+
   return (
-    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-      {data.items.map((it) => (
-        <Card key={it.title} className="flex flex-col p-5 transition-shadow hover:shadow-lg">
-          <div className="flex items-start justify-between gap-2">
-            <Badge tone={it.tone}>{it.tag}</Badge>
-            <span className="text-xs text-ink-3">{it.meta}</span>
+    <div className="space-y-4">
+      {/* Controls Bar: Department Filter & Search */}
+      {tags.length > 2 && (
+        <div className="flex flex-col gap-3 rounded-2xl border border-line bg-surface p-3 sm:flex-row sm:items-center sm:justify-between shadow-xs">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs font-semibold text-ink-3 pl-1 flex items-center gap-1.5">
+              <Filter className="size-3.5" />
+              Department:
+            </span>
+            <div className="flex flex-wrap gap-1.5">
+              {tags.map((tag) => {
+                const isSelected = selectedTag === tag;
+                const count = tag === "All" ? data.items.length : data.items.filter((x) => x.tag === tag).length;
+                return (
+                  <button
+                    key={tag}
+                    type="button"
+                    onClick={() => setSelectedTag(tag)}
+                    className={cn(
+                      "rounded-lg px-2.5 py-1 text-xs font-medium transition-colors cursor-pointer",
+                      isSelected
+                        ? "bg-brand text-white shadow-xs"
+                        : "bg-surface-2 text-ink-2 hover:bg-surface-3 hover:text-ink"
+                    )}
+                  >
+                    {tag}
+                    <span className={cn("ml-1.5 rounded-full px-1.5 py-0.2 text-[10px]", isSelected ? "bg-white/20 text-white" : "bg-surface text-ink-3")}>
+                      {count}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
-          <h3 className="mt-3 font-sans text-base font-semibold text-ink">{it.title}</h3>
-          <p className="mt-1 flex-1 text-sm text-ink-2">{it.description}</p>
-          {typeof it.progress === "number" ? <Progress value={it.progress} tone={it.tone} className="mt-4" label={`${it.title} progress`} /> : null}
+
+          <div className="relative min-w-[200px] sm:w-60">
+            <input
+              type="text"
+              placeholder="Search labs & practicals..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className={cn(inputClass, "h-8 py-1 pl-8 text-xs")}
+            />
+            <Search className="absolute left-2.5 top-2.5 size-3.5 text-ink-3" />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery("")}
+                className="absolute right-2 top-2 rounded p-0.5 text-ink-3 hover:text-ink"
+              >
+                <X className="size-3" />
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Grid */}
+      {filteredItems.length === 0 ? (
+        <Card className="p-8 text-center border-dashed border-line">
+          <p className="text-sm font-medium text-ink">No labs match this department filter.</p>
+          <p className="mt-1 text-xs text-ink-3">Try choosing "All" or clearing the search query.</p>
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={() => {
+              setSelectedTag("All");
+              setSearchQuery("");
+            }}
+            className="mt-3 text-xs"
+          >
+            Reset Filters
+          </Button>
         </Card>
-      ))}
+      ) : (
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          {filteredItems.map((it) => (
+            <Card key={it.title} className="flex flex-col p-5 transition-all hover:shadow-lg hover:border-brand/30">
+              <div className="flex items-start justify-between gap-2">
+                <Badge tone={it.tone}>{it.tag}</Badge>
+                {it.meta ? (
+                  <span className="text-xs font-semibold text-teal bg-teal-soft/60 px-2 py-0.5 rounded-md border border-teal/20">
+                    {it.meta.replace(/\s*\(PostgreSQL\)/i, "")}
+                  </span>
+                ) : null}
+              </div>
+              <h3 className="mt-3 font-sans text-base font-semibold text-ink">{it.title}</h3>
+              <p className="mt-1 flex-1 text-sm text-ink-2">{it.description}</p>
+              {typeof it.progress === "number" ? <Progress value={it.progress} tone={it.tone} className="mt-4" label={`${it.title} progress`} /> : null}
+            </Card>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

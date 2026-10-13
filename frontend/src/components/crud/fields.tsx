@@ -190,7 +190,15 @@ export function formatDate(iso: string): string {
 }
 
 /** Read-only display of a field value (all text rendered as React text nodes). */
-export function ValueView({ field, value }: { field: FieldDef; value: RecordValue | undefined }) {
+export function ValueView({
+  field,
+  value,
+  inTable = false,
+}: {
+  field: FieldDef;
+  value: RecordValue | undefined;
+  inTable?: boolean;
+}) {
   if (value === null || value === undefined || value === "" || (Array.isArray(value) && value.length === 0)) return <span className="text-ink-3">—</span>;
   if (field.type === "toggle") return value ? <Badge tone="teal">Yes</Badge> : <Badge tone="neutral">No</Badge>;
   if (field.type === "image") {
@@ -210,8 +218,22 @@ export function ValueView({ field, value }: { field: FieldDef; value: RecordValu
     );
   if (field.type === "date" && typeof value === "string") return <span>{formatDate(value)}</span>;
   if (field.column === "badge" || field.name === "status") return <Badge tone={toneForStatus(String(value))}>{String(value)}</Badge>;
-  if (field.type === "textarea") return <span className="whitespace-pre-wrap">{String(value)}</span>;
-  return <span className="break-words">{String(value)}</span>;
+  if (field.type === "textarea") {
+    return inTable ? (
+      <span className="line-clamp-2 break-words leading-relaxed" title={String(value)}>
+        {String(value)}
+      </span>
+    ) : (
+      <span className="whitespace-pre-wrap">{String(value)}</span>
+    );
+  }
+  return inTable ? (
+    <span className="line-clamp-1 break-words" title={String(value)}>
+      {String(value)}
+    </span>
+  ) : (
+    <span className="break-words">{String(value)}</span>
+  );
 }
 
 function FacultyField({

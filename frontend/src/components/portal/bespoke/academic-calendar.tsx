@@ -105,7 +105,7 @@ export function AcademicCalendarModule({ role }: { role: Role }) {
   const [formTitle, setFormTitle] = useState("");
   const [formDate, setFormDate] = useState("");
   const [formEndDate, setFormEndDate] = useState("");
-  const [formTime, setFormTime] = useState("Full day");
+  const [formTime, setFormTime] = useState("");
   const [formTag, setFormTag] = useState<AcademicCalendarItem["tag"]>("Event");
   const [formDept, setFormDept] = useState("All Departments");
   const [formVenue, setFormVenue] = useState("");
@@ -195,7 +195,7 @@ export function AcademicCalendarModule({ role }: { role: Role }) {
     setFormTitle("");
     setFormDate(data?.today ?? "");
     setFormEndDate("");
-    setFormTime("Full day");
+    setFormTime("");
     setFormTag("Event");
     setFormDept("All Departments");
     setFormVenue("");

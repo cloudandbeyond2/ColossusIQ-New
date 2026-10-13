@@ -450,9 +450,9 @@ function CreateSportModal({
   const [teamName, setTeamName] = useState("");
   const [coachName, setCoachName] = useState("");
   const [captainName, setCaptainName] = useState("");
-  const [eventDate, setEventDate] = useState("Zonal meet · Nov 15");
-  const [venue, setVenue] = useState("Campus Sports Complex");
-  const [squadSize, setSquadSize] = useState("15");
+  const [eventDate, setEventDate] = useState("");
+  const [venue, setVenue] = useState("");
+  const [squadSize, setSquadSize] = useState("");
   const [status, setStatus] = useState<CreateSportInput["status"]>("Trials open");
   const [error, setError] = useState<string | null>(null);
 

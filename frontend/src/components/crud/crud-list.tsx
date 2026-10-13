@@ -51,6 +51,7 @@ export function CrudList({
   const [page, setPage] = useState(1);
   const [toDelete, setToDelete] = useState<ResourceRecord | null>(null);
   const [aiOpen, setAiOpen] = useState(false);
+  const [expandedRows, setExpandedRows] = useState<Record<string, boolean>>({});
   const flash = useFlash();
 
   useEffect(() => {
@@ -239,8 +240,15 @@ export function CrudList({
                         College
                       </th>
                     ) : null}
-                    {columns.map((c) => (
-                      <th key={c.name} scope="col" className="whitespace-nowrap px-4 py-3 font-semibold">
+                    {columns.map((c, j) => (
+                      <th
+                        key={c.name}
+                        scope="col"
+                        className={cn(
+                          "px-4 py-3 font-semibold",
+                          j === 0 ? "min-w-[280px] md:min-w-[340px] lg:min-w-[420px] max-w-xl" : "whitespace-nowrap"
+                        )}
+                      >
                         {c.label.replace(/ \(.*\)$/, "")}
                       </th>
                     ))}
@@ -265,20 +273,59 @@ export function CrudList({
                           </span>
                         </td>
                       ) : null}
-                      {columns.map((c, j) => (
-                        <td key={c.name} className={cn("max-w-[220px] px-4 py-3 align-middle", j === 0 && "font-medium text-ink")}>
-                          {j === 0 ? (
-                            <Link href={`${base}/${encodeURIComponent(r.id)}`} className="hover:text-brand hover:underline">
-                              <ValueView field={c} value={r[c.name]} />
-                            </Link>
-                          ) : c.column === "masked" ? (
-                            // Contact details stay masked in lists (shoulder-surfing, screenshots); full value only on the detail page.
-                            <span className="font-mono text-xs text-ink-2">{r[c.name] ? (String(r[c.name]).includes("•") ? String(r[c.name]) : mask(String(r[c.name]))) : "—"}</span>
-                          ) : (
-                            <ValueView field={c} value={r[c.name]} />
-                          )}
-                        </td>
-                      ))}
+                      {columns.map((c, j) => {
+                        const isExpanded = Boolean(expandedRows[r.id]);
+                        const valStr = String(r[c.name] ?? "");
+                        const isLong = valStr.length > 80;
+                        return (
+                          <td
+                            key={c.name}
+                            className={cn(
+                              "px-4 py-3 align-middle",
+                              j === 0
+                                ? "min-w-[280px] md:min-w-[340px] lg:min-w-[420px] max-w-xl font-medium text-ink"
+                                : "max-w-[180px]"
+                            )}
+                          >
+                            {j === 0 ? (
+                              <div className="space-y-1">
+                                <Link
+                                  href={`${base}/${encodeURIComponent(r.id)}`}
+                                  className="block hover:text-brand transition-colors"
+                                  title={valStr}
+                                >
+                                  <span
+                                    className={cn(
+                                      "break-words leading-relaxed",
+                                      isExpanded ? "whitespace-pre-wrap" : "line-clamp-2"
+                                    )}
+                                  >
+                                    {valStr || "—"}
+                                  </span>
+                                </Link>
+                                {isLong && (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      setExpandedRows((prev) => ({ ...prev, [r.id]: !isExpanded }));
+                                    }}
+                                    className="text-[11px] font-semibold text-brand hover:underline inline-flex items-center gap-0.5"
+                                  >
+                                    {isExpanded ? "Show less" : "…more"}
+                                  </button>
+                                )}
+                              </div>
+                            ) : c.column === "masked" ? (
+                              // Contact details stay masked in lists (shoulder-surfing, screenshots); full value only on the detail page.
+                              <span className="font-mono text-xs text-ink-2">{r[c.name] ? (String(r[c.name]).includes("•") ? String(r[c.name]) : mask(String(r[c.name]))) : "—"}</span>
+                            ) : (
+                              <ValueView field={c} value={r[c.name]} inTable />
+                            )}
+                          </td>
+                        );
+                      })}
                       {stats.map((st) => (
                         <td key={st.name} className={cn("px-4 py-3 align-middle", st.kind === "number" && "text-right tabular-nums")}>
                           <StatView kind={st.kind} label={st.label} value={r[st.name]} />
@@ -299,9 +346,11 @@ export function CrudList({
               {data.items.map((r) => (
                 <li key={r.id} className="p-4">
                   <div className="flex items-start justify-between gap-3">
-                    <Link href={`${base}/${encodeURIComponent(r.id)}`} className="min-w-0">
-                      <p className="truncate font-medium text-ink">{String(r[resource.titleField] ?? r.id)}</p>
-                      <p className="font-mono text-xs text-ink-3">{r.id}</p>
+                    <Link href={`${base}/${encodeURIComponent(r.id)}`} className="min-w-0 flex-1">
+                      <p className="line-clamp-2 font-medium text-ink leading-snug" title={String(r[resource.titleField] ?? r.id)}>
+                        {String(r[resource.titleField] ?? r.id)}
+                      </p>
+                      <p className="font-mono text-xs text-ink-3 mt-0.5">{r.id}</p>
                     </Link>
                     {resource.statusField ? <Badge tone={toneForStatus(String(r[resource.statusField]))}>{String(r[resource.statusField])}</Badge> : null}
                   </div>

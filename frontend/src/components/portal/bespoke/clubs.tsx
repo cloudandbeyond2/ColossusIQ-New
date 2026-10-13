@@ -350,9 +350,9 @@ function CreateClubModal({
   const [description, setDescription] = useState("");
   const [lead, setLead] = useState("");
   const [facultyAdvisor, setFacultyAdvisor] = useState("");
-  const [meetingSchedule, setMeetingSchedule] = useState("Weekly contest — Sat");
+  const [meetingSchedule, setMeetingSchedule] = useState("");
   const [venue, setVenue] = useState("");
-  const [membersCount, setMembersCount] = useState("20");
+  const [membersCount, setMembersCount] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   const mutation = useMutation({
@@ -442,6 +442,7 @@ function CreateClubModal({
                 type="number"
                 min="1"
                 max="5000"
+                placeholder="e.g. 20"
                 value={membersCount}
                 onChange={(e) => setMembersCount(e.target.value)}
                 className={cn(inputClass, "mt-1.5")}
