@@ -1,17 +1,45 @@
 import "server-only";
-import { sharedState } from "./global-state";
 import type { SessionPayload } from "@/lib/auth/session";
+import type { Role } from "@/lib/auth/roles";
 import type {
   AcademicCalendarItem,
   AcademicCalendarOverview,
   CreateCalendarItemInput,
+  Notification,
 } from "@/lib/api/schemas";
-import { getStore, dataBackend } from "@/lib/data";
-import { RESOURCES, type RecordValue } from "@/config/resources";
+import { getStore } from "@/lib/data";
+import { RESOURCES } from "@/config/resources";
+import { ALL_COLLEGES } from "@/config/tenancy";
+import { calendarStore, type CalendarRow } from "./calendar-store";
+import { getStudentAcademicProfile } from "./student-profile";
 
-const calendarStore = sharedState("campus.academic-calendar.map", () => new Map<string, AcademicCalendarItem[]>());
+/*
+ * Academic Calendar. Entries are stored with their real category (Assessment, Holiday, Exam cell, Event, Milestone),
+ * audience (everyone, students, faculty, staff) and department. Each person sees what is meant for them, and an entry
+ * that asks to notify shows up in the bell of exactly those people (see calendarNotifications). Published Campus Events
+ * appear alongside, read-only, until they are imported with "Sync Events".
+ */
 
-function tagToTone(tag: string): AcademicCalendarItem["tone"] {
+type Tag = AcademicCalendarItem["tag"];
+type Audience = AcademicCalendarItem["audience"];
+
+/** Raised for a request the caller can correct; the router turns it into a 400. */
+export class CalendarError extends Error {}
+
+const MANAGERS = new Set<Role>(["institution", "admin", "hod", "faculty"]);
+export const canManageCalendar = (role: Role) => MANAGERS.has(role);
+
+const ALL_DEPARTMENTS = "All Departments";
+const RECENT_DAYS = 14;
+const DAY = 86_400_000;
+
+/** Today in India (the platform's timezone), YYYY-MM-DD. */
+const todayIST = () => new Date(Date.now() + 5.5 * 3_600_000).toISOString().slice(0, 10);
+
+/** The calendar of the college in the session; the University Super Admin works in the first college. */
+const collegeOf = (s: SessionPayload) => (s.college === ALL_COLLEGES ? "COL-1001" : s.college);
+
+function tagToTone(tag: Tag): AcademicCalendarItem["tone"] {
   switch (tag) {
     case "Assessment":
       return "rose";
@@ -27,218 +55,199 @@ function tagToTone(tag: string): AcademicCalendarItem["tone"] {
   }
 }
 
-function defaultCalendarItems(_collegeId: string): AcademicCalendarItem[] {
-  if (dataBackend() === "memory") {
-    return [
-      { id: "cal-ia2-timetable", title: "IA-II Timetable Published", date: "2026-09-29", time: "10:00 AM", tag: "Exam cell", tone: "brand", department: "All Departments", venue: "Central Exam Cell / Portal", description: "Official schedule for Internal Assessment II released for all UG and PG programs.", audience: "All", source: "academic", createdAt: "2026-09-20T09:00:00Z" },
-      { id: "cal-gandhi-jayanti", title: "Gandhi Jayanti", date: "2026-10-02", time: "Full day", tag: "Holiday", tone: "teal", department: "All Departments", venue: "Campus Closed", description: "National Holiday on account of Mahatma Gandhi Jayanti.", audience: "All", source: "academic", createdAt: "2026-08-01T00:00:00Z" },
-      { id: "cal-genai-workshop", title: "Workshop: GenAI for Engineers", date: "2026-10-04", time: "09:30 AM - 04:30 PM", tag: "Event", tone: "gold", department: "Computer Science", venue: "Seminar Hall 2 & AI Lab", description: "Hands-on session on LLM application engineering, prompt design, and retrieval systems.", audience: "Students", source: "academic", createdAt: "2026-09-15T11:00:00Z" },
-      { id: "cal-dbms-ia2", title: "DBMS Internal Assessment II", date: "2026-10-09", time: "10:00 AM - 12:00 PM", tag: "Assessment", tone: "rose", department: "Computer Science", venue: "Exam Hall A & B", description: "Assessment covering indexing, query optimization, concurrency control, and transactions.", audience: "Students", source: "academic", createdAt: "2026-09-22T08:30:00Z" },
-      { id: "cal-techno-fest", title: "Techno Fest 2026", date: "2026-10-10", endDate: "2026-10-11", time: "09:00 AM - 06:00 PM", tag: "Event", tone: "gold", department: "All Departments", venue: "Main Auditorium & Tech Expo Quad", description: "Annual national tech symposium featuring 24-hr hackathon, robotics arena, and paper presentations.", audience: "All", source: "academic", createdAt: "2026-09-01T10:00:00Z" },
-      { id: "cal-diwali-break", title: "Diwali Vacation", date: "2026-10-20", endDate: "2026-10-25", time: "Full day", tag: "Holiday", tone: "teal", department: "All Departments", venue: "Campus Closed", description: "College closed for Diwali break. Administrative offices and classes resume on Monday 26 Oct.", audience: "All", source: "academic", createdAt: "2026-08-01T00:00:00Z" },
-      { id: "cal-model-exams", title: "Model Examinations Commencement", date: "2026-11-03", endDate: "2026-11-10", time: "09:30 AM - 12:30 PM", tag: "Assessment", tone: "rose", department: "All Departments", venue: "Assigned Exam Halls", description: "Comprehensive model theory examinations covering complete university syllabi.", audience: "Students", source: "academic", createdAt: "2026-09-10T10:00:00Z" },
-      { id: "cal-last-working-day", title: "Last Working Day (Odd Semester)", date: "2026-11-20", time: "Full day", tag: "Milestone", tone: "sky", department: "All Departments", venue: "All Departments", description: "Official conclusion of instruction, practical logbook verification, and attendance consolidation.", audience: "All", source: "academic", createdAt: "2026-08-01T00:00:00Z" },
-      { id: "cal-univ-exams", title: "University End-Semester Theory Exams", date: "2026-11-30", endDate: "2026-12-18", time: "10:00 AM - 01:00 PM", tag: "Assessment", tone: "rose", department: "All Departments", venue: "Designated University Exam Centers", description: "Controller of Examinations centralized university semester examinations.", audience: "Students", source: "academic", createdAt: "2026-08-01T00:00:00Z" },
-    ];
-  }
-  return [];
+function toItem(r: CalendarRow): AcademicCalendarItem {
+  return {
+    id: r.id,
+    title: r.title,
+    date: r.date,
+    endDate: r.endDate || undefined,
+    time: r.time,
+    tag: r.tag,
+    tone: tagToTone(r.tag),
+    department: r.department,
+    venue: r.venue || undefined,
+    description: r.description || undefined,
+    audience: r.audience,
+    source: r.source,
+    notify: r.notify,
+    readOnly: false,
+    createdByName: r.createdByName,
+    createdAt: r.createdAt,
+    updatedAt: r.updatedAt,
+  };
 }
 
-export function getCollegeCalendar(collegeId: string): AcademicCalendarItem[] {
-  const effectiveCollege = collegeId === "all" ? "COL-1001" : collegeId;
-  if (!calendarStore.has(effectiveCollege)) {
-    if (dataBackend() === "memory") {
-      calendarStore.set(effectiveCollege, defaultCalendarItems(effectiveCollege));
-    } else {
-      calendarStore.set(effectiveCollege, []);
-    }
-  }
-  return calendarStore.get(effectiveCollege)!;
+/* ── who is an entry for ─────────────────────────────────────────────────────────────────────── */
+
+interface Viewer {
+  kind: Exclude<Audience, "All">;
+  /** A student's department; empty for staff, whose department is not part of their session. */
+  department: string;
 }
+
+const kindOf = (role: Role): Viewer["kind"] => (role === "student" ? "Students" : role === "faculty" || role === "hod" ? "Faculty" : "Staff");
+
+async function viewerOf(s: SessionPayload): Promise<Viewer> {
+  const kind = kindOf(s.role);
+  if (kind !== "Students") return { kind, department: "" };
+  try {
+    return { kind, department: (await getStudentAcademicProfile(s)).department };
+  } catch {
+    return { kind, department: "" };
+  }
+}
+
+const norm = (v: string) => v.toLowerCase().replace(/&/g, "and").replace(/\s+/g, " ").trim();
+function sameDepartment(entry: string, mine: string): boolean {
+  if (!entry || entry === ALL_DEPARTMENTS || !mine) return true;
+  const a = norm(entry);
+  const b = norm(mine);
+  return a === b || a.includes(b) || b.includes(a);
+}
+
+/** Is this entry meant for the viewer? Those who manage the calendar see every entry, unless `strict` (notifications). */
+function meantFor(r: Pick<CalendarRow, "audience" | "department">, s: SessionPayload, v: Viewer, strict = false): boolean {
+  if (!strict && canManageCalendar(s.role)) return true;
+  if (r.audience !== "All" && r.audience !== v.kind) return false;
+  return sameDepartment(r.department, v.department);
+}
+
+/* ── Campus Events, shown until imported ─────────────────────────────────────────────────────── */
+
+async function campusEvents(college: string): Promise<CalendarRow[]> {
+  try {
+    const events = await getStore().records.all(RESOURCES.events!, college);
+    return events
+      .filter((e) => String(e.title ?? "").trim() && /^\d{4}-\d{2}-\d{2}$/.test(String(e.date ?? "")) && String(e.status ?? "") !== "Cancelled")
+      .map((e) => ({
+        id: `evt:${e.id}`,
+        college,
+        title: String(e.title).trim().slice(0, 120),
+        date: String(e.date),
+        endDate: undefined,
+        time: String(e.startTime || "Full day"),
+        tag: "Event" as const,
+        department: ALL_DEPARTMENTS,
+        venue: e.venue ? String(e.venue).slice(0, 100) : "",
+        description: e.description ? String(e.description).slice(0, 500) : "",
+        audience: "All" as const,
+        source: "campus_event" as const,
+        notify: false,
+        createdBySub: "",
+        createdByName: String(e.organiser ?? "Campus Events"),
+        createdAt: e.createdAt || new Date().toISOString(),
+        updatedAt: e.createdAt || new Date().toISOString(),
+      }));
+  } catch {
+    return [];
+  }
+}
+
+const sameSlot = (a: { title: string; date: string }, b: { title: string; date: string }) => a.date === b.date && a.title.trim().toLowerCase() === b.title.trim().toLowerCase();
+
+/* ── the term ────────────────────────────────────────────────────────────────────────────────── */
+
+function semesterFor(today: string): AcademicCalendarOverview["semester"] {
+  const y = Number(today.slice(0, 4));
+  const m = Number(today.slice(5, 7));
+  const odd = m >= 7;
+  const startYear = m >= 6 ? y : y - 1; // an even semester belongs to the academic year that began last June
+  const startDate = odd ? `${y}-08-01` : `${y}-01-05`;
+  const endDate = odd ? `${y}-12-20` : `${y}-05-20`;
+  const name = `${odd ? "Odd" : "Even"} Semester ${startYear}–${String(startYear + 1).slice(2)}`;
+  const start = Date.parse(`${startDate}T00:00:00Z`);
+  const end = Date.parse(`${endDate}T00:00:00Z`);
+  const totalWeeks = Math.max(1, Math.ceil((end - start) / (7 * DAY)));
+  const week = Math.floor((Date.parse(`${today}T00:00:00Z`) - start) / (7 * DAY)) + 1;
+  return { name, startDate, endDate, currentWeek: Math.min(totalWeeks, Math.max(0, week)), totalWeeks };
+}
+
+async function departmentsOf(college: string, rows: CalendarRow[]): Promise<string[]> {
+  const names = new Set<string>();
+  try {
+    for (const r of await getStore().records.all(RESOURCES.departments!, college)) {
+      const n = String(r.department ?? "").trim();
+      if (n) names.add(n);
+    }
+  } catch {
+    // fall back to what the calendar already uses
+  }
+  for (const r of rows) if (r.department && r.department !== ALL_DEPARTMENTS) names.add(r.department);
+  return [ALL_DEPARTMENTS, ...[...names].sort()];
+}
+
+/* ── reads ───────────────────────────────────────────────────────────────────────────────────── */
 
 export async function getCalendarOverview(session: SessionPayload): Promise<AcademicCalendarOverview> {
-  const collegeId = session.college === "all" ? "COL-1001" : session.college;
+  const college = collegeOf(session);
+  const viewer = await viewerOf(session);
+  const stored = await calendarStore().list(college);
+  const events = (await campusEvents(college)).filter((e) => !stored.some((r) => sameSlot(r, e)));
 
-  if (dataBackend() === "postgres") {
-    const rawEvents = await getStore().records.all(RESOURCES.events!, collegeId);
-    const mapped: AcademicCalendarItem[] = rawEvents.map((evt) => {
-      const typeStr = String(evt.type || "");
-      const tag: AcademicCalendarItem["tag"] =
-        typeStr === "Workshop" || typeStr === "Hackathon"
-          ? "Event"
-          : typeStr === "Seminar"
-          ? "Milestone"
-          : "Event";
-      return {
-        id: evt.id,
-        title: String(evt.title || "Campus Event"),
-        date: String(evt.date || ""),
-        time: String(evt.startTime || "Full day"),
-        tag,
-        tone: tagToTone(tag),
-        department: "All Departments",
-        venue: evt.venue ? String(evt.venue) : undefined,
-        description: evt.description ? String(evt.description) : undefined,
-        audience: "All",
-        source: "campus_event",
-        createdAt: evt.createdAt || new Date().toISOString(),
-      };
-    });
+  const visible = [...stored, ...events].filter((r) => meantFor(r, session, viewer));
+  const items = visible
+    .map((r) => (r.id.startsWith("evt:") ? { ...toItem(r), readOnly: true } : toItem(r)))
+    .sort((a, b) => a.date.localeCompare(b.date) || a.title.localeCompare(b.title));
 
-    const items = mapped;
-    items.sort((a, b) => a.date.localeCompare(b.date));
-
-    const assessmentsCount = items.filter((i) => i.tag === "Assessment").length;
-    const holidaysCount = items.filter((i) => i.tag === "Holiday").length;
-    const eventsCount = items.filter((i) => i.tag === "Event").length;
-    const milestonesCount = items.filter((i) => i.tag === "Milestone" || i.tag === "Exam cell").length;
-
-    const canManage =
-      session.role === "institution" ||
-      session.role === "admin" ||
-      session.role === "hod" ||
-      session.role === "faculty";
-
-    return {
-      collegeId,
-      semester: {
-        name: "Odd Semester 2026–27",
-        startDate: "2026-08-01",
-        endDate: "2026-12-20",
-        currentWeek: 9,
-        totalWeeks: 18,
-      },
-      kpis: {
-        totalEvents: items.length,
-        assessmentsCount,
-        holidaysCount,
-        eventsCount,
-        milestonesCount,
-      },
-      items,
-      canManage,
-    };
-  }
-
-  const items = getCollegeCalendar(collegeId);
-
-  // Sort items chronologically by date
-  items.sort((a, b) => a.date.localeCompare(b.date));
-
-  const assessmentsCount = items.filter((i) => i.tag === "Assessment").length;
-  const holidaysCount = items.filter((i) => i.tag === "Holiday").length;
-  const eventsCount = items.filter((i) => i.tag === "Event").length;
-  const milestonesCount = items.filter((i) => i.tag === "Milestone" || i.tag === "Exam cell").length;
-
-  const canManage =
-    session.role === "institution" ||
-    session.role === "admin" ||
-    session.role === "hod" ||
-    session.role === "faculty";
-
+  const count = (...tags: Tag[]) => items.filter((i) => tags.includes(i.tag)).length;
+  const today = todayIST();
   return {
-    collegeId,
-    semester: {
-      name: "Odd Semester 2026–27",
-      startDate: "2026-08-01",
-      endDate: "2026-12-20",
-      currentWeek: 9,
-      totalWeeks: 18,
-    },
+    collegeId: college,
+    semester: semesterFor(today),
     kpis: {
       totalEvents: items.length,
-      assessmentsCount,
-      holidaysCount,
-      eventsCount,
-      milestonesCount,
+      assessmentsCount: count("Assessment"),
+      holidaysCount: count("Holiday"),
+      eventsCount: count("Event"),
+      milestonesCount: count("Milestone", "Exam cell"),
     },
     items,
-    canManage,
+    canManage: canManageCalendar(session.role),
+    today,
+    departments: await departmentsOf(college, stored),
   };
 }
 
-export async function createCalendarItem(
-  session: SessionPayload,
-  input: CreateCalendarItemInput,
-): Promise<AcademicCalendarItem> {
-  const collegeId = session.college === "all" ? "COL-1001" : session.college;
+/** The entries one person can see, for pages that summarise the calendar (e.g. the module overview). */
+export async function visibleCalendarItems(session: SessionPayload): Promise<AcademicCalendarItem[]> {
+  return (await getCalendarOverview(session)).items;
+}
 
-  if (dataBackend() === "postgres") {
-    const rawType = input.tag === "Assessment" ? "Workshop" : input.tag === "Milestone" ? "Seminar" : "Cultural";
-    const rec = await getStore().records.create(
-      RESOURCES.events!,
-      {
-        title: input.title.trim(),
-        type: rawType,
-        date: input.date,
-        startTime: input.time?.trim() && input.time.includes(":") ? input.time.trim().slice(0, 5) : "10:00",
-        venue: input.venue?.trim() || "Main Auditorium",
-        organiser: "Academic Affairs",
-        capacity: 250,
-        registrationOpen: true,
-        status: "Published",
-        description: input.description?.trim() || `${input.tag} scheduled on ${input.date}`,
-      },
-      collegeId
-    );
+/* ── writes ──────────────────────────────────────────────────────────────────────────────────── */
 
-    const newItem: AcademicCalendarItem = {
-      id: rec.id,
-      title: String(rec.title),
-      date: String(rec.date),
-      time: String(rec.startTime || "Full day"),
-      tag: input.tag,
-      tone: tagToTone(input.tag),
-      department: input.department.trim() || "All Departments",
-      venue: rec.venue ? String(rec.venue) : undefined,
-      description: rec.description ? String(rec.description) : undefined,
-      audience: input.audience || "All",
-      source: "academic",
-      createdAt: rec.createdAt || new Date().toISOString(),
-    };
+function checkDates(date: string, endDate?: string) {
+  if (endDate && endDate < date) throw new CalendarError("The end date cannot be before the start date.");
+}
 
-    await getStore().audit.add({
-      actor: session.name,
-      action: `Added calendar entry "${newItem.title}" (${newItem.tag})`,
-      target: newItem.id,
-      collegeId: session.college === "all" ? null : session.college,
-      actorSub: session.sub,
-    });
+const audit = (s: SessionPayload, action: string, target: string) =>
+  getStore().audit.add({ actor: s.name, action, target, collegeId: s.college === ALL_COLLEGES ? null : s.college, actorSub: s.sub });
 
-    return newItem;
-  }
+function describeReach(r: Pick<CalendarRow, "audience" | "department">): string {
+  const who = r.audience === "All" ? "everyone" : r.audience.toLowerCase();
+  return r.department && r.department !== ALL_DEPARTMENTS ? `${who} in ${r.department}` : who;
+}
 
-  const items = getCollegeCalendar(collegeId);
-
-  const newItem: AcademicCalendarItem = {
-    id: `cal-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 6)}`,
+export async function createCalendarItem(session: SessionPayload, input: CreateCalendarItemInput): Promise<AcademicCalendarItem> {
+  const endDate = input.endDate?.trim() || undefined;
+  checkDates(input.date, endDate);
+  const row = await calendarStore().create({
+    college: collegeOf(session),
     title: input.title.trim(),
     date: input.date,
-    endDate: input.endDate?.trim() ? input.endDate.trim() : undefined,
+    endDate,
     time: input.time.trim() || "Full day",
     tag: input.tag,
-    tone: tagToTone(input.tag),
-    department: input.department.trim() || "All Departments",
-    venue: input.venue?.trim() || undefined,
-    description: input.description?.trim() || undefined,
-    audience: input.audience || "All",
+    department: input.department.trim() || ALL_DEPARTMENTS,
+    venue: input.venue?.trim() ?? "",
+    description: input.description?.trim() ?? "",
+    audience: input.audience,
     source: "academic",
-    createdAt: new Date().toISOString(),
-  };
-
-  items.push(newItem);
-  items.sort((a, b) => a.date.localeCompare(b.date));
-  calendarStore.set(collegeId, items);
-
-  await getStore().audit.add({
-    actor: session.name,
-    action: `Added calendar entry "${newItem.title}" (${newItem.tag})`,
-    target: newItem.id,
-    collegeId: session.college === "all" ? null : session.college,
-    actorSub: session.sub,
+    notify: input.notify,
+    createdBySub: session.sub,
+    createdByName: session.name,
   });
-
-  return newItem;
+  await audit(session, `Added calendar entry "${row.title}" (${row.tag}) for ${describeReach(row)}${row.notify ? ", notified" : ""}`, row.id);
+  return toItem(row);
 }
 
 export async function updateCalendarItem(
@@ -246,176 +255,133 @@ export async function updateCalendarItem(
   id: string,
   patch: Partial<CreateCalendarItemInput>,
 ): Promise<AcademicCalendarItem | undefined> {
-  const collegeId = session.college === "all" ? "COL-1001" : session.college;
+  const store = calendarStore();
+  const current = await store.get(id);
+  if (!current || current.college !== collegeOf(session)) return undefined;
 
-  if (dataBackend() === "postgres") {
-    const existing = await getStore().records.get(RESOURCES.events!, id);
-    if (existing) {
-      const eventType = patch.tag
-        ? patch.tag === "Milestone"
-          ? "Seminar"
-          : patch.tag === "Assessment"
-          ? "Workshop"
-          : patch.tag === "Holiday"
-          ? "Other"
-          : "Workshop"
-        : existing.type || "Workshop";
+  const date = patch.date ?? current.date;
+  const endDate = patch.endDate !== undefined ? patch.endDate.trim() || undefined : current.endDate;
+  checkDates(date, endDate);
 
-      const fullData: Record<string, RecordValue> = {
-        title: patch.title ? patch.title.trim() : (existing.title ?? ""),
-        type: eventType,
-        date: patch.date ? patch.date : (existing.date ?? ""),
-        startTime: patch.time && patch.time.includes(":") ? patch.time.trim().slice(0, 5) : (existing.startTime ?? "10:00"),
-        venue: patch.venue !== undefined ? (patch.venue.trim() || "Main Auditorium") : (existing.venue ?? "Main Auditorium"),
-        description: patch.description !== undefined ? patch.description.trim() : (existing.description ?? ""),
-        organiser: existing.organiser ?? "Academic Affairs",
-        capacity: existing.capacity ?? 250,
-        registrationOpen: existing.registrationOpen !== false,
-        status: existing.status ?? "Published",
-      };
-
-      const updatedRec = await getStore().records.update(RESOURCES.events!, id, fullData, existing.version);
-      if (!updatedRec || updatedRec === "stale") return undefined;
-      const nextTag = patch.tag || "Event";
-      return {
-        id: updatedRec.id,
-        title: String(updatedRec.title),
-        date: String(updatedRec.date),
-        time: String(updatedRec.startTime || "Full day"),
-        tag: nextTag,
-        tone: tagToTone(nextTag),
-        department: patch.department?.trim() || "All Departments",
-        venue: updatedRec.venue ? String(updatedRec.venue) : undefined,
-        description: updatedRec.description ? String(updatedRec.description) : undefined,
-        audience: patch.audience || "All",
-        source: "academic",
-        createdAt: updatedRec.createdAt || new Date().toISOString(),
-      };
-    }
-  }
-
-  const items = getCollegeCalendar(collegeId);
-  const index = items.findIndex((i) => i.id === id);
-  if (index === -1) return undefined;
-
-  const current = items[index]!;
-  const nextTag = patch.tag ?? current.tag;
-  const updated: AcademicCalendarItem = {
-    ...current,
+  const row = await store.update(id, {
     title: patch.title?.trim() ?? current.title,
-    date: patch.date ?? current.date,
-    endDate: patch.endDate !== undefined ? (patch.endDate.trim() ? patch.endDate.trim() : undefined) : current.endDate,
-    time: patch.time?.trim() ?? current.time,
-    tag: nextTag,
-    tone: tagToTone(nextTag),
-    department: patch.department?.trim() ?? current.department,
-    venue: patch.venue !== undefined ? (patch.venue.trim() ? patch.venue.trim() : undefined) : current.venue,
-    description: patch.description !== undefined ? (patch.description.trim() ? patch.description.trim() : undefined) : current.description,
+    date,
+    endDate,
+    time: patch.time !== undefined ? patch.time.trim() || "Full day" : current.time,
+    tag: patch.tag ?? current.tag,
+    department: patch.department !== undefined ? patch.department.trim() || ALL_DEPARTMENTS : current.department,
+    venue: patch.venue !== undefined ? patch.venue.trim() : current.venue,
+    description: patch.description !== undefined ? patch.description.trim() : current.description,
     audience: patch.audience ?? current.audience,
-  };
-
-  items[index] = updated;
-  items.sort((a, b) => a.date.localeCompare(b.date));
-  calendarStore.set(collegeId, items);
-
-  await getStore().audit.add({
-    actor: session.name,
-    action: `Updated calendar entry "${updated.title}"`,
-    target: updated.id,
-    collegeId: session.college === "all" ? null : session.college,
-    actorSub: session.sub,
+    notify: patch.notify ?? current.notify,
   });
-
-  return updated;
+  if (!row) return undefined;
+  await audit(session, `Updated calendar entry "${row.title}" (${row.tag}) for ${describeReach(row)}`, row.id);
+  return toItem(row);
 }
 
 export async function deleteCalendarItem(session: SessionPayload, id: string): Promise<boolean> {
-  const collegeId = session.college === "all" ? "COL-1001" : session.college;
-
-  if (dataBackend() === "postgres") {
-    try {
-      await getStore().records.delete(RESOURCES.events!, id);
-      await getStore().audit.add({
-        actor: session.name,
-        action: `Deleted calendar entry "${id}"`,
-        target: id,
-        collegeId: session.college === "all" ? null : session.college,
-        actorSub: session.sub,
-      });
-      return true;
-    } catch {
-      // Might be a memory-only item
-    }
-  }
-
-  const items = getCollegeCalendar(collegeId);
-  const target = items.find((i) => i.id === id);
-  if (!target) return false;
-
-  const filtered = items.filter((i) => i.id !== id);
-  calendarStore.set(collegeId, filtered);
-
-  await getStore().audit.add({
-    actor: session.name,
-    action: `Deleted calendar entry "${target.title}"`,
-    target: id,
-    collegeId: session.college === "all" ? null : session.college,
-    actorSub: session.sub,
-  });
-
+  const store = calendarStore();
+  const current = await store.get(id);
+  if (!current || current.college !== collegeOf(session)) return false;
+  if (!(await store.remove(id))) return false;
+  await audit(session, `Deleted calendar entry "${current.title}"`, id);
   return true;
 }
 
+/** Copies published Campus Events into the calendar so they can be edited, categorised and notified like any entry. */
 export async function syncCampusEvents(session: SessionPayload): Promise<{ syncedCount: number }> {
-  const collegeId = session.college === "all" ? "COL-1001" : session.college;
-  const items = getCollegeCalendar(collegeId);
-
-  // Fetch campus events from the events resource store
-  const campusEvents = await getStore().records.all(RESOURCES.events!, collegeId);
+  const college = collegeOf(session);
+  const store = calendarStore();
+  const existing = await store.list(college);
   let syncedCount = 0;
-
-  for (const evt of campusEvents) {
-    const title = String(evt.title || "").trim();
-    const date = String(evt.date || "").trim();
-    if (!title || !date) continue;
-
-    // Check if already in calendar
-    const exists = items.some(
-      (item) => item.id === `cal-evt-${evt.id}` || (item.title.toLowerCase() === title.toLowerCase() && item.date === date),
-    );
-
-    if (!exists) {
-      const newItem: AcademicCalendarItem = {
-        id: `cal-evt-${evt.id}`,
-        title,
-        date,
-        time: String(evt.startTime || "Full day"),
-        tag: "Event",
-        tone: "gold",
-        department: "Campus Wide",
-        venue: evt.venue ? String(evt.venue) : undefined,
-        description: evt.description ? String(evt.description) : undefined,
-        audience: "All",
-        source: "campus_event",
-        createdAt: new Date().toISOString(),
-      };
-      items.push(newItem);
-      syncedCount++;
-    }
-  }
-
-  if (syncedCount > 0) {
-    items.sort((a, b) => a.date.localeCompare(b.date));
-    calendarStore.set(collegeId, items);
-
-    await getStore().audit.add({
-      actor: session.name,
-      action: `Synced ${syncedCount} campus event(s) into Academic Calendar`,
-      target: "academic-calendar",
-      collegeId: session.college === "all" ? null : session.college,
-      actorSub: session.sub,
+  for (const e of await campusEvents(college)) {
+    if (existing.some((r) => sameSlot(r, e))) continue;
+    await store.create({
+      college,
+      title: e.title,
+      date: e.date,
+      endDate: undefined,
+      time: e.time,
+      tag: "Event",
+      department: ALL_DEPARTMENTS,
+      venue: e.venue,
+      description: e.description,
+      audience: "All",
+      source: "campus_event",
+      notify: false,
+      createdBySub: session.sub,
+      createdByName: e.createdByName,
     });
+    syncedCount++;
   }
-
+  if (syncedCount > 0) await audit(session, `Synced ${syncedCount} campus event(s) into Academic Calendar`, "academic-calendar");
   return { syncedCount };
+}
+
+/* ── notifications ───────────────────────────────────────────────────────────────────────────── */
+
+function ago(iso: string): string {
+  const m = Math.max(0, Math.round((Date.now() - Date.parse(iso)) / 60_000));
+  if (m < 1) return "just now";
+  if (m < 60) return `${m}m ago`;
+  const h = Math.round(m / 60);
+  return h < 24 ? `${h}h ago` : `${Math.round(h / 24)}d ago`;
+}
+
+function span(r: CalendarRow): string {
+  const fmt = (d: string) => new Date(`${d}T00:00:00Z`).toLocaleDateString("en-IN", { day: "numeric", month: "short", timeZone: "UTC" });
+  return r.endDate && r.endDate !== r.date ? `${fmt(r.date)} – ${fmt(r.endDate)}` : fmt(r.date);
+}
+
+/**
+ * Bell notifications from the calendar: an entry added or changed in the last two weeks that asked to notify and is
+ * meant for this person, plus a reminder for anything of theirs that starts today or tomorrow. The person who made
+ * the entry is not notified about it.
+ */
+export async function calendarNotifications(session: SessionPayload): Promise<Notification[]> {
+  try {
+    const viewer = await viewerOf(session);
+    const today = todayIST();
+    const tomorrow = new Date(Date.parse(`${today}T00:00:00Z`) + DAY).toISOString().slice(0, 10);
+    const rows = (await calendarStore().list(collegeOf(session))).filter((r) => (r.endDate ?? r.date) >= today && meantFor(r, session, viewer, true));
+
+    const out: Array<Notification & { at: number }> = [];
+    for (const r of rows) {
+      const where = r.venue ? ` · ${r.venue}` : "";
+      const base = `${span(r)} · ${r.time}${where}`;
+      if (r.notify && r.createdBySub !== session.sub && Date.now() - Date.parse(r.updatedAt) < RECENT_DAYS * DAY) {
+        const changed = Date.parse(r.updatedAt) - Date.parse(r.createdAt) > 60_000;
+        out.push({
+          id: `cal-${r.id}-${Date.parse(r.updatedAt)}`,
+          title: `${changed ? "Updated" : "New"} ${r.tag.toLowerCase()}: ${r.title}`,
+          body: r.description ? `${base}. ${r.description.length > 90 ? `${r.description.slice(0, 87)}…` : r.description}` : base,
+          when: ago(r.updatedAt),
+          unread: true,
+          tone: tagToTone(r.tag),
+          at: Date.parse(r.updatedAt),
+        });
+      }
+      if (r.date === today || r.date === tomorrow) {
+        out.push({
+          id: `cal-soon-${r.id}-${r.date}`,
+          title: `${r.date === today ? "Today" : "Tomorrow"}: ${r.title}`,
+          body: base,
+          when: r.date === today ? "today" : "tomorrow",
+          unread: true,
+          tone: r.tag === "Assessment" || r.tag === "Exam cell" ? "amber" : tagToTone(r.tag),
+          at: Date.now(),
+        });
+      }
+    }
+    return out
+      .sort((a, b) => b.at - a.at)
+      .slice(0, 6)
+      .map(({ at, ...n }) => {
+        void at;
+        return n;
+      });
+  } catch {
+    return [];
+  }
 }

@@ -27,7 +27,7 @@ import { collegeStream, getCollege } from "./records";
 import { dynamicBiAnalytics } from "./bi-analytics";
 import { getCollegeClubs } from "./clubs";
 import { getCollegeSports } from "./sports";
-import { getCollegeCalendar } from "./academic-calendar";
+import { visibleCalendarItems } from "./academic-calendar";
 import { getStudentsList } from "./students-store";
 import { kbStore } from "./knowledge-store";
 import { agentStorePage, aiGovernancePage, aiObservabilityPage, developerApiPage } from "./platform-pages";
@@ -1027,11 +1027,15 @@ const DATA: Record<string, (collegeScope: string, live: ScopeData) => ModuleData
 
   /* ── calendars ── */
   "daily-plan": (scope, live) => generateDynamicDailyPlan(live.session ?? { college: scope, sub: "demo-student" }),
-  "academic-calendar": (collegeScope = "all") => {
-    const raw = getCollegeCalendar(collegeScope);
-    const thisWeek = raw.filter((it) => it.date >= "2026-09-28" && it.date <= "2026-10-05");
-    const next30 = raw.filter((it) => it.date > "2026-10-05" && it.date <= "2026-11-05");
-    const later = raw.filter((it) => it.date > "2026-11-05");
+  "academic-calendar": async (collegeScope = "all", live) => {
+    // Relative to today, and only what is meant for this person (audience / department).
+    const raw = await visibleCalendarItems(live.session ?? { college: collegeScope, sub: "demo-student", role: "student" as const, name: "", tenant: "TNTU", mfa: true, exp: 0 });
+    const day = (offset: number) => new Date(Date.now() + 5.5 * 3_600_000 + offset * 86_400_000).toISOString().slice(0, 10);
+    const [today, weekEnd, monthEnd] = [day(0), day(7), day(37)];
+    const upcoming = raw.filter((it) => (it.endDate ?? it.date) >= today);
+    const thisWeek = upcoming.filter((it) => it.date <= weekEnd);
+    const next30 = upcoming.filter((it) => it.date > weekEnd && it.date <= monthEnd);
+    const later = upcoming.filter((it) => it.date > monthEnd);
 
     return {
       template: "calendar",

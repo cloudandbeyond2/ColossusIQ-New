@@ -71,13 +71,27 @@ function tagTone(tag: string): "rose" | "teal" | "brand" | "gold" | "sky" | "amb
   }
 }
 
+/** "all students in Computer Science", "everyone on campus", ... */
+function reachOf(audience: AcademicCalendarItem["audience"], department: string): string {
+  const who = audience === "All" ? "everyone on campus" : audience === "Students" ? "all students" : audience === "Faculty" ? "all faculty" : "all staff";
+  return department && department !== "All Departments" && (audience === "All" || audience === "Students") ? `${who} in ${department}` : who;
+}
+
+const fmtLong = (iso: string) => new Date(`${iso}T00:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+
 export function AcademicCalendarModule({ role }: { role: Role }) {
   const qc = useQueryClient();
+  /** A change to the calendar also changes the bell (new notifications) and the module overview. */
+  const refreshCalendar = () => {
+    void qc.invalidateQueries({ queryKey: ["academic-calendar"] });
+    void qc.invalidateQueries({ queryKey: ["notifications"] });
+    void qc.invalidateQueries({ queryKey: ["module", "academic-calendar"] });
+  };
   const [search, setSearch] = useState("");
   const [selectedTag, setSelectedTag] = useState<string>("All");
   const [selectedDept, setSelectedDept] = useState<string>("All");
   const [viewMode, setViewMode] = useState<"timeline" | "month">("timeline");
-  const [currentMonthDate, setCurrentMonthDate] = useState(new Date(2026, 9, 1)); // Oct 2026
+  const [monthAnchor, setMonthAnchor] = useState<Date | null>(null); // null: the month of today
   const [selectedDayEvents, setSelectedDayEvents] = useState<AcademicCalendarItem[] | null>(null);
   const [selectedDateStr, setSelectedDateStr] = useState<string | null>(null);
 
@@ -89,7 +103,7 @@ export function AcademicCalendarModule({ role }: { role: Role }) {
 
   // Form state
   const [formTitle, setFormTitle] = useState("");
-  const [formDate, setFormDate] = useState("2026-10-15");
+  const [formDate, setFormDate] = useState("");
   const [formEndDate, setFormEndDate] = useState("");
   const [formTime, setFormTime] = useState("Full day");
   const [formTag, setFormTag] = useState<AcademicCalendarItem["tag"]>("Event");
@@ -97,6 +111,7 @@ export function AcademicCalendarModule({ role }: { role: Role }) {
   const [formVenue, setFormVenue] = useState("");
   const [formDesc, setFormDesc] = useState("");
   const [formAudience, setFormAudience] = useState<AcademicCalendarItem["audience"]>("All");
+  const [formNotify, setFormNotify] = useState(true);
   const [formError, setFormError] = useState<string | null>(null);
 
   const showToast = (text: string, tone: "success" | "error" = "success") => {
@@ -107,6 +122,8 @@ export function AcademicCalendarModule({ role }: { role: Role }) {
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ["academic-calendar"],
     queryFn: () => apiFetch("/api/v1/academic-calendar", AcademicCalendarOverview),
+    refetchOnWindowFocus: true,
+    refetchInterval: 60_000,
   });
 
   const createMutation = useMutation({
@@ -116,10 +133,10 @@ export function AcademicCalendarModule({ role }: { role: Role }) {
         body: input,
       }),
     onSuccess: (item) => {
-      qc.invalidateQueries({ queryKey: ["academic-calendar"] });
+      refreshCalendar();
       setShowAddModal(false);
       resetForm();
-      showToast(`Added "${item.title}" to Academic Calendar`);
+      showToast(item.notify ? `Added "${item.title}" and notified ${reachOf(item.audience, item.department)}` : `Added "${item.title}" to Academic Calendar`);
     },
     onError: (err) => {
       setFormError(err instanceof ApiError ? err.message : "Failed to create entry.");
@@ -133,7 +150,7 @@ export function AcademicCalendarModule({ role }: { role: Role }) {
         body: input,
       }),
     onSuccess: (item) => {
-      qc.invalidateQueries({ queryKey: ["academic-calendar"] });
+      refreshCalendar();
       setEditingItem(null);
       resetForm();
       setShowAddModal(false);
@@ -150,7 +167,7 @@ export function AcademicCalendarModule({ role }: { role: Role }) {
         method: "DELETE",
       }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["academic-calendar"] });
+      refreshCalendar();
       setDeletingId(null);
       showToast("Calendar entry removed");
     },
@@ -165,7 +182,7 @@ export function AcademicCalendarModule({ role }: { role: Role }) {
         method: "POST",
       }),
     onSuccess: (res) => {
-      qc.invalidateQueries({ queryKey: ["academic-calendar"] });
+      refreshCalendar();
       const count = res.syncedCount ?? 0;
       showToast(count > 0 ? `Synced ${count} campus event(s) to Academic Calendar` : "Academic Calendar is already in sync with Campus Events");
     },
@@ -176,7 +193,7 @@ export function AcademicCalendarModule({ role }: { role: Role }) {
 
   const resetForm = () => {
     setFormTitle("");
-    setFormDate("2026-10-15");
+    setFormDate(data?.today ?? "");
     setFormEndDate("");
     setFormTime("Full day");
     setFormTag("Event");
@@ -184,6 +201,7 @@ export function AcademicCalendarModule({ role }: { role: Role }) {
     setFormVenue("");
     setFormDesc("");
     setFormAudience("All");
+    setFormNotify(true);
     setFormError(null);
   };
 
@@ -204,6 +222,7 @@ export function AcademicCalendarModule({ role }: { role: Role }) {
     setFormVenue(item.venue || "");
     setFormDesc(item.description || "");
     setFormAudience(item.audience || "All");
+    setFormNotify(item.notify);
     setFormError(null);
     setShowAddModal(true);
   };
@@ -229,6 +248,7 @@ export function AcademicCalendarModule({ role }: { role: Role }) {
       venue: formVenue.trim() ? formVenue.trim() : undefined,
       description: formDesc.trim() ? formDesc.trim() : undefined,
       audience: formAudience,
+      notify: formNotify,
     };
 
     if (editingItem) {
@@ -269,16 +289,12 @@ export function AcademicCalendarModule({ role }: { role: Role }) {
       return matchSearch && matchTag && matchDept;
     });
 
-    // When filters would hide real data, fallback to all items so real data is always open and visible
-    if (items.length === 0 && data.items.length > 0) {
-      return data.items;
-    }
     return items;
   }, [data?.items, search, selectedTag, selectedDept]);
 
   // Group items into Timeline sections: All Confirmed Events, Upcoming, Completed
   const timelineGroups = useMemo(() => {
-    const activeList = filteredItems.length > 0 ? filteredItems : (data?.items || []);
+    const activeList = filteredItems;
     if (activeList.length === 0) return [];
 
     return [
@@ -338,16 +354,19 @@ export function AcademicCalendarModule({ role }: { role: Role }) {
   if (error || !data) return <LoadError error={error} onRetry={() => refetch()} />;
 
   const canManage = data.canManage;
+  const deptOptions = Array.from(new Set([...data.departments, formDept]));
+  const reachText = `${reachOf(formAudience, formDept)}${formDept !== "All Departments" && formAudience !== "Students" && formAudience !== "All" ? " (the department narrows students only)" : ""}`;
 
   // Month grid helpers
+  const currentMonthDate = monthAnchor ?? new Date(`${data.today.slice(0, 7)}-01T00:00:00`);
   const year = currentMonthDate.getFullYear();
   const month = currentMonthDate.getMonth();
   const monthName = currentMonthDate.toLocaleString("default", { month: "long", year: "numeric" });
   const firstDayOfWeek = new Date(year, month, 1).getDay();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
 
-  const prevMonth = () => setCurrentMonthDate(new Date(year, month - 1, 1));
-  const nextMonth = () => setCurrentMonthDate(new Date(year, month + 1, 1));
+  const prevMonth = () => setMonthAnchor(new Date(year, month - 1, 1));
+  const nextMonth = () => setMonthAnchor(new Date(year, month + 1, 1));
 
   return (
     <div className="space-y-6">
@@ -430,9 +449,9 @@ export function AcademicCalendarModule({ role }: { role: Role }) {
         {/* Progress bar */}
         <div className="mt-4">
           <div className="flex items-center justify-between text-xs text-ink-3">
-            <span>Term Start: Aug 1, 2026</span>
+            <span>Term Start: {fmtLong(data.semester.startDate)}</span>
             <span>Progress: {Math.round((data.semester.currentWeek / data.semester.totalWeeks) * 100)}%</span>
-            <span>Term End: Dec 20, 2026</span>
+            <span>Term End: {fmtLong(data.semester.endDate)}</span>
           </div>
           <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-line">
             <div
@@ -586,8 +605,8 @@ export function AcademicCalendarModule({ role }: { role: Role }) {
         <div className="space-y-6">
           {timelineGroups.every((g) => g.items.length === 0) ? (
             <EmptyState
-              title="No calendar items yet"
-              body="No official events or examinations have been scheduled yet."
+              title={data.items.length > 0 ? "No matching entries" : "No calendar items yet"}
+              body={data.items.length > 0 ? "Nothing matches the current search or filters." : "No official events or examinations have been scheduled yet."}
               action={
                 canManage ? (
                   <Button
@@ -693,7 +712,7 @@ export function AcademicCalendarModule({ role }: { role: Role }) {
                             </div>
 
                             {/* Actions for Manager */}
-                            {canManage && (
+                            {canManage && !item.readOnly && (
                               <div className="flex items-center gap-1.5 self-end sm:self-center shrink-0">
                                 <Button
                                   variant="secondary"
@@ -772,7 +791,7 @@ export function AcademicCalendarModule({ role }: { role: Role }) {
                     (it) => it.date === dateStr || (it.endDate && it.date <= dateStr && it.endDate >= dateStr),
                   );
                   const isSelected = selectedDateStr === dateStr;
-                  const isToday = dateStr === "2026-10-01";
+                  const isToday = dateStr === data.today;
 
                   return (
                     <div
@@ -871,7 +890,7 @@ export function AcademicCalendarModule({ role }: { role: Role }) {
                           {ev.venue}
                         </p>
                       )}
-                      {canManage && (
+                      {canManage && !ev.readOnly && (
                         <div className="flex items-center justify-end gap-1.5 pt-2 border-t border-line/60">
                           <button
                             type="button"
@@ -1121,17 +1140,32 @@ export function AcademicCalendarModule({ role }: { role: Role }) {
                       onChange={(e) => setFormDept(e.target.value)}
                       className={inputClass}
                     >
-                      <option value="All Departments">All Departments (Campus Wide)</option>
-                      <option value="Computer Science">Computer Science & Engineering</option>
-                      <option value="Information Technology">Information Technology</option>
-                      <option value="Electronics & Communication">Electronics & Communication</option>
-                      <option value="Electrical & Electronics">Electrical & Electronics</option>
-                      <option value="Mechanical Engineering">Mechanical Engineering</option>
-                      <option value="Civil Engineering">Civil Engineering</option>
-                      <option value="Management Studies">Management Studies (MBA)</option>
+                      {deptOptions.map((d) => (
+                        <option key={d} value={d}>
+                          {d === "All Departments" ? "All Departments (Campus Wide)" : d}
+                        </option>
+                      ))}
                     </select>
                   </div>
                 </div>
+
+                {/* Notify the selected people */}
+                <label className="flex items-start gap-3 rounded-xl border border-line bg-surface-2/40 p-3 text-xs">
+                  <input
+                    type="checkbox"
+                    checked={formNotify}
+                    onChange={(e) => setFormNotify(e.target.checked)}
+                    className="mt-0.5 size-4 accent-brand"
+                  />
+                  <span>
+                    <span className="block font-semibold text-ink">
+                      {editingItem ? "Notify again about this change" : "Notify the selected people"}
+                    </span>
+                    <span className="text-ink-3">
+                      {formNotify ? `A notification goes to ${reachText}.` : "Saved on the calendar without sending a notification."}
+                    </span>
+                  </span>
+                </label>
 
                 {/* Venue */}
                 <div>
@@ -1184,9 +1218,9 @@ export function AcademicCalendarModule({ role }: { role: Role }) {
                   {createMutation.isPending || updateMutation.isPending ? (
                     <Spinner className="size-4 mr-2" />
                   ) : editingItem ? (
-                    "Save Changes"
+                    formNotify ? "Save & Notify" : "Save Changes"
                   ) : (
-                    "Create Calendar Entry"
+                    formNotify ? "Create & Notify" : "Create Calendar Entry"
                   )}
                 </Button>
               </div>

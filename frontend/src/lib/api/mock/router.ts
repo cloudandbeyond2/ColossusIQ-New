@@ -24,7 +24,7 @@ import { createProject, deleteProject, listProjects, reviewProject, updateProjec
 import { CreateProjectInput, FacultyReviewInput, UpdateProjectStageInput } from "@/lib/api/project-schemas";
 import { applyToTeamRequest, createTeamRequest, getTeamFinderOverview, inviteStudentToProject } from "./team-finder";
 import { AddTeammateInput, CreateTeamRequestInput } from "@/lib/api/team-finder-schemas";
-import { createCalendarItem, deleteCalendarItem, getCalendarOverview, syncCampusEvents, updateCalendarItem } from "./academic-calendar";
+import { CalendarError, calendarNotifications, createCalendarItem, deleteCalendarItem, getCalendarOverview, syncCampusEvents, updateCalendarItem } from "./academic-calendar";
 import {
   CreateAicteActionInput,
   CreateCalendarItemInput,
@@ -479,7 +479,7 @@ export async function dispatch(method: string, segs: string[], rawBody: unknown,
 
     /* ── session & shell ── */
     case "GET notifications": {
-      const rawList = [...(await feeNotifications(session)), ...(await noticeNotifications(session)), ...(await assignmentNotifications(session)), ...(await experienceNotifications(session)), ...(await getStore().notifications.forUser(session))];
+      const rawList = [...(await feeNotifications(session)), ...(await noticeNotifications(session)), ...(await calendarNotifications(session)), ...(await assignmentNotifications(session)), ...(await experienceNotifications(session)), ...(await getStore().notifications.forUser(session))];
       const cfg = (await getStore().settings.get(session.college, "notifications-config"))
         ?? (session.college !== "all" ? await getStore().settings.get("all", "notifications-config") : undefined);
       if (!cfg) return ok(rawList);
@@ -751,7 +751,12 @@ export async function dispatch(method: string, segs: string[], rawBody: unknown,
       }
       const parsed = CreateCalendarItemInput.safeParse(body);
       if (!parsed.success) return err(400, "invalid_body", parsed.error.issues[0]?.message ?? "Invalid calendar payload.");
-      return ok(await createCalendarItem(session, parsed.data));
+      try {
+        return ok(await createCalendarItem(session, parsed.data));
+      } catch (e) {
+        if (e instanceof CalendarError) return err(400, "invalid_body", e.message);
+        throw e;
+      }
     }
     case "PUT academic-calendar/:id": {
       if (session.role !== "institution" && session.role !== "admin" && session.role !== "hod" && session.role !== "faculty") return forbidden();
@@ -766,8 +771,13 @@ export async function dispatch(method: string, segs: string[], rawBody: unknown,
       }
       const parsed = CreateCalendarItemInput.partial().safeParse(body);
       if (!parsed.success) return err(400, "invalid_body", "Invalid calendar payload.");
-      const updated = await updateCalendarItem(session, b, parsed.data);
-      return updated ? ok(updated) : notFound();
+      try {
+        const updated = await updateCalendarItem(session, b, parsed.data);
+        return updated ? ok(updated) : notFound();
+      } catch (e) {
+        if (e instanceof CalendarError) return err(400, "invalid_body", e.message);
+        throw e;
+      }
     }
     case "DELETE academic-calendar/:id": {
       if (session.role !== "institution" && session.role !== "admin" && session.role !== "hod" && session.role !== "faculty") return forbidden();

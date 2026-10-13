@@ -1914,6 +1914,28 @@ model NoticeRead {
   @@map("notice_reads")
 }
 
+model CalendarEntry {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  collegeId     String   @map("college_id") @db.Uuid
+  title         String
+  date          String
+  endDate       String?  @map("end_date")
+  timeLabel     String   @default("Full day") @map("time_label")
+  tag           String   @default("Event")
+  department    String   @default("All Departments")
+  venue         String   @default("")
+  description   String   @default("")
+  audience      String   @default("All")
+  source        String   @default("academic")
+  notify        Boolean  @default(true)
+  createdBySub  String   @default("") @map("created_by_sub")
+  createdByName String   @default("") @map("created_by_name")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@index([collegeId, date], map: "calendar_entries_college_date_idx")
+  @@map("calendar_entries")
+}
 model PlatformIntegration {
   id         String   @id
   provider   String

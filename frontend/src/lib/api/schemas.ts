@@ -712,7 +712,13 @@ export const AcademicCalendarItem = z.object({
   description: z.string().optional(),
   audience: z.enum(["All", "Students", "Faculty", "Staff"]).default("All"),
   source: z.enum(["academic", "campus_event"]).default("academic"),
+  /** The entry notifies the people it is meant for (audience + department). */
+  notify: z.boolean().default(true),
+  /** Imported from Campus Events and not yet copied into the calendar: edit it there. */
+  readOnly: z.boolean().default(false),
+  createdByName: z.string().default(""),
   createdAt: z.string(),
+  updatedAt: z.string().optional(),
 });
 export type AcademicCalendarItem = z.infer<typeof AcademicCalendarItem>;
 
@@ -734,6 +740,10 @@ export const AcademicCalendarOverview = z.object({
   }),
   items: z.array(AcademicCalendarItem),
   canManage: z.boolean(),
+  /** Today in the college's timezone (YYYY-MM-DD), so the page never guesses the date. */
+  today: z.string(),
+  /** Departments of this college, for the department picker. */
+  departments: z.array(z.string()),
 });
 export type AcademicCalendarOverview = z.infer<typeof AcademicCalendarOverview>;
 
@@ -747,6 +757,8 @@ export const CreateCalendarItemInput = z.object({
   venue: z.string().max(100).optional().or(z.literal("")),
   description: z.string().max(500).optional().or(z.literal("")),
   audience: z.enum(["All", "Students", "Faculty", "Staff"]).default("All"),
+  /** Send a notification to the selected audience (and department). */
+  notify: z.boolean().default(true),
 });
 export type CreateCalendarItemInput = z.infer<typeof CreateCalendarItemInput>;
 
