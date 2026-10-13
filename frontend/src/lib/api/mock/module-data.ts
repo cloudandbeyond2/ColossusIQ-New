@@ -1142,7 +1142,7 @@ const DATA: Record<string, (collegeScope: string, live: ScopeData) => ModuleData
               `${c.title} Practical Lab`,
               `Interactive practical problems, lab assignments and exercises for ${c.code}`,
               c.department.name,
-              "Active (PostgreSQL)",
+              "Active",
               tone,
             ]);
           }
@@ -1172,7 +1172,7 @@ const DATA: Record<string, (collegeScope: string, live: ScopeData) => ModuleData
                 spec.lab,
                 spec.desc,
                 name,
-                "Active (PostgreSQL)",
+                "Active",
                 tone,
               ]);
             }
