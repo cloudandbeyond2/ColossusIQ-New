@@ -205,17 +205,29 @@ function NewRoadmap({ board, preset, onCreated }: { board: RoadmapBoard; preset:
               {errors.weekdays ? <p className="text-xs text-rose">{errors.weekdays}</p> : null}
             </div>
           </div>
-          <label className="inline-flex items-center gap-2 text-sm text-ink-2">
-            <input type="checkbox" className="size-4 accent-brand" checked={withAssessments} onChange={(e) => setWithAssessments(e.target.checked)} /> Add internal assessments after units 2 and 4
-          </label>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pt-2 border-t border-line/60">
+            <label className="flex cursor-pointer items-center gap-2.5 text-sm text-ink-2 select-none">
+              <input
+                type="checkbox"
+                className="size-4 shrink-0 rounded accent-brand"
+                checked={withAssessments}
+                onChange={(e) => setWithAssessments(e.target.checked)}
+              />
+              <span className="break-words">Add internal assessments after units 2 and 4</span>
+            </label>
+            <Button
+              type="submit"
+              disabled={create.isPending}
+              className="w-full sm:w-auto shrink-0"
+            >
+              {create.isPending ? <Spinner /> : <Fi name="route" />} Build roadmap
+            </Button>
+          </div>
           {errors._ ? (
             <p role="alert" className="rounded-xl bg-rose-soft px-3 py-2 text-sm text-rose">
               {errors._}
             </p>
           ) : null}
-          <Button type="submit" disabled={create.isPending}>
-            {create.isPending ? <Spinner /> : <Fi name="route" />} Build roadmap
-          </Button>
         </form>
       </CardBody>
     </Card>
