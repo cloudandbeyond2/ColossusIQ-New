@@ -48,8 +48,8 @@ async function toRow(r: Row): Promise<CalendarRow> {
     notify: r.notify,
     createdBySub: r.createdBySub,
     createdByName: r.createdByName,
-    createdAt: r.createdAt.toISOString(),
-    updatedAt: r.updatedAt.toISOString(),
+    createdAt: (r.createdAt instanceof Date ? r.createdAt : new Date(r.createdAt)).toISOString(),
+    updatedAt: (r.updatedAt instanceof Date ? r.updatedAt : new Date(r.updatedAt)).toISOString(),
   };
 }
 
@@ -73,36 +73,115 @@ export const postgresCalendar: CalendarStore = {
   async list(college) {
     const id = await collegeUuid(college);
     if (!id) return [];
-    const rows = (await entries().findMany({ where: { collegeId: id }, orderBy: [{ date: "asc" }, { createdAt: "asc" }], take: 2000 })) as Row[];
+    const client = entries();
+    if (client) {
+      const rows = (await client.findMany({ where: { collegeId: id }, orderBy: [{ date: "asc" }, { createdAt: "asc" }], take: 2000 })) as Row[];
+      return Promise.all(rows.map(toRow));
+    }
+    const rows = await db().$queryRawUnsafe<Row[]>(
+      `SELECT id, college_id as "collegeId", title, date, end_date as "endDate", time_label as "timeLabel",
+              tag, department, venue, description, audience, source, notify,
+              created_by_sub as "createdBySub", created_by_name as "createdByName",
+              created_at as "createdAt", updated_at as "updatedAt"
+       FROM calendar_entries
+       WHERE college_id = $1::uuid
+       ORDER BY date ASC, created_at ASC
+       LIMIT 2000;`,
+      id,
+    );
     return Promise.all(rows.map(toRow));
   },
   async get(id) {
     if (!isUuid(id)) return undefined;
-    const r = (await entries().findUnique({ where: { id } })) as Row | null;
-    return r ? toRow(r) : undefined;
+    const client = entries();
+    if (client) {
+      const r = (await client.findUnique({ where: { id } })) as Row | null;
+      return r ? toRow(r) : undefined;
+    }
+    const rows = await db().$queryRawUnsafe<Row[]>(
+      `SELECT id, college_id as "collegeId", title, date, end_date as "endDate", time_label as "timeLabel",
+              tag, department, venue, description, audience, source, notify,
+              created_by_sub as "createdBySub", created_by_name as "createdByName",
+              created_at as "createdAt", updated_at as "updatedAt"
+       FROM calendar_entries
+       WHERE id = $1::uuid
+       LIMIT 1;`,
+      id,
+    );
+    return rows[0] ? toRow(rows[0]) : undefined;
   },
   async create(draft) {
     const collegeId = await collegeUuid(draft.college);
     if (!collegeId) throw new Error("Unknown college");
-    const created = (await entries().create({
-      data: {
-        ...toColumns(draft),
-        collegeId,
-        createdBySub: draft.createdBySub,
-        createdByName: draft.createdByName,
-      },
-    })) as Row;
-    return toRow(created);
+    const client = entries();
+    if (client) {
+      const created = (await client.create({
+        data: {
+          ...toColumns(draft),
+          collegeId,
+          createdBySub: draft.createdBySub,
+          createdByName: draft.createdByName,
+        },
+      })) as Row;
+      return toRow(created);
+    }
+    const cols = toColumns(draft);
+    const rows = await db().$queryRawUnsafe<Row[]>(
+      `INSERT INTO calendar_entries (
+        college_id, title, date, end_date, time_label, tag, department, venue, description, audience, source, notify, created_by_sub, created_by_name
+       ) VALUES (
+        $1::uuid, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14
+       )
+       RETURNING id, college_id as "collegeId", title, date, end_date as "endDate", time_label as "timeLabel",
+                 tag, department, venue, description, audience, source, notify,
+                 created_by_sub as "createdBySub", created_by_name as "createdByName",
+                 created_at as "createdAt", updated_at as "updatedAt";`,
+      collegeId,
+      String(cols.title ?? ""),
+      String(cols.date ?? ""),
+      cols.endDate ? String(cols.endDate) : null,
+      String(cols.timeLabel ?? "Full day"),
+      String(cols.tag ?? "Event"),
+      String(cols.department ?? "All Departments"),
+      String(cols.venue ?? ""),
+      String(cols.description ?? ""),
+      String(cols.audience ?? "All"),
+      String(cols.source ?? "academic"),
+      cols.notify !== false,
+      draft.createdBySub,
+      draft.createdByName,
+    );
+    return toRow(rows[0]!);
   },
   async update(id, patch) {
     if (!isUuid(id)) return undefined;
-    const done = (await entries().updateMany({ where: { id }, data: { ...toColumns(patch), updatedAt: new Date() } })) as { count: number };
-    if (!done.count) return undefined;
-    const r = (await entries().findUnique({ where: { id } })) as Row | null;
-    return r ? toRow(r) : undefined;
+    const client = entries();
+    if (client) {
+      const done = (await client.updateMany({ where: { id }, data: { ...toColumns(patch), updatedAt: new Date() } })) as { count: number };
+      if (!done.count) return undefined;
+      const r = (await client.findUnique({ where: { id } })) as Row | null;
+      return r ? toRow(r) : undefined;
+    }
+    const cols = toColumns(patch);
+    const sets: string[] = ["updated_at = now()"];
+    const vals: unknown[] = [id];
+    let idx = 2;
+    for (const [k, v] of Object.entries(cols)) {
+      const colName = k === "timeLabel" ? "time_label" : k === "endDate" ? "end_date" : k;
+      sets.push(`${colName} = $${idx++}`);
+      vals.push(v);
+    }
+    const query = `UPDATE calendar_entries SET ${sets.join(", ")} WHERE id = $1::uuid RETURNING id, college_id as "collegeId", title, date, end_date as "endDate", time_label as "timeLabel", tag, department, venue, description, audience, source, notify, created_by_sub as "createdBySub", created_by_name as "createdByName", created_at as "createdAt", updated_at as "updatedAt";`;
+    const rows = await db().$queryRawUnsafe<Row[]>(query, ...vals);
+    return rows[0] ? toRow(rows[0]) : undefined;
   },
   async remove(id) {
     if (!isUuid(id)) return false;
-    return ((await entries().deleteMany({ where: { id } })) as { count: number }).count > 0;
+    const client = entries();
+    if (client) {
+      return ((await client.deleteMany({ where: { id } })) as { count: number }).count > 0;
+    }
+    const count = await db().$executeRawUnsafe(`DELETE FROM calendar_entries WHERE id = $1::uuid;`, id);
+    return count > 0;
   },
 };
