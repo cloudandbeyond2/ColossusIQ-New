@@ -1,8 +1,8 @@
 "use client";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { CheckCircle2, ExternalLink, Send } from "lucide-react";
-import { useState } from "react";
+import { CheckCircle2, ChevronLeft, ChevronRight, ExternalLink, Send } from "lucide-react";
+import { useEffect, useState } from "react";
 import { apiFetch } from "@/lib/api/client";
 import { MAX_ANSWER, Submission, type AssignmentItem } from "@/lib/api/assignments-schemas";
 import { Badge, Button, Card, EmptyState, Field, Spinner, inputClass } from "@/components/ui/primitives";
@@ -21,12 +21,39 @@ function standing(a: AssignmentItem) {
 export function StudentAssignments({ items }: { items: AssignmentItem[] }) {
   const [tab, setTab] = useState<Tab>("todo");
   const [handing, setHanding] = useState<AssignmentItem | null>(null);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(5);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const sp = new URLSearchParams(window.location.search);
+    const t = sp.get("tab");
+    if (t === "todo" || t === "done" || t === "all") {
+      setTab(t);
+    }
+    const targetId = sp.get("id");
+    if (targetId) {
+      const match = items.find((x) => x.id === targetId);
+      if (match) {
+        if (standing(match) === "todo") {
+          setTab("todo");
+          setHanding(match);
+        } else {
+          setTab("done");
+        }
+      }
+    }
+  }, [items]);
 
   const todo = items.filter((a) => standing(a) === "todo");
   const done = items.filter((a) => ["handed", "marked"].includes(standing(a)));
   const marked = items.filter((a) => standing(a) === "marked");
   const byDue = (x: AssignmentItem, y: AssignmentItem) => (x.dueAt ?? "9").localeCompare(y.dueAt ?? "9");
   const shown = (tab === "todo" ? [...todo].sort(byDue) : tab === "done" ? [...done].sort(byDue) : [...items].sort((x, y) => y.createdAt.localeCompare(x.createdAt)));
+  const totalPages = Math.max(1, Math.ceil(shown.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const start = (currentPage - 1) * pageSize;
+  const paginated = shown.slice(start, start + pageSize);
   const pending = todo.filter((a) => dueText(a).overdue).length;
   const handing2 = handing ? (items.find((a) => a.id === handing.id) ?? handing) : null;
 
@@ -51,7 +78,10 @@ export function StudentAssignments({ items }: { items: AssignmentItem[] }) {
             type="button"
             role="tab"
             aria-selected={tab === id}
-            onClick={() => setTab(id)}
+            onClick={() => {
+              setTab(id);
+              setPage(1);
+            }}
             className={`-mb-px border-b-2 px-4 py-2.5 text-sm font-medium transition-colors ${tab === id ? "border-brand text-ink" : "border-transparent text-ink-3 hover:text-ink"}`}
           >
             {label} <span className="ml-1 text-xs text-ink-3">{n}</span>
@@ -67,13 +97,63 @@ export function StudentAssignments({ items }: { items: AssignmentItem[] }) {
           />
         </Card>
       ) : (
-        <ul className="space-y-4">
-          {shown.map((a) => (
-            <li key={a.id}>
-              <AssignmentCard a={a} onHandIn={() => setHanding(a)} />
-            </li>
-          ))}
-        </ul>
+        <div className="space-y-4">
+          <ul className="space-y-4">
+            {paginated.map((a) => (
+              <li key={a.id}>
+                <AssignmentCard a={a} onHandIn={() => setHanding(a)} />
+              </li>
+            ))}
+          </ul>
+          {/* Pagination bar */}
+          <Card className="flex flex-col items-center justify-between gap-3 p-4 text-xs text-ink-3 sm:flex-row">
+            <div className="flex flex-wrap items-center gap-3">
+              <span>
+                Showing {start + 1}–{Math.min(start + pageSize, shown.length)} of {shown.length} assignments
+              </span>
+              <div className="flex items-center gap-1.5">
+                <span>Per page:</span>
+                <select
+                  aria-label="Assignments per page"
+                  value={pageSize}
+                  onChange={(e) => {
+                    setPageSize(Number(e.target.value));
+                    setPage(1);
+                  }}
+                  className="rounded-lg border border-line bg-surface px-2 py-1 text-xs text-ink focus:outline-none focus:ring-1 focus:ring-brand"
+                >
+                  <option value={5}>5</option>
+                  <option value={10}>10</option>
+                  <option value={20}>20</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <span className="mr-1 text-ink-3">
+                Page {currentPage} of {totalPages}
+              </span>
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={currentPage <= 1}
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                aria-label="Previous page"
+              >
+                <ChevronLeft className="size-3.5" /> Prev
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={currentPage >= totalPages}
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                aria-label="Next page"
+              >
+                Next <ChevronRight className="size-3.5" />
+              </Button>
+            </div>
+          </Card>
+        </div>
       )}
 
       {handing2 ? <HandInDialog a={handing2} onClose={() => setHanding(null)} /> : null}

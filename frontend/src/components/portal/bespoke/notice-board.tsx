@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { z } from "zod";
 import { Fi } from "@/components/ui/icon";
 import { LoadError } from "@/components/ui/load-error";
@@ -126,6 +126,15 @@ function Inbox({ notices }: { notices: NoticeView[] }) {
   const [filter, setFilter] = useState<Filter>("all");
   const [category, setCategory] = useState("");
   const [search, setSearch] = useState("");
+  const [targetId, setTargetId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const id = new URLSearchParams(window.location.search).get("id");
+      if (id) setTargetId(id);
+    }
+  }, []);
+
   const needle = search.trim().toLowerCase();
   const list = notices.filter(
     (n) =>
@@ -166,15 +175,15 @@ function Inbox({ notices }: { notices: NoticeView[] }) {
         </div>
       </Card>
       <div className="space-y-3">
-        {list.length ? list.map((n) => <NoticeCard key={n.id} n={n} />) : <EmptyState title={notices.length ? "Nothing matches" : "No notices yet"} body={notices.length ? "Try another filter." : "Announcements from your college and the university will appear here."} />}
+        {list.length ? list.map((n) => <NoticeCard key={n.id} n={n} isTarget={targetId === n.id} />) : <EmptyState title={notices.length ? "Nothing matches" : "No notices yet"} body={notices.length ? "Try another filter." : "Announcements from your college and the university will appear here."} />}
       </div>
     </div>
   );
 }
 
-function NoticeCard({ n, preview = false }: { n: NoticeView; preview?: boolean }) {
+function NoticeCard({ n, preview = false, isTarget = false }: { n: NoticeView; preview?: boolean; isTarget?: boolean }) {
   const { read, remove } = useNoticeActions();
-  const [open, setOpen] = useState(n.priority !== "Normal" || n.pinned);
+  const [open, setOpen] = useState(n.priority !== "Normal" || n.pinned || isTarget);
   const style = PRIORITY_STYLE[n.priority];
   const audience = [AUDIENCE_LABEL[n.audience], n.department, n.year ? `Year ${n.year}` : ""].filter(Boolean).join(" · ");
   const long = n.body.length > 280;
@@ -182,8 +191,16 @@ function NoticeCard({ n, preview = false }: { n: NoticeView; preview?: boolean }
     setOpen((o) => !o);
     if (!preview && !n.read) read.mutate({ id: n.id, acknowledge: false });
   };
+
+  useEffect(() => {
+    if (isTarget) {
+      const el = document.getElementById(`notice-card-${n.id}`);
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }, [isTarget, n.id]);
+
   return (
-    <Card className={cn("relative overflow-hidden", !n.read && !preview && "ring-1 ring-brand/30", n.expired && "opacity-70")}>
+    <Card id={`notice-card-${n.id}`} className={cn("relative overflow-hidden transition-all", isTarget && "ring-2 ring-brand shadow-lg", !n.read && !preview && !isTarget && "ring-1 ring-brand/30", n.expired && "opacity-70")}>
       <span className={cn("absolute inset-y-0 left-0 w-1", style.bar)} aria-hidden />
       <div className="p-4 pl-5">
         <div className="flex flex-wrap items-start justify-between gap-2">

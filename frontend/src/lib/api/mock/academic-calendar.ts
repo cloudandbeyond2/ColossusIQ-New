@@ -381,6 +381,7 @@ export async function calendarNotifications(session: SessionPayload): Promise<No
           when: r.date === today ? "today" : "tomorrow",
           unread: true,
           tone: r.tag === "Assessment" || r.tag === "Exam cell" ? "amber" : tagToTone(r.tag),
+          href: `/${session.role}/academic-calendar`,
           at: Date.now(),
         });
       }

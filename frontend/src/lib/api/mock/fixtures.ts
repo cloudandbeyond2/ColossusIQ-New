@@ -337,21 +337,21 @@ export function notificationsFor(role: string): Notification[] {
     .map(({ targetRole, ...notif }) => notif);
 
   const common: Notification[] = [
-    { id: "n1", title: "Security", body: "New sign-in from Chrome on Windows. Not you? Change your password.", when: "Just now", unread: true, tone: "rose" },
+    { id: "n1", title: "Security", body: "New sign-in from Chrome on Windows. Not you? Change your password.", when: "Just now", unread: true, tone: "rose", href: `/${role}/profile` },
   ];
   const byRole: Record<string, Notification[]> = {
     student: [
-      { id: "n2", title: "Exam reminder", body: "DBMS Internal Assessment II in 9 days.", when: "2h ago", unread: true, tone: "amber" },
-      { id: "n3", title: "AI Mentor", body: "Your study plan was updated after yesterday's quiz.", when: "Yesterday", unread: true, tone: "brand" },
-      { id: "n4", title: "Event", body: "Registrations open: Smart India Hackathon internal round.", when: "2 days ago", unread: false, tone: "teal" },
+      { id: "n2", title: "Exam reminder", body: "DBMS Internal Assessment II in 9 days.", when: "2h ago", unread: true, tone: "amber", href: "/student/academic-calendar" },
+      { id: "n3", title: "AI Mentor", body: "Your study plan was updated after yesterday's quiz.", when: "Yesterday", unread: true, tone: "brand", href: "/student/mentor" },
+      { id: "n4", title: "Event", body: "Registrations open: Smart India Hackathon internal round.", when: "2 days ago", unread: false, tone: "teal", href: "/student/academic-calendar" },
     ],
     faculty: [
-      { id: "n2", title: "Evaluation queue", body: "14 AI-evaluated answers are waiting for your review.", when: "1h ago", unread: true, tone: "amber" },
-      { id: "n3", title: "Skill Booster", body: "Week 5 of \"AI for Teaching\" is unlocked.", when: "Yesterday", unread: false, tone: "brand" },
+      { id: "n2", title: "Evaluation queue", body: "14 AI-evaluated answers are waiting for your review.", when: "1h ago", unread: true, tone: "amber", href: "/faculty/assignments" },
+      { id: "n3", title: "Skill Booster", body: "Week 5 of \"AI for Teaching\" is unlocked.", when: "Yesterday", unread: false, tone: "brand", href: "/faculty/skill-booster" },
     ],
   };
   return [...custom, ...(byRole[role] ?? [
-    { id: "n2", title: "Weekly summary", body: "Your weekly institutional summary is ready.", when: "3h ago", unread: true, tone: "brand" },
+    { id: "n2", title: "Weekly summary", body: "Your weekly institutional summary is ready.", when: "3h ago", unread: true, tone: "brand", href: `/${role}` },
   ]), ...common];
 }
 

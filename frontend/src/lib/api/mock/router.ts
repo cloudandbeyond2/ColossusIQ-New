@@ -100,6 +100,7 @@ import { dispatchJobs } from "./jobs";
 import { dispatchAlumni } from "./alumni";
 import { dispatchInterview } from "./interview";
 import { ChatBodySchema } from "@/lib/api/mentor-schemas";
+import { dispatchNotifications } from "./notifications";
 import { audit, recentAudit } from "./audit";
 import { createStudent, deleteStudent, getStudentsList, importStudents, updateStudent } from "./students-store";
 import { createFaculty, deleteFaculty, getFacultyList, updateFaculty } from "./faculty-store";
@@ -223,6 +224,8 @@ export const PATTERNS = [
   "GET notifications",
   "POST notifications/test",
   "GET notifications/delivery-log",
+  "POST notifications/:id/read",
+  "POST notifications/read-all",
   "GET search",
   "GET home/:id",
   "GET modules/:id",
@@ -318,6 +321,7 @@ export async function dispatch(method: string, segs: string[], rawBody: unknown,
   // Module Control: an API area switched off (for every module it serves) for this role is closed.
   if (API_AREAS[segs[0] ?? ""] && !apiAreaOpen(segs[0]!, session.role, await disabledPairs())) return { status: 403, body: { error: { code: "module_disabled", message: "This module has been switched off for your role." } } };
   if (segs[0] === "module-control") return dispatchModuleControl(method, segs, rawBody, session);
+  if (segs[0] === "notifications") return dispatchNotifications(method, segs, rawBody, session);
   if (segs[0] === "notice-board") return dispatchNotices(method, segs, rawBody, session);
   if (segs[0] === "content-desk") return dispatchContentDesk(method, segs, rawBody, session);
   if (segs[0] === "curriculum") return dispatchCurriculum(method, segs, rawBody, session);
@@ -514,139 +518,12 @@ export async function dispatch(method: string, segs: string[], rawBody: unknown,
     }
 
     /* ── session & shell ── */
-    case "GET notifications": {
-      const rawList = [...(await feeNotifications(session)), ...(await noticeNotifications(session)), ...(await calendarNotifications(session)), ...(await assignmentNotifications(session)), ...(await experienceNotifications(session)), ...(await getStore().notifications.forUser(session))];
-      const cfg = (await getStore().settings.get(session.college, "notifications-config"))
-        ?? (session.college !== "all" ? await getStore().settings.get("all", "notifications-config") : undefined);
-      if (!cfg) return ok(rawList);
-
-      // Channel rule: In-app / web notifications disabled
-      if (cfg.web === false) {
-        return ok([]);
-      }
-
-      let list = rawList;
-
-      // Rule: Exam reminders
-      if (cfg.exam === "Off") {
-        list = list.filter((n) => !n.title.toLowerCase().includes("exam"));
-      }
-
-      // Rule: Weekly faculty digest
-      if (cfg.digest === false && (session.role === "faculty" || session.role === "institution")) {
-        list = list.filter((n) => !n.title.toLowerCase().includes("digest") && !n.title.toLowerCase().includes("weekly summary"));
-      }
-
-      // Rule: Fees reminders
-      if (cfg.fees === false) {
-        list = list.filter((n) => !n.title.toLowerCase().includes("fee") && !n.body.toLowerCase().includes("fee") && !n.body.toLowerCase().includes("tuition"));
-      }
-
-      // Rule: Attendance threshold warnings
-      if (cfg.attendance === false) {
-        list = list.filter((n) => !n.title.toLowerCase().includes("attendance") && !n.body.toLowerCase().includes("attendance"));
-      }
-
-      // Rule: Campus placement drive alerts
-      if (cfg.placement === false) {
-        list = list.filter((n) => !n.title.toLowerCase().includes("placement") && !n.title.toLowerCase().includes("drive") && !n.title.toLowerCase().includes("interview"));
-      }
-
-      // Rule: Quiet hours
-      if (typeof cfg.quiet === "string" && cfg.quiet !== "None") {
-        const parts = cfg.quiet.split("–");
-        if (parts.length === 2) {
-          const startHour = parseInt((parts[0] ?? "").split(":")[0] ?? "22", 10);
-          const endHour = parseInt((parts[1] ?? "").split(":")[0] ?? "7", 10);
-          const curHour = new Date().getHours();
-          const inQuiet = startHour > endHour
-            ? (curHour >= startHour || curHour < endHour)
-            : (curHour >= startHour && curHour < endHour);
-          if (inQuiet) {
-            // Keep critical alerts (security, urgent), suppress informational ones
-            list = list.filter((n) => n.tone === "rose" || n.title.toLowerCase().includes("security"));
-          }
-        }
-      }
-
-      return ok(list);
-    }
-    case "POST notifications/test": {
-      if (session.role !== "institution" && session.role !== "admin") return forbidden();
-      const TestBody = z.object({
-        title: z.string().min(1).max(120),
-        body: z.string().min(1).max(500),
-        channel: z.enum(["web", "email", "push", "sms", "whatsapp"]).default("web"),
-        tone: z.enum(["brand", "teal", "amber", "rose"]).default("brand"),
-        role: z.enum(["student", "faculty", "institution", "all"]).default("institution"),
-      });
-      const parsed = TestBody.safeParse(rawBody);
-      if (!parsed.success) return err(400, "invalid_body", "Invalid notification test payload.");
-
-      const { title, body: msgBody, channel, tone, role: targetRole } = parsed.data;
-
-      const cfg = (await getStore().settings.get(session.college, "notifications-config"))
-        ?? (session.college !== "all" ? await getStore().settings.get("all", "notifications-config") : undefined);
-
-      if (cfg && cfg[channel] === false) {
-        recordDeliveryLog({
-          id: `log-${Date.now()}`,
-          title,
-          body: msgBody,
-          channel,
-          targetRole,
-          dispatchedAt: "Just now",
-          status: "Blocked by Channel Rule",
-          reason: `Channel '${channel}' is disabled in active Notification Rules.`,
-        });
-        return ok({
-          delivered: false,
-          channel,
-          status: "Blocked",
-          reason: `Channel '${channel}' is switched OFF in active Notification Rules. Enable it to deliver notifications.`,
-        });
-      }
-
-      const notifId = `test-${Date.now()}`;
-      const notif: Notification = {
-        id: notifId,
-        title,
-        body: msgBody,
-        when: "Just now",
-        unread: true,
-        tone,
-      };
-
-      addLiveNotification(notif, targetRole);
-
-      recordDeliveryLog({
-        id: `log-${Date.now()}`,
-        title,
-        body: msgBody,
-        channel,
-        targetRole,
-        dispatchedAt: "Just now",
-        status: "Delivered",
-      });
-
-      await getStore().audit.add({
-        actor: session.name,
-        action: `Dispatched test alert [${channel.toUpperCase()}]: "${title}" to ${targetRole}`,
-        target: "notifications-config",
-        collegeId: session.college === "all" ? null : session.college,
-        actorSub: session.sub,
-      });
-
-      return ok({
-        delivered: true,
-        channel,
-        status: "Delivered",
-        notification: notif,
-      });
-    }
-    case "GET notifications/delivery-log": {
-      return ok(getDeliveryLogs());
-    }
+    case "GET notifications":
+    case "POST notifications/:id/read":
+    case "POST notifications/read-all":
+    case "POST notifications/test":
+    case "GET notifications/delivery-log":
+      return dispatchNotifications(method, segs, rawBody, session);
     case "GET search": {
       const q = cleanText(query.get("q") ?? "", 80).toLowerCase();
       if (q.length < 2) return ok([]);

@@ -1,6 +1,7 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { z } from "zod";
 import { usePrefs } from "@/components/providers";
@@ -98,7 +99,7 @@ export function Topbar({
             <Fi name={theme === "dark" ? "sun" : "moon"} className="text-lg" />
           </button>
 
-          <NotificationsMenu label={t("nav.notifications")} />
+          <NotificationsMenu label={t("nav.notifications")} role={role} />
 
           <UserMenu name={name} roleLabel={roleLabel} initials={initials} signOutLabel={t("nav.signout")} role={role} loginPath={loginPath} />
         </div>
@@ -126,36 +127,198 @@ function useClickOutside(open: boolean, close: () => void) {
   return ref;
 }
 
-function NotificationsMenu({ label }: { label: string }) {
+function resolveNotificationTarget(n: Notification, role: Role): string {
+  if (n.href) return n.href;
+  const id = n.id.toLowerCase();
+  const title = n.title.toLowerCase();
+
+  if (id.startsWith("notice-") || title.includes("notice") || title.includes("announcement")) {
+    const noticeId = id.startsWith("notice-") ? n.id.replace(/^notice-/, "") : "";
+    return noticeId ? `/${role}/notice-board?id=${encodeURIComponent(noticeId)}` : `/${role}/notice-board`;
+  }
+  if (id.startsWith("asn-graded-")) {
+    const asnId = n.id.replace(/^asn-graded-/, "");
+    return `/${role}/assignments?tab=done&id=${encodeURIComponent(asnId)}`;
+  }
+  if (id.startsWith("asn-") || title.includes("assignment") || title.includes("marked:")) {
+    const asnId = id.startsWith("asn-") ? n.id.replace(/^asn-/, "") : "";
+    return asnId ? `/${role}/assignments?tab=todo&id=${encodeURIComponent(asnId)}` : `/${role}/assignments`;
+  }
+  if (id.startsWith("cal-") || title.includes("calendar") || title.includes("today:") || title.includes("tomorrow:") || title.includes("event")) {
+    return `/${role}/academic-calendar`;
+  }
+  if (id.startsWith("fee-") || title.includes("fee") || title.includes("dues")) {
+    return role === "student" ? "/student/fee-payment" : `/${role}/student-fees`;
+  }
+  if (id.startsWith("exp-") || title.includes("experience") || title.includes("passport")) {
+    return `/${role}/experience`;
+  }
+  if (title.includes("exam")) {
+    return `/${role}/academic-calendar`;
+  }
+  if (title.includes("evaluation") || title.includes("evaluated")) {
+    return role === "faculty" || role === "hod" ? `/${role}/assignments` : `/${role}`;
+  }
+  if (title.includes("mentor") || title.includes("study plan")) {
+    return role === "student" ? "/student/mentor" : `/${role}`;
+  }
+  if (title.includes("skill booster")) {
+    return `/${role}/skill-booster`;
+  }
+  if (title.includes("security") || title.includes("sign-in") || title.includes("password")) {
+    return `/${role}/profile`;
+  }
+  return `/${role}`;
+}
+
+function NotificationsMenu({ label, role }: { label: string; role: Role }) {
   const [open, setOpen] = useState(false);
   const ref = useClickOutside(open, () => setOpen(false));
+  const router = useRouter();
+  const qc = useQueryClient();
+
   const { data } = useQuery({
     queryKey: ["notifications"],
     queryFn: () => apiFetch("/api/v1/notifications", z.array(Notification)),
   });
+
   const unread = data?.filter((n) => n.unread).length ?? 0;
+
+  const handleNotificationClick = async (n: Notification) => {
+    setOpen(false);
+
+    // Optimistically mark as read so notification badge decreases immediately
+    if (n.unread) {
+      qc.setQueryData<Notification[]>(["notifications"], (prev) => {
+        if (!prev) return [];
+        return prev.map((item) => (item.id === n.id ? { ...item, unread: false } : item));
+      });
+
+      try {
+        await apiFetch(`/api/v1/notifications/${encodeURIComponent(n.id)}/read`, z.object({ ok: z.boolean() }), { method: "POST" });
+      } catch {
+        // Non-blocking
+      }
+
+      void qc.invalidateQueries({ queryKey: ["notifications"] });
+      void qc.invalidateQueries({ queryKey: ["notice-board"] });
+    }
+
+    const targetHref = resolveNotificationTarget(n, role);
+    if (targetHref) {
+      router.push(targetHref);
+    }
+  };
+
+  const handleMarkAllRead = async () => {
+    qc.setQueryData<Notification[]>(["notifications"], (prev) => {
+      if (!prev) return [];
+      return prev.map((item) => ({ ...item, unread: false }));
+    });
+
+    try {
+      await apiFetch("/api/v1/notifications/read-all", z.object({ ok: z.boolean() }), { method: "POST" });
+    } catch {
+      // Non-blocking
+    }
+
+    void qc.invalidateQueries({ queryKey: ["notifications"] });
+    void qc.invalidateQueries({ queryKey: ["notice-board"] });
+  };
 
   return (
     <div className="relative" ref={ref}>
-      <button onClick={() => setOpen((o) => !o)} className="relative flex size-10 items-center justify-center rounded-xl text-ink-2 hover:bg-surface-2" aria-label={`${label} (${unread} unread)`} aria-expanded={open}>
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="relative flex size-10 items-center justify-center rounded-xl text-ink-2 hover:bg-surface-2 transition-colors"
+        aria-label={`${label} (${unread} unread)`}
+        aria-expanded={open}
+      >
         <Fi name="bell" className="text-lg" />
-        {unread > 0 ? <span className="absolute right-1.5 top-1.5 flex size-4 items-center justify-center rounded-full bg-rose text-[10px] font-bold text-white">{unread}</span> : null}
+        {unread > 0 ? (
+          <span className="absolute right-1.5 top-1.5 flex size-4 items-center justify-center rounded-full bg-rose text-[10px] font-bold text-white shadow-sm ring-2 ring-surface">
+            {unread}
+          </span>
+        ) : null}
       </button>
       {open ? (
-        <div className="absolute right-0 mt-2 w-80 max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl border border-line bg-surface shadow-card">
-          <p className="border-b border-line px-4 py-3 text-sm font-semibold">{label}</p>
-          <ul className="max-h-96 overflow-y-auto">
-            {(data ?? []).map((n) => (
-              <li key={n.id} className="flex gap-3 border-b border-line px-4 py-3 last:border-0">
-                <span className={cn("mt-1.5 size-2 shrink-0 rounded-full", n.unread ? toneBar[n.tone] : "bg-line")} aria-hidden />
-                <div className="min-w-0">
-                  <p className="text-sm font-medium text-ink">{n.title}</p>
-                  <p className="text-sm text-ink-2">{n.body}</p>
-                  <p className="mt-0.5 text-xs text-ink-3">{n.when}</p>
-                </div>
+        <div className="absolute right-0 mt-2 w-84 max-w-[calc(100vw-2rem)] overflow-hidden rounded-2xl border border-line bg-surface shadow-2xl z-50">
+          <div className="flex items-center justify-between border-b border-line px-4 py-3 bg-surface/90 backdrop-blur">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-semibold text-ink">{label}</span>
+              {unread > 0 ? (
+                <span className="rounded-full bg-rose-soft px-2 py-0.5 text-[11px] font-semibold text-rose">
+                  {unread} new
+                </span>
+              ) : null}
+            </div>
+            {unread > 0 ? (
+              <button
+                type="button"
+                onClick={handleMarkAllRead}
+                className="text-xs font-medium text-brand hover:underline"
+              >
+                Mark all read
+              </button>
+            ) : null}
+          </div>
+
+          <ul className="max-h-96 overflow-y-auto divide-y divide-line/60">
+            {(data ?? []).length === 0 ? (
+              <li className="px-4 py-8 text-center text-sm text-ink-3">
+                <Fi name="bell" className="mx-auto mb-2 text-2xl text-ink-3/40" />
+                <p>No notifications</p>
               </li>
-            ))}
+            ) : (
+              (data ?? []).map((n) => (
+                <li key={n.id}>
+                  <button
+                    type="button"
+                    onClick={() => handleNotificationClick(n)}
+                    className={cn(
+                      "group flex w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-surface-2 focus:bg-surface-2 focus:outline-none cursor-pointer",
+                      n.unread ? "bg-brand-soft/10" : "opacity-85",
+                    )}
+                  >
+                    <span
+                      className={cn(
+                        "mt-1.5 size-2 shrink-0 rounded-full transition-all",
+                        n.unread ? cn(toneBar[n.tone], "ring-2 ring-current/20 scale-110") : "bg-line",
+                      )}
+                      aria-hidden
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between gap-1">
+                        <p className={cn("text-sm transition-colors", n.unread ? "font-semibold text-ink" : "font-medium text-ink-2")}>
+                          {n.title}
+                        </p>
+                        <Fi name="chevron-right" className="shrink-0 text-xs text-ink-3 opacity-0 transition-opacity group-hover:opacity-100" />
+                      </div>
+                      <p className="mt-0.5 text-xs text-ink-2 line-clamp-2 leading-relaxed">{n.body}</p>
+                      <div className="mt-1 flex items-center justify-between text-[11px] text-ink-3">
+                        <span>{n.when}</span>
+                        {n.unread ? <span className="font-semibold text-brand text-[10px] uppercase tracking-wider">Unread</span> : null}
+                      </div>
+                    </div>
+                  </button>
+                </li>
+              ))
+            )}
           </ul>
+
+          <div className="border-t border-line bg-surface-2/40 px-3 py-2 text-center">
+            <button
+              type="button"
+              onClick={() => {
+                setOpen(false);
+                router.push(`/${role}/notice-board`);
+              }}
+              className="inline-flex items-center gap-1.5 text-xs font-medium text-brand hover:underline"
+            >
+              <Fi name="megaphone" className="text-xs" />
+              Open notice board
+            </button>
+          </div>
         </div>
       ) : null}
     </div>
