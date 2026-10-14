@@ -1563,12 +1563,17 @@ async function dispatchFaculty(
     if (!data?.load) {
       return err(400, "invalid_body", "Teaching load is required.");
     }
-    const created = await createFaculty(data, collegeId);
-    await audit(session.name, `Added faculty ${created.name}`, created.designation, {
-      collegeId: collegeId ?? undefined,
-      actorSub: session.sub,
-    });
-    return { status: 201, body: created };
+    try {
+      const created = await createFaculty(data, collegeId);
+      await audit(session.name, `Added faculty ${created.name}`, created.designation, {
+        collegeId: collegeId ?? undefined,
+        actorSub: session.sub,
+      });
+      return { status: 201, body: created };
+    } catch (e: any) {
+      console.error("[POST /faculty] Error creating faculty:", e);
+      return err(400, "create_faculty_failed", e?.message || "Failed to create faculty member.");
+    }
   }
 
   // PUT /faculty/:id — update faculty
@@ -1580,26 +1585,36 @@ async function dispatchFaculty(
       try { body = JSON.parse(body); } catch { /* keep */ }
     }
     const data = (body as { data?: any })?.data || body as any;
-    const updated = await updateFaculty(id, data);
-    if (!updated) return notFound();
-    await audit(session.name, `Updated faculty ${updated.name}`, updated.designation, {
-      collegeId: collegeId ?? undefined,
-      actorSub: session.sub,
-    });
-    return ok(updated);
+    try {
+      const updated = await updateFaculty(id, data);
+      if (!updated) return notFound();
+      await audit(session.name, `Updated faculty ${updated.name}`, updated.designation, {
+        collegeId: collegeId ?? undefined,
+        actorSub: session.sub,
+      });
+      return ok(updated);
+    } catch (e: any) {
+      console.error("[PUT /faculty] Error updating faculty:", e);
+      return err(400, "update_faculty_failed", e?.message || "Failed to update faculty member.");
+    }
   }
 
   // DELETE /faculty/:id — delete faculty
   if (method === "DELETE" && segs.length === 2) {
     const id = segs[1];
     if (!id) return notFound();
-    const deleted = await deleteFaculty(id);
-    if (!deleted) return notFound();
-    await audit(session.name, `Deleted faculty ${id}`, "Faculty Directory", {
-      collegeId: collegeId ?? undefined,
-      actorSub: session.sub,
-    });
-    return ok({ ok: true, id });
+    try {
+      const deleted = await deleteFaculty(id);
+      if (!deleted) return notFound();
+      await audit(session.name, `Deleted faculty ${id}`, "Faculty Directory", {
+        collegeId: collegeId ?? undefined,
+        actorSub: session.sub,
+      });
+      return ok({ ok: true, id });
+    } catch (e: any) {
+      console.error("[DELETE /faculty] Error deleting faculty:", e);
+      return err(400, "delete_faculty_failed", e?.message || "Failed to delete faculty member.");
+    }
   }
 
   return notFound();
