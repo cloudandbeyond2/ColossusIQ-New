@@ -73,6 +73,7 @@ import {
   relabelSubjects,
 } from "./stream-content";
 import { dynamicNaacReadiness } from "./naac-readiness";
+import { dynamicHospitalDashboardData } from "./teaching-hospital";
 
 /* ── small builders ─────────────────────────────── */
 type Tone = Kpi["tone"];
@@ -169,7 +170,7 @@ const DATA: Record<string, (collegeScope: string, live: ScopeData) => ModuleData
   "admission-insights": admissionInsights,
   "competency-logbook": competencyLogbook,
   osce: osceStations,
-  "hospital-dashboard": hospitalDashboard,
+  "hospital-dashboard": (scope, live) => dynamicHospitalDashboardData(scope, live.session),
   "nmc-compliance": nmcCompliance,
   "naac-readiness": (scope, live) => dynamicNaacReadiness(scope, live.session),
   "aicte-compliance": async (scope, live) => {

@@ -72,8 +72,10 @@ import { TeamFinderModule } from "./bespoke/team-finder";
 import { ProjectIdeasModule } from "./bespoke/project-ideas";
 import { ProjectReviewModule } from "./bespoke/project-review";
 import { NotificationsConfigModule } from "./bespoke/notifications-config";
+import { HospitalDashboardModule } from "./bespoke/hospital-dashboard";
 
 const BESPOKE: Record<string, (props: { role: Role }) => React.ReactNode> = {
+  "hospital-dashboard": ({ role }) => <HospitalDashboardModule role={role} />,
   "notifications-config": () => <NotificationsConfigModule />,
   "project-review": () => <ProjectReviewModule />,
   "team-finder": () => <TeamFinderModule />,

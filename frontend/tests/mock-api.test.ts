@@ -4,6 +4,7 @@ vi.mock("server-only", () => ({}));
 
 import { MODULES } from "@/config/modules";
 import { DepartmentSkillsData, ModuleData, RoleHome, SettingsData, SkillIntervention } from "@/lib/api/schemas";
+import { HospitalOverviewSchema } from "@/lib/api/hospital-schemas";
 import { moduleData, _hasData } from "@/lib/api/mock/module-data";
 import { dispatch } from "@/lib/api/mock/router";
 import { looksLikeInjection, chatReply } from "@/lib/api/mock/ai";
@@ -1003,6 +1004,95 @@ describe("Notifications read tracking and deep-link navigation", () => {
     expect(list2.filter((n) => n.unread).length).toBe(0);
   });
 });
+
+describe("Teaching Hospital Management (/institution/hospital-dashboard)", () => {
+  const medicalSession = { ...session("institution"), college: "COL-1006" };
+
+  it("serves live hospital overview adhering to HospitalOverviewSchema", async () => {
+    const res = await dispatch("GET", ["hospital", "overview"], undefined, medicalSession, new URLSearchParams());
+    expect(res.status).toBe(200);
+    const parsed = HospitalOverviewSchema.safeParse(res.body);
+    expect(parsed.success).toBe(true);
+    if (!parsed.success) return;
+
+    expect(parsed.data.departments.length).toBe(11);
+    expect(parsed.data.kpis.totalBeds).toBeGreaterThan(600);
+    expect(parsed.data.kpis.occupancyRate).toBeGreaterThanOrEqual(70);
+    expect(parsed.data.nmcNorms.length).toBeGreaterThan(0);
+    expect(parsed.data.activeRotations.length).toBeGreaterThan(0);
+  });
+
+  it("records ward census, updates occupancy and adds to audit log", async () => {
+    const payload = {
+      department: "General Medicine",
+      occupiedBeds: 135,
+      opd: 260,
+      ipdAdmissions: 22,
+      notes: "Post-monsoon seasonal viral fever ward surge.",
+    };
+    const updateRes = await dispatch("POST", ["hospital", "census"], payload, medicalSession, new URLSearchParams());
+    expect(updateRes.status).toBe(200);
+
+    const overviewRes = await dispatch("GET", ["hospital", "overview"], undefined, medicalSession, new URLSearchParams());
+    expect(overviewRes.status).toBe(200);
+    const data = overviewRes.body as any;
+    const gm = data.departments.find((d: any) => d.name === "General Medicine");
+    expect(gm).toBeDefined();
+    expect(gm.occupiedBeds).toBe(135);
+    expect(gm.opdDaily).toBe(260);
+
+    // Verify census log entry
+    const log = data.recentLogs.find((l: any) => l.department === "General Medicine");
+    expect(log).toBeDefined();
+    expect(log.notes).toBe("Post-monsoon seasonal viral fever ward surge.");
+  });
+
+  it("prevents unauthorized roles from submitting census", async () => {
+    const studentSess = { ...session("student"), college: "COL-1006" };
+    const res = await dispatch("POST", ["hospital", "census"], { department: "General Medicine", occupiedBeds: 100, opd: 200, ipdAdmissions: 10 }, studentSess, new URLSearchParams());
+    expect(res.status).toBe(403);
+  });
+
+  it("certifies CBME clinical rotation competency and updates attendance", async () => {
+    const overviewRes = await dispatch("GET", ["hospital", "overview"], undefined, medicalSession, new URLSearchParams());
+    const data = overviewRes.body as any;
+    const targetRotation = data.activeRotations[0];
+    expect(targetRotation).toBeDefined();
+
+    const certifyRes = await dispatch(
+      "POST",
+      ["hospital", "rotations", targetRotation.id, "certify"],
+      {
+        rotationId: targetRotation.id,
+        competenciesSigned: 7,
+        attendance: 95,
+        remarks: "Bedside procedural skills verified by Unit Chief.",
+      },
+      medicalSession,
+      new URLSearchParams()
+    );
+    expect(certifyRes.status).toBe(200);
+
+    // Re-fetch overview and check updated rotation
+    const updatedOverview = await dispatch("GET", ["hospital", "overview"], undefined, medicalSession, new URLSearchParams());
+    const updatedData = updatedOverview.body as any;
+    const updatedRot = updatedData.activeRotations.find((r: any) => r.id === targetRotation.id);
+    expect(updatedRot.competenciesSigned).toBe(7);
+    expect(updatedRot.attendance).toBe(95);
+  });
+
+  it("provides dynamic module-data for backwards-compatibility", async () => {
+    const data = await moduleData("hospital-dashboard");
+    expect(data).toBeDefined();
+    if (data && "kpis" in data && Array.isArray((data as any).kpis)) {
+      const kpis = (data as any).kpis;
+      expect(kpis.length).toBeGreaterThan(0);
+      const occupancyKpi = kpis.find((k: any) => k.label === "Bed Occupancy Rate");
+      expect(occupancyKpi).toBeDefined();
+    }
+  });
+});
+
 
 
 
