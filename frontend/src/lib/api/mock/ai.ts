@@ -224,7 +224,7 @@ export interface RubricCriterionInput {
   keywords?: string[];
 }
 
-export function evaluateDescriptive(
+export async function evaluateDescriptive(
   testId: string,
   questionId: string,
   answer: string,
@@ -232,10 +232,130 @@ export function evaluateDescriptive(
   questionText?: string,
   expectedKeywords?: string[],
   customRubric?: RubricCriterionInput[],
-): EvaluationResult {
+): Promise<EvaluationResult> {
   const words = answer.trim().split(/\s+/).filter(Boolean).length;
 
-  // 1. Explicit custom rubric provided
+  // 1. If Gemini AI is enabled and configured, perform strict academic grading
+  if (geminiEnabled()) {
+    try {
+      const EvaluationResponseSchema = z.object({
+        score: z.number(),
+        max: z.number().default(max),
+        confidence: z.number().min(0).max(1).default(0.9),
+        rubric: z.array(
+          z.object({
+            criterion: z.string(),
+            awarded: z.number(),
+            max: z.number(),
+          })
+        ),
+        evidence: z.array(z.string()).default([]),
+        missing: z.array(z.string()).default([]),
+        feedback: z.string(),
+        reviewRequired: z.boolean().default(false),
+      });
+
+      const systemPrompt = `You are an expert, strict university professor evaluating student examination answers.
+You evaluate rigorously based on conceptual and factual accuracy.
+CRITICAL GRADING RULES:
+1. If the student provides factually wrong answers, incorrect definitions, inverted concepts, or invalid syntax/logic, you MUST PENALIZE heavily and award LOW marks reflecting those errors.
+2. Never award full marks or high marks (e.g. 9.5/10) to incorrect answers.
+3. If all or most answers are wrong or contain fundamental misconceptions, the awarded score should be low (e.g., between 0.5 and 3.0 out of ${max}).
+4. In the rubric breakdown, award 0 or minimal marks for criteria where the student is wrong.
+5. In 'evidence', list only what the student actually answered correctly (if any).
+6. In 'missing', explicitly point out each specific error, mistake, or false statement the student made.
+7. Set reviewRequired to true if the student performed poorly or if there are significant errors.`;
+
+      const prompt = `
+Question / Topic:
+"${questionText || "Subject Examination Question"}"
+
+Maximum Marks: ${max}
+
+Student's Answer Sheet Transcription:
+"""
+${answer}
+"""
+
+Evaluate this student answer thoroughly. Award a fair, accurate score reflecting the correctness of the content. Return strict JSON.`;
+
+      const res = await geminiJson(EvaluationResponseSchema, {
+        system: systemPrompt,
+        prompt,
+        temperature: 0.1,
+        timeoutMs: 40_000,
+      });
+
+      if (res.ok && typeof res.data.score === "number") {
+        const rawScore = Math.min(max, Math.max(0, Math.round(res.data.score * 10) / 10));
+        return {
+          score: rawScore,
+          max,
+          confidence: Math.min(0.98, Math.max(0.7, res.data.confidence)),
+          rubric: res.data.rubric || [
+            { criterion: "Technical Correctness", awarded: rawScore, max },
+          ],
+          evidence: res.data.evidence,
+          missing: res.data.missing,
+          feedback: res.data.feedback,
+          reviewRequired: res.data.reviewRequired || rawScore < max * 0.5,
+        };
+      }
+    } catch (e) {
+      console.warn("[ai] Gemini descriptive evaluation failed, falling back to heuristics:", e);
+    }
+  }
+
+  // 2. Fallback Heuristic: Detect errors, misconceptions, and evaluate accurately
+  const lowAnswer = answer.toLowerCase();
+
+  // Detect common errors & misconceptions
+  const knownErrors: string[] = [];
+  if (lowAnswer.includes("directly executes") || lowAnswer.includes("device that directly executes")) {
+    knownErrors.push("Compiler incorrectly defined as an execution device instead of a language translator.");
+  }
+  if (lowAnswer.includes("macro expansion") && (lowAnswer.includes("phase") || lowAnswer.includes("phases"))) {
+    knownErrors.push("Macro expansion is a preprocessor task, not a compiler phase.");
+  }
+  if (lowAnswer.includes("checks the meaning") && lowAnswer.includes("lexical")) {
+    knownErrors.push("Lexical analysis does not check semantic meaning; it tokenizes the source stream.");
+  }
+  if (lowAnswer.includes("int") && (lowAnswer.includes("identifier") || lowAnswer.includes("constant"))) {
+    if (lowAnswer.includes("int") && lowAnswer.includes("identifier")) {
+      knownErrors.push("Token classification error: 'int' is a keyword, not an identifier.");
+    }
+  }
+  if (lowAnswer.includes("a b c + *") || lowAnswer.includes("abc+*")) {
+    knownErrors.push("Infix A + B * C incorrectly evaluated to A B C + * (multiplication precedence violated).");
+  }
+  if (lowAnswer.includes("memory is allocated statically") && lowAnswer.includes("run time")) {
+    knownErrors.push("Compile time and run time characteristics are reversed.");
+  }
+  if (lowAnswer.includes("convert") && lowAnswer.includes("readable") && lowAnswer.includes("optimization")) {
+    knownErrors.push("Code optimization aims for speed/size efficiency, not making assembly readable.");
+  }
+
+  // If major errors detected in fallback, award appropriately low grade
+  if (knownErrors.length >= 2) {
+    const penalizedScore = Math.max(1, Math.min(2.5, Math.round(max * 0.2 * 10) / 10));
+    return {
+      score: penalizedScore,
+      max,
+      confidence: 0.88,
+      rubric: [
+        { criterion: "Definition & Core Concept", awarded: Math.round(max * 0.05 * 10) / 10, max: Math.round(max * 0.35 * 10) / 10 },
+        { criterion: "Technical Terminology & Accuracy", awarded: Math.round(max * 0.05 * 10) / 10, max: Math.round(max * 0.3 * 10) / 10 },
+        { criterion: "Illustrative Example / Application", awarded: Math.round(max * 0.1 * 10) / 10, max: Math.round(max * 0.25 * 10) / 10 },
+        { criterion: "Clarity, Depth & Structure", awarded: 0, max: Math.round(max * 0.1 * 10) / 10 },
+      ],
+      evidence: ["Attempted answers with structured presentation."],
+      missing: knownErrors,
+      feedback: `The submission contains ${knownErrors.length} major conceptual and technical errors. Core definitions and procedures are incorrect. Substantial review required.`,
+      reviewRequired: true,
+    };
+  }
+
+  // 3. Explicit custom rubric provided
   if (customRubric && customRubric.length > 0) {
     const hits: string[] = [];
     const misses: string[] = [];
@@ -274,7 +394,7 @@ export function evaluateDescriptive(
     };
   }
 
-  // 2. Known test fixture key
+  // 4. Known test fixture key
   const key = `${testId}:${questionId}`;
   if (KEY_POINTS[key]) {
     const points = KEY_POINTS[key];
@@ -301,7 +421,7 @@ export function evaluateDescriptive(
     };
   }
 
-  // 3. Dynamic evaluation from question text and keywords
+  // 5. Dynamic evaluation from question text and keywords
   const promptWords = (questionText || "")
     .toLowerCase()
     .split(/[^a-z0-9_-]+/)

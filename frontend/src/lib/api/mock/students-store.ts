@@ -7,6 +7,8 @@ export interface StudentRecord {
   name: string;
   roll: string;
   section: string;
+  department?: string;
+  departmentCode?: string;
   cgpa: number;
   readiness: number;
   signal: "None" | "Review suggested" | "At risk" | "High performer";
@@ -42,6 +44,7 @@ export async function getStudentsList(opts?: {
   collegeId?: string | null;
   q?: string;
   section?: string;
+  department?: string;
   signal?: string;
 }): Promise<StudentRecord[]> {
   if (dataBackend() === "postgres") {
@@ -66,15 +69,22 @@ export async function getStudentsList(opts?: {
         if (s.user.notes) meta = JSON.parse(s.user.notes);
       } catch {}
 
-      const deptCode = s.department.name.includes("Computer")
+      const deptName = s.department?.name || "General";
+      const deptCode = deptName.includes("Computer")
         ? "CSE"
-        : s.department.name.includes("Information")
+        : deptName.includes("Information")
         ? "IT"
-        : s.department.name.includes("Mechanical")
+        : deptName.includes("Artificial") || deptName.includes("Data")
+        ? "AI&DS"
+        : deptName.includes("Electronics")
+        ? "ECE"
+        : deptName.includes("Electrical")
+        ? "EEE"
+        : deptName.includes("Mechanical")
         ? "MECH"
-        : s.department.name.includes("Civil")
+        : deptName.includes("Civil")
         ? "CIVIL"
-        : "GEN";
+        : deptName.slice(0, 4).toUpperCase();
       const section = meta.section || `${deptCode}-A`;
 
       const baseCgpa = 7.5 + ((idx * 7) % 25) / 10;
@@ -88,6 +98,8 @@ export async function getStudentsList(opts?: {
         name: s.user.fullName,
         roll: s.rollNo,
         section,
+        department: deptName,
+        departmentCode: deptCode,
         cgpa,
         readiness,
         signal,
@@ -99,6 +111,14 @@ export async function getStudentsList(opts?: {
       };
     });
 
+    if (opts?.department && opts.department !== "all") {
+      const d = opts.department.toLowerCase();
+      list = list.filter((s) =>
+        (s.department && s.department.toLowerCase().includes(d)) ||
+        (s.departmentCode && s.departmentCode.toLowerCase() === d) ||
+        s.section.toLowerCase().includes(d)
+      );
+    }
     if (opts?.section && opts.section !== "all") {
       list = list.filter((s) => s.section.toLowerCase() === opts.section!.toLowerCase());
     }
@@ -112,6 +132,7 @@ export async function getStudentsList(opts?: {
           s.name.toLowerCase().includes(needle) ||
           s.roll.toLowerCase().includes(needle) ||
           s.section.toLowerCase().includes(needle) ||
+          (s.department && s.department.toLowerCase().includes(needle)) ||
           (s.email ?? "").toLowerCase().includes(needle)
       );
     }
@@ -120,6 +141,14 @@ export async function getStudentsList(opts?: {
   let list = [...studentsStore];
   if (opts?.collegeId && opts.collegeId !== "all") {
     list = list.filter((s) => !s.collegeId || s.collegeId === opts.collegeId);
+  }
+  if (opts?.department && opts.department !== "all") {
+    const d = opts.department.toLowerCase();
+    list = list.filter((s) =>
+      (s.department && s.department.toLowerCase().includes(d)) ||
+      (s.departmentCode && s.departmentCode.toLowerCase() === d) ||
+      s.section.toLowerCase().includes(d)
+    );
   }
   if (opts?.section && opts.section !== "all") {
     list = list.filter((s) => s.section.toLowerCase() === opts.section!.toLowerCase());
@@ -133,7 +162,8 @@ export async function getStudentsList(opts?: {
       (s) =>
         s.name.toLowerCase().includes(needle) ||
         s.roll.toLowerCase().includes(needle) ||
-        s.section.toLowerCase().includes(needle)
+        s.section.toLowerCase().includes(needle) ||
+        (s.department && s.department.toLowerCase().includes(needle))
     );
   }
   return list;

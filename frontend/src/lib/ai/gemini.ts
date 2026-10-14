@@ -75,7 +75,14 @@ async function once(opts: Options | TextRequest): Promise<TextResult> {
       body: JSON.stringify({
         systemInstruction: { parts: [{ text: opts.system }] },
         contents: [{ role: "user", parts: [{ text: opts.prompt }] }],
-        generationConfig: { temperature: opts.temperature ?? 0.4, maxOutputTokens: opts.maxOutputTokens ?? 8192, responseMimeType: "application/json" },
+        generationConfig: {
+          temperature: opts.temperature ?? 0.4,
+          maxOutputTokens: opts.maxOutputTokens ?? 8192,
+          responseMimeType: "application/json",
+          thinkingConfig: {
+            thinkingBudget: 0,
+          },
+        },
       }),
       signal: controller.signal,
       cache: "no-store",
@@ -294,3 +301,60 @@ export async function geminiPdfText(base64: string, opts: { force?: boolean; tim
   if (!text) return { ok: false, reason: "empty" };
   return { ok: true, text, truncated: cand?.finishReason === "MAX_TOKENS" };
 }
+
+export type ImageOcrResult = { ok: true; text: string } | { ok: false; reason: string };
+
+/** Transcribes handwritten or scanned student answer sheets using Gemini Vision. */
+export async function geminiImageOcr(
+  base64: string,
+  mimeType = "image/jpeg",
+  opts: { force?: boolean; timeoutMs?: number } = {}
+): Promise<ImageOcrResult> {
+  if (!opts.force && !geminiEnabled()) return { ok: false, reason: "disabled" };
+  const payload = {
+    systemInstruction: {
+      parts: [
+        {
+          text: "You are an expert handwriting transcription engine. Transcribe student test answers verbatim. Preserve all questions, question numbers, tables, formulas, and exact student answers including any factual errors or mistakes they made. Do not fix or correct the student's mistakes.",
+        },
+      ],
+    },
+    contents: [
+      {
+        role: "user",
+        parts: [
+          { inlineData: { mimeType, data: base64 } },
+          {
+            text: "Transcribe all handwritten questions, problem numbers, diagrams, and student answers from this answer sheet verbatim in reading order.",
+          },
+        ],
+      },
+    ],
+    generationConfig: {
+      temperature: 0.1,
+      maxOutputTokens: 8192,
+      thinkingConfig: {
+        thinkingBudget: 0,
+      },
+    },
+  };
+  let r = await post(`${geminiModel()}:generateContent`, payload, opts.timeoutMs ?? 60_000);
+  if (!r.ok && retryable(r.reason) && r.reason !== "timeout") {
+    await pause(1500);
+    r = await post(`${geminiModel()}:generateContent`, payload, opts.timeoutMs ?? 60_000);
+  }
+  if (!r.ok) {
+    console.warn(`[gemini] image ocr failed: ${r.reason}`);
+    return { ok: false, reason: r.reason };
+  }
+  const body = r.json as {
+    promptFeedback?: { blockReason?: string };
+    candidates?: Array<{ finishReason?: string; content?: { parts?: Array<{ text?: string }> } }>;
+  };
+  if (body.promptFeedback?.blockReason) return { ok: false, reason: "blocked" };
+  const cand = body.candidates?.[0];
+  const text = (cand?.content?.parts ?? []).map((p) => p.text ?? "").join("").trim();
+  if (!text) return { ok: false, reason: "empty" };
+  return { ok: true, text };
+}
+
