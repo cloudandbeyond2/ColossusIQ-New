@@ -1,7 +1,7 @@
-﻿"use client";
+"use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Eye, Pencil, Plus, Search, Send, Trash2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Eye, Pencil, Plus, Search, Send, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { z } from "zod";
 import { apiFetch } from "@/lib/api/client";
@@ -20,6 +20,8 @@ export function FacultyAssignments({ items }: { items: AssignmentItem[] }) {
   const [viewingId, setViewingId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<AssignmentItem | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
   const publish = useMutation({
     mutationFn: (id: string) => apiFetch(`/api/v1/assignments/${id}`, AssignmentItem, { method: "PUT", body: { status: "Open" } }),
@@ -39,6 +41,10 @@ export function FacultyAssignments({ items }: { items: AssignmentItem[] }) {
 
   const q = search.trim().toLowerCase();
   const shown = items.filter((a) => (filter === "All" || a.status === filter) && (!q || a.title.toLowerCase().includes(q) || a.course.toLowerCase().includes(q)));
+  const totalPages = Math.max(1, Math.ceil(shown.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const start = (currentPage - 1) * pageSize;
+  const paginated = shown.slice(start, start + pageSize);
   const viewing = items.find((a) => a.id === viewingId) ?? null;
 
   return (
@@ -47,9 +53,27 @@ export function FacultyAssignments({ items }: { items: AssignmentItem[] }) {
         <div className="flex flex-1 items-center gap-3">
           <div className="relative max-w-md flex-1">
             <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ink-3" aria-hidden />
-            <input type="search" aria-label="Search assignments" placeholder="Search assignments…" value={search} onChange={(e) => setSearch(e.target.value)} className={`${inputClass} pl-9`} />
+            <input
+              type="search"
+              aria-label="Search assignments"
+              placeholder="Search assignments…"
+              value={search}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setPage(1);
+              }}
+              className={`${inputClass} pl-9`}
+            />
           </div>
-          <select aria-label="Filter by status" value={filter} onChange={(e) => setFilter(e.target.value as typeof filter)} className="rounded-xl border border-line bg-surface px-3 py-2 text-sm font-medium text-ink focus:outline-none focus:ring-2 focus:ring-brand">
+          <select
+            aria-label="Filter by status"
+            value={filter}
+            onChange={(e) => {
+              setFilter(e.target.value as typeof filter);
+              setPage(1);
+            }}
+            className="rounded-xl border border-line bg-surface px-3 py-2 text-sm font-medium text-ink focus:outline-none focus:ring-2 focus:ring-brand"
+          >
             <option value="All">All</option>
             <option value="Open">Open</option>
             <option value="Closed">Closed</option>
@@ -88,7 +112,7 @@ export function FacultyAssignments({ items }: { items: AssignmentItem[] }) {
                   </td>
                 </tr>
               ) : (
-                shown.map((a) => {
+                paginated.map((a) => {
                   const st = a.stats ?? { submitted: 0, graded: 0, enrolled: null };
                   const pct = st.enrolled ? Math.min(100, Math.round((st.submitted / st.enrolled) * 100)) : null;
                   const due = dueText(a);
@@ -147,8 +171,59 @@ export function FacultyAssignments({ items }: { items: AssignmentItem[] }) {
             </tbody>
           </table>
         </div>
-        <div className="border-t border-line p-4 text-xs text-ink-3">
-          Showing {shown.length} of {items.length} assignments. Students see an assignment once it is Open, and can hand it in until you close it.
+        {/* Pagination bar */}
+        <div className="flex flex-col items-center justify-between gap-3 border-t border-line px-4 py-3 text-xs text-ink-3 sm:flex-row">
+          <div className="flex flex-wrap items-center gap-3">
+            <span>
+              {shown.length === 0
+                ? "No assignments"
+                : `Showing ${start + 1}–${Math.min(start + pageSize, shown.length)} of ${shown.length} assignments${shown.length !== items.length ? ` (filtered from ${items.length})` : ""}`}
+            </span>
+            <div className="flex items-center gap-1.5">
+              <span>Rows per page:</span>
+              <select
+                aria-label="Rows per page"
+                value={pageSize}
+                onChange={(e) => {
+                  setPageSize(Number(e.target.value));
+                  setPage(1);
+                }}
+                className="rounded-lg border border-line bg-surface px-2 py-1 text-xs text-ink focus:outline-none focus:ring-1 focus:ring-brand"
+              >
+                <option value={5}>5</option>
+                <option value={10}>10</option>
+                <option value={20}>20</option>
+                <option value={50}>50</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="mr-1 text-ink-3">
+              Page {currentPage} of {totalPages}
+            </span>
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={currentPage <= 1}
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              aria-label="Previous page"
+            >
+              <ChevronLeft className="size-3.5" /> Prev
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={currentPage >= totalPages}
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              aria-label="Next page"
+            >
+              Next <ChevronRight className="size-3.5" />
+            </Button>
+          </div>
+        </div>
+        <div className="border-t border-line/60 bg-surface-2/30 px-4 py-2 text-[11px] text-ink-3">
+          Students see an assignment once it is Open, and can hand it in until you close it.
         </div>
       </Card>
 
