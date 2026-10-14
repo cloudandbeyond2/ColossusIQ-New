@@ -296,7 +296,7 @@ export async function dynamicInstitutionHome(session: SessionPayload): Promise<R
     queue.push({
       title: `${draftCourses} draft course${draftCourses > 1 ? "s" : ""} to review`,
       meta: "Curriculum & syllabus approval",
-      href: "/institution/courses",
+      href: "/institution/course-management",
       tone: "sky",
     });
   }
