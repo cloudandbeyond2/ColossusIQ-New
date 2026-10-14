@@ -59,6 +59,8 @@ import {
   updateAicteCommittee,
   updateAicteProfile,
 } from "./aicte-compliance";
+import { getHospitalOverview, updateHospitalCensus, certifyClinicalRotation } from "./teaching-hospital";
+import { UpdateHospitalCensusInput, CertifyRotationInput } from "@/lib/api/hospital-schemas";
 import { dispatchRecords } from "./records-router";
 import { dispatchLearning } from "./learning";
 import { dispatchCourses } from "./course-builder";
@@ -221,6 +223,9 @@ export const PATTERNS = [
   "DELETE aicte-compliance/actions/:id",
   "PATCH aicte-compliance/committees/:id",
   "PUT aicte-compliance/profile",
+  "GET hospital/overview",
+  "POST hospital/census",
+  "POST hospital/rotations/:id/certify",
   "GET notifications",
   "POST notifications/test",
   "GET notifications/delivery-log",
@@ -515,6 +520,22 @@ export async function dispatch(method: string, segs: string[], rawBody: unknown,
       const parsed = UpdateAicteProfileInput.safeParse(rawBody);
       if (!parsed.success) return err(400, "invalid_body", parsed.error.issues[0]?.message ?? "Invalid AICTE id.");
       return ok(await updateAicteProfile(session, parsed.data));
+    }
+    case "GET hospital/overview": {
+      return ok(await getHospitalOverview(session));
+    }
+    case "POST hospital/census": {
+      if (session.role !== "institution" && session.role !== "hod" && session.role !== "admin") return forbidden();
+      const parsed = UpdateHospitalCensusInput.safeParse(rawBody);
+      if (!parsed.success) return err(400, "invalid_body", parsed.error.issues[0]?.message ?? "Invalid hospital census payload.");
+      return ok(await updateHospitalCensus(session, parsed.data));
+    }
+    case "POST hospital/rotations/:id/certify": {
+      if (session.role !== "institution" && session.role !== "hod" && session.role !== "faculty" && session.role !== "admin") return forbidden();
+      const rotationId = found.id ?? segs[2] ?? "";
+      const parsed = CertifyRotationInput.safeParse({ ...(typeof rawBody === "object" && rawBody !== null ? rawBody : {}), rotationId });
+      if (!parsed.success) return err(400, "invalid_body", parsed.error.issues[0]?.message ?? "Invalid rotation certification payload.");
+      return ok(await certifyClinicalRotation(session, parsed.data));
     }
 
     /* ── session & shell ── */
