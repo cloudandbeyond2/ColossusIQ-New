@@ -370,6 +370,14 @@ export const pgNotifications: NotificationStore = {
   async forUser(session) {
     if (!isUuid(session.sub)) return [];
     const rows = await db().notification.findMany({ where: { userId: session.sub }, orderBy: { createdAt: "desc" }, take: 20 });
-    return rows.map((r): Notification => ({ id: r.id, title: r.title, body: r.body, when: when(r.createdAt), unread: r.readAt === null, tone: label("UiTone", r.tone) as Notification["tone"] }));
+    return rows.map((r): Notification => ({
+      id: r.id,
+      title: r.title,
+      body: r.body,
+      when: when(r.createdAt),
+      unread: r.readAt === null,
+      tone: label("UiTone", r.tone) as Notification["tone"],
+      href: r.link ?? undefined,
+    }));
   },
 };

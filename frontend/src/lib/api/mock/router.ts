@@ -98,6 +98,7 @@ import { dispatchJobs } from "./jobs";
 import { dispatchAlumni } from "./alumni";
 import { dispatchInterview } from "./interview";
 import { ChatBodySchema } from "@/lib/api/mentor-schemas";
+import { dispatchNotifications } from "./notifications";
 import { audit, recentAudit } from "./audit";
 import { createStudent, deleteStudent, getStudentsList, importStudents, updateStudent } from "./students-store";
 import { createFaculty, deleteFaculty, getFacultyList, updateFaculty } from "./faculty-store";
@@ -219,6 +220,8 @@ export const PATTERNS = [
   "PATCH aicte-compliance/committees/:id",
   "PUT aicte-compliance/profile",
   "GET notifications",
+  "POST notifications/:id/read",
+  "POST notifications/read-all",
   "GET search",
   "GET home/:id",
   "GET modules/:id",
@@ -314,6 +317,7 @@ export async function dispatch(method: string, segs: string[], rawBody: unknown,
   // Module Control: an API area switched off (for every module it serves) for this role is closed.
   if (API_AREAS[segs[0] ?? ""] && !apiAreaOpen(segs[0]!, session.role, await disabledPairs())) return { status: 403, body: { error: { code: "module_disabled", message: "This module has been switched off for your role." } } };
   if (segs[0] === "module-control") return dispatchModuleControl(method, segs, rawBody, session);
+  if (segs[0] === "notifications") return dispatchNotifications(method, segs, rawBody, session);
   if (segs[0] === "notice-board") return dispatchNotices(method, segs, rawBody, session);
   if (segs[0] === "content-desk") return dispatchContentDesk(method, segs, rawBody, session);
   if (segs[0] === "curriculum") return dispatchCurriculum(method, segs, rawBody, session);
@@ -510,48 +514,10 @@ export async function dispatch(method: string, segs: string[], rawBody: unknown,
     }
 
     /* ── session & shell ── */
-    case "GET notifications": {
-      const rawList = [...(await feeNotifications(session)), ...(await noticeNotifications(session)), ...(await calendarNotifications(session)), ...(await assignmentNotifications(session)), ...(await experienceNotifications(session)), ...(await getStore().notifications.forUser(session))];
-      const cfg = (await getStore().settings.get(session.college, "notifications-config"))
-        ?? (session.college !== "all" ? await getStore().settings.get("all", "notifications-config") : undefined);
-      if (!cfg) return ok(rawList);
-
-      // Channel rule: In-app / web notifications disabled
-      if (cfg.web === false) {
-        return ok([]);
-      }
-
-      let list = rawList;
-
-      // Rule: Exam reminders
-      if (cfg.exam === "Off") {
-        list = list.filter((n) => !n.title.toLowerCase().includes("exam"));
-      }
-
-      // Rule: Weekly faculty digest
-      if (cfg.digest === false && (session.role === "faculty" || session.role === "institution")) {
-        list = list.filter((n) => !n.title.toLowerCase().includes("digest") && !n.title.toLowerCase().includes("weekly summary"));
-      }
-
-      // Rule: Quiet hours
-      if (typeof cfg.quiet === "string" && cfg.quiet !== "None") {
-        const parts = cfg.quiet.split("–");
-        if (parts.length === 2) {
-          const startHour = parseInt((parts[0] ?? "").split(":")[0] ?? "22", 10);
-          const endHour = parseInt((parts[1] ?? "").split(":")[0] ?? "7", 10);
-          const curHour = new Date().getHours();
-          const inQuiet = startHour > endHour
-            ? (curHour >= startHour || curHour < endHour)
-            : (curHour >= startHour && curHour < endHour);
-          if (inQuiet) {
-            // Keep critical alerts (security, urgent), suppress informational ones
-            list = list.filter((n) => n.tone === "rose" || n.title.toLowerCase().includes("security"));
-          }
-        }
-      }
-
-      return ok(list);
-    }
+    case "GET notifications":
+    case "POST notifications/:id/read":
+    case "POST notifications/read-all":
+      return dispatchNotifications(method, segs, rawBody, session);
     case "GET search": {
       const q = cleanText(query.get("q") ?? "", 80).toLowerCase();
       if (q.length < 2) return ok([]);

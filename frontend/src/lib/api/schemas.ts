@@ -385,8 +385,15 @@ export const Notification = z.object({
   when: z.string(),
   unread: z.boolean(),
   tone: Tone,
+  href: z.string().optional(),
 });
 export type Notification = z.infer<typeof Notification>;
+
+export const NotificationReadReply = z.object({
+  ok: z.boolean(),
+  id: z.string().optional(),
+});
+export type NotificationReadReply = z.infer<typeof NotificationReadReply>;
 
 export const SearchResult = z.object({
   title: z.string(),

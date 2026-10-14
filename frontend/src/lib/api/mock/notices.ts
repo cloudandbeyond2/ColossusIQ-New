@@ -132,15 +132,16 @@ export async function noticeNotifications(s: SessionPayload): Promise<Notificati
   try {
     const { views } = await visible(s);
     return views
-      .filter((n) => !n.read && !n.mine && !n.expired)
+      .filter((n) => !n.mine && !n.expired)
       .slice(0, 8)
       .map((n) => ({
         id: `notice-${n.id}`,
         title: `${n.priority === "Normal" ? "" : `${n.priority}: `}${n.title}`,
         body: n.body.length > 140 ? `${n.body.slice(0, 137)}…` : n.body,
         when: new Date(n.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short" }),
-        unread: true,
+        unread: !n.read,
         tone: n.priority === "Urgent" ? "rose" : n.priority === "Important" ? "amber" : "brand",
+        href: `/${s.role}/notice-board?id=${encodeURIComponent(n.id)}`,
       }));
   } catch {
     return [];

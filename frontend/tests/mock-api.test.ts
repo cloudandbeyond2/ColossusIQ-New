@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
 
@@ -880,5 +880,67 @@ describe("Student Success & Early Warning API", () => {
     expect(res.status).toBe(403);
   });
 });
+
+describe("Notifications read tracking and deep-link navigation", () => {
+  beforeEach(async () => {
+    await dispatch(
+      "PUT",
+      ["modules", "notifications-config"],
+      { values: { web: true, exam: "On", quiet: "None", digest: true } },
+      session("institution"),
+      new URLSearchParams(),
+    );
+  });
+
+  it("includes navigation hrefs on notifications", async () => {
+    const studentSession = session("student");
+    const res = await dispatch("GET", ["notifications"], undefined, studentSession, new URLSearchParams());
+    expect(res.status).toBe(200);
+    const list = res.body as Array<{ id: string; href?: string }>;
+    expect(list.length).toBeGreaterThan(0);
+    for (const n of list) {
+      expect(n.href).toBeDefined();
+      expect(typeof n.href).toBe("string");
+      expect(n.href!.startsWith("/")).toBe(true);
+    }
+  });
+
+  it("decreases unread count when notification is marked read", async () => {
+    const studentSession = { ...session("student"), sub: "student-notif-test" };
+    const res1 = await dispatch("GET", ["notifications"], undefined, studentSession, new URLSearchParams());
+    expect(res1.status).toBe(200);
+    const list1 = res1.body as Array<{ id: string; unread: boolean }>;
+    const unreadCount1 = list1.filter((n) => n.unread).length;
+    expect(unreadCount1).toBeGreaterThan(0);
+
+    const firstUnread = list1.find((n) => n.unread)!;
+    const readRes = await dispatch("POST", ["notifications", firstUnread.id, "read"], undefined, studentSession, new URLSearchParams());
+    expect(readRes.status).toBe(200);
+
+    const res2 = await dispatch("GET", ["notifications"], undefined, studentSession, new URLSearchParams());
+    expect(res2.status).toBe(200);
+    const list2 = res2.body as Array<{ id: string; unread: boolean }>;
+    const unreadCount2 = list2.filter((n) => n.unread).length;
+    expect(unreadCount2).toBe(unreadCount1 - 1);
+    expect(list2.find((n) => n.id === firstUnread.id)?.unread).toBe(false);
+  });
+
+  it("marks all notifications read via POST notifications/read-all", async () => {
+    const studentSession = { ...session("student"), sub: "student-notif-all-test" };
+    const res1 = await dispatch("GET", ["notifications"], undefined, studentSession, new URLSearchParams());
+    expect(res1.status).toBe(200);
+    const list1 = res1.body as Array<{ id: string; unread: boolean }>;
+    expect(list1.some((n) => n.unread)).toBe(true);
+
+    const readAllRes = await dispatch("POST", ["notifications", "read-all"], undefined, studentSession, new URLSearchParams());
+    expect(readAllRes.status).toBe(200);
+
+    const res2 = await dispatch("GET", ["notifications"], undefined, studentSession, new URLSearchParams());
+    expect(res2.status).toBe(200);
+    const list2 = res2.body as Array<{ id: string; unread: boolean }>;
+    expect(list2.filter((n) => n.unread).length).toBe(0);
+  });
+});
+
 
 

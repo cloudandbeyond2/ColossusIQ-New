@@ -218,12 +218,21 @@ export async function assignmentNotifications(s: SessionPayload): Promise<Notifi
         when: ago(r.createdAt),
         unread: true,
         tone: left !== null && left < 0 ? "rose" : soon ? "amber" : "sky",
+        href: `/${s.role}/assignments?tab=todo&id=${encodeURIComponent(r.id)}`,
       });
     }
     for (const r of rows) {
       const m = mine.get(r.id);
       if (!m || m.marks === null || !m.gradedAt || Date.now() - Date.parse(m.gradedAt) > 14 * 86_400_000) continue;
-      out.push({ id: `asn-graded-${r.id}`, title: `Marked: ${r.title}`, body: `You scored ${m.marks} / ${r.maxMarks}`, when: ago(m.gradedAt), unread: true, tone: "teal" });
+      out.push({
+        id: `asn-graded-${r.id}`,
+        title: `Marked: ${r.title}`,
+        body: `You scored ${m.marks} / ${r.maxMarks}`,
+        when: ago(m.gradedAt),
+        unread: true,
+        tone: "teal",
+        href: `/${s.role}/assignments?tab=done&id=${encodeURIComponent(r.id)}`,
+      });
     }
     return out;
   } catch {

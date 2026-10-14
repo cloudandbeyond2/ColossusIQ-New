@@ -2,7 +2,7 @@
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { CheckCircle2, ChevronLeft, ChevronRight, ExternalLink, Send } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { apiFetch } from "@/lib/api/client";
 import { MAX_ANSWER, Submission, type AssignmentItem } from "@/lib/api/assignments-schemas";
 import { Badge, Button, Card, EmptyState, Field, Spinner, inputClass } from "@/components/ui/primitives";
@@ -23,6 +23,27 @@ export function StudentAssignments({ items }: { items: AssignmentItem[] }) {
   const [handing, setHanding] = useState<AssignmentItem | null>(null);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(5);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const sp = new URLSearchParams(window.location.search);
+    const t = sp.get("tab");
+    if (t === "todo" || t === "done" || t === "all") {
+      setTab(t);
+    }
+    const targetId = sp.get("id");
+    if (targetId) {
+      const match = items.find((x) => x.id === targetId);
+      if (match) {
+        if (standing(match) === "todo") {
+          setTab("todo");
+          setHanding(match);
+        } else {
+          setTab("done");
+        }
+      }
+    }
+  }, [items]);
 
   const todo = items.filter((a) => standing(a) === "todo");
   const done = items.filter((a) => ["handed", "marked"].includes(standing(a)));

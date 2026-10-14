@@ -46,9 +46,9 @@ export async function feeNotifications(s: SessionPayload): Promise<Notification[
     const money = new Intl.NumberFormat("en-IN", { style: "currency", currency: r.currency, maximumFractionDigits: 0 }).format(r.amount);
     const when = r.daysLeft > 1 ? `is due in ${r.daysLeft} days` : r.daysLeft === 1 ? "is due tomorrow" : r.daysLeft === 0 ? "is due today" : `was due ${-r.daysLeft} day${r.daysLeft === -1 ? "" : "s"} ago`;
     const out: Notification[] = [
-      { id: `fee-due-${r.academicYear}`, title: r.locked ? "Account locked: app fee unpaid" : `App fee ${when}`, body: `${money} for ${r.academicYear}. Pay under Fees & Payments${r.autoLock && !r.locked ? ` before ${r.lockDate} to keep your access` : ""}.`, when: "Fees", unread: true, tone: r.locked || r.daysLeft < 0 ? "rose" : "amber" },
+      { id: `fee-due-${r.academicYear}`, title: r.locked ? "Account locked: app fee unpaid" : `App fee ${when}`, body: `${money} for ${r.academicYear}. Pay under Fees & Payments${r.autoLock && !r.locked ? ` before ${r.lockDate} to keep your access` : ""}.`, when: "Fees", unread: true, tone: r.locked || r.daysLeft < 0 ? "rose" : "amber", href: "/student/fee-payment" },
     ];
-    for (const n of r.notices.slice(0, 2)) out.push({ id: `fee-reminder-${n.id}`, title: `Fee reminder from ${n.sentBy}`, body: n.message.length > 140 ? `${n.message.slice(0, 137)}…` : n.message, when: new Date(n.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short" }), unread: true, tone: "amber" });
+    for (const n of r.notices.slice(0, 2)) out.push({ id: `fee-reminder-${n.id}`, title: `Fee reminder from ${n.sentBy}`, body: n.message.length > 140 ? `${n.message.slice(0, 137)}…` : n.message, when: new Date(n.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short" }), unread: true, tone: "amber", href: "/student/fee-payment" });
     return out;
   } catch {
     return [];

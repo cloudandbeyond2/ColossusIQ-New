@@ -144,13 +144,14 @@ export async function experienceNotifications(s: SessionPayload): Promise<Notifi
           when: ago(r.reviewedAt!),
           unread: true,
           tone: r.status === "Verified" ? "teal" : "amber",
+          href: `/${s.role}/experience`,
         }));
     }
     if (s.role === "faculty" || s.role === "hod") {
       const waiting = (await experienceStore().list(s, "college")).filter((r) => r.status === "Pending");
       if (!waiting.length) return [];
       const newest = waiting.map((r) => r.updatedAt).sort().at(-1)!;
-      return [{ id: "exp-waiting", title: `${waiting.length} activit${waiting.length === 1 ? "y" : "ies"} to verify`, body: "Students are waiting for their Experience Passport entries to be checked", when: ago(newest), unread: true, tone: "sky" }];
+      return [{ id: "exp-waiting", title: `${waiting.length} activit${waiting.length === 1 ? "y" : "ies"} to verify`, body: "Students are waiting for their Experience Passport entries to be checked", when: ago(newest), unread: true, tone: "sky", href: `/${s.role}/experience` }];
     }
     return [];
   } catch {
