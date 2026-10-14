@@ -179,6 +179,31 @@ export function HandwrittenModule({ role = "faculty" }: { role?: Role } = {}) {
     enabled: role !== "student",
   });
 
+  // Query: Current student's own academic profile for self-evaluation
+  const studentProfileQuery = useQuery({
+    queryKey: ["student-profile-me"],
+    queryFn: () =>
+      apiFetch(
+        "/api/v1/students/me/profile",
+        z
+          .object({
+            name: z.string().optional(),
+            rollNo: z.string().optional(),
+            department: z.string().optional(),
+            departmentCode: z.string().optional(),
+          })
+          .passthrough()
+      ),
+    enabled: role === "student",
+  });
+
+  useEffect(() => {
+    if (role === "student" && studentProfileQuery.data) {
+      if (studentProfileQuery.data.name) setStudentName(studentProfileQuery.data.name);
+      if (studentProfileQuery.data.rollNo) setRollNo(studentProfileQuery.data.rollNo);
+    }
+  }, [role, studentProfileQuery.data]);
+
   const allStudents = useMemo(() => studentsQuery.data?.students || [], [studentsQuery.data]);
 
   // Dynamically compute department options with exact student counts
@@ -429,8 +454,10 @@ export function HandwrittenModule({ role = "faculty" }: { role?: Role } = {}) {
     setError(null);
     setSavedItem(null);
     evaluate.reset();
-    setStudentName(SAMPLE_SHEET.student);
-    setRollNo(SAMPLE_SHEET.rollNo);
+    if (role !== "student") {
+      setStudentName(SAMPLE_SHEET.student);
+      setRollNo(SAMPLE_SHEET.rollNo);
+    }
     setQuestion(SAMPLE_SHEET.question);
     setMaxMarks(SAMPLE_SHEET.maxMarks);
     setOcrText(SAMPLE_SHEET.ocr);
@@ -443,19 +470,36 @@ export function HandwrittenModule({ role = "faculty" }: { role?: Role } = {}) {
     if (!evaluate.data) return;
     const numFinal = parseFloat(finalScore);
     const scoreVal = Number.isFinite(numFinal) ? numFinal : evaluate.data.score;
-    const isOverridden = scoreVal !== evaluate.data.score;
+    const isOverridden = role !== "student" && scoreVal !== evaluate.data.score;
+    const isStudent = role === "student";
+
+    const effectiveName =
+      (isStudent ? studentName.trim() || studentProfileQuery.data?.name : studentName.trim()) ||
+      SAMPLE_SHEET.student;
+    const effectiveRoll =
+      (isStudent ? rollNo.trim() || studentProfileQuery.data?.rollNo : rollNo.trim()) ||
+      SAMPLE_SHEET.rollNo;
 
     saveSubmission.mutate({
-      student: studentName.trim() || SAMPLE_SHEET.student,
-      rollNo: rollNo.trim() || SAMPLE_SHEET.rollNo,
-      assessment: question.trim() ? `Assessment on ${question.trim().slice(0, 30)}...` : "DBMS Internal Assessment I",
+      student: effectiveName,
+      rollNo: effectiveRoll,
+      assessment: question.trim()
+        ? `${isStudent ? "Practice: " : "Assessment on "}${question.trim().slice(0, 30)}`
+        : isStudent
+        ? "Handwritten Self-Practice"
+        : "DBMS Internal Assessment I",
       question: question.trim() || SAMPLE_SHEET.question,
       answer: ocrText || SAMPLE_SHEET.ocr,
       result: evaluate.data,
-      status: isOverridden ? "overridden" : "approved",
-      finalScore: scoreVal,
-      sheetName: file?.name ?? "Sample_Answer_Sheet.pdf",
-      facultyRemarks: facultyRemarks.trim() || (isOverridden ? `Score overridden by faculty to ${scoreVal}/${maxMarks}` : "Faculty verified & approved."),
+      status: isStudent ? "approved" : isOverridden ? "overridden" : "approved",
+      finalScore: isStudent ? evaluate.data.score : scoreVal,
+      sheetName: file?.name ?? (isStudent ? "My_Answer_Sheet.jpg" : "Sample_Answer_Sheet.pdf"),
+      facultyRemarks: isStudent
+        ? "Self-practice evaluation via AI."
+        : facultyRemarks.trim() ||
+          (isOverridden
+            ? `Score overridden by faculty to ${scoreVal}/${maxMarks}`
+            : "Faculty verified & approved."),
     });
   };
 
@@ -623,7 +667,7 @@ export function HandwrittenModule({ role = "faculty" }: { role?: Role } = {}) {
           <div className="space-y-6">
             <Card>
               <CardHeader
-                title="Upload student answer sheet"
+                title={role === "student" ? "Upload your handwritten answer sheet" : "Upload student answer sheet"}
                 subtitle="PDF, PNG or JPG · up to 15 MB"
               />
               <CardBody className="space-y-4">
@@ -639,7 +683,9 @@ export function HandwrittenModule({ role = "faculty" }: { role?: Role } = {}) {
                 >
                   <Upload className="size-6 text-brand" aria-hidden />
                   <span className="text-sm font-medium text-ink">
-                    Drop student answer sheet or click to upload
+                    {role === "student"
+                      ? "Drop your handwritten answer sheet or click to upload"
+                      : "Drop student answer sheet or click to upload"}
                   </span>
                   <span className="text-xs text-ink-3">
                     Files are type-checked and enhanced for OCR
@@ -685,146 +731,181 @@ export function HandwrittenModule({ role = "faculty" }: { role?: Role } = {}) {
                   />
                 ) : null}
 
-                {/* Dynamic Department & Student Selection (Department-wise) */}
-                <div className="space-y-3 pt-3 border-t border-line">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-1.5 text-xs font-semibold text-ink">
-                      <GraduationCap className="size-4 text-brand" />
-                      <span>Department & Student Selection</span>
+                {/* For Students: Clean Identity Badge; For Faculty: Full Department & Student Selection */}
+                {role === "student" ? (
+                  <div className="flex items-center justify-between rounded-xl border border-line/80 bg-surface-2/60 px-3.5 py-3">
+                    <div className="flex items-center gap-3">
+                      <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-brand-soft text-brand font-bold text-xs">
+                        {studentName
+                          ? studentName
+                              .split(" ")
+                              .map((n) => n[0])
+                              .join("")
+                              .slice(0, 2)
+                              .toUpperCase()
+                          : "ST"}
+                      </div>
+                      <div>
+                        <p className="text-xs font-semibold text-ink">
+                          {studentName || studentProfileQuery.data?.name || "Student"}
+                        </p>
+                        <p className="text-[11px] font-mono text-ink-3">
+                          Roll: {rollNo || studentProfileQuery.data?.rollNo || "Self"}
+                          {studentProfileQuery.data?.department ? ` · ${studentProfileQuery.data.department}` : ""}
+                        </p>
+                      </div>
                     </div>
-                    {studentsQuery.isLoading ? (
-                      <span className="flex items-center gap-1 text-[11px] text-ink-3">
-                        <Loader2 className="size-3 animate-spin" /> Fetching directory...
-                      </span>
-                    ) : (
-                      <span className="text-[11px] text-ink-3 font-medium">
-                        {allStudents.length} total students enrolled
-                      </span>
-                    )}
+                    <Badge tone="brand" className="text-[10px]">
+                      Self-Evaluation
+                    </Badge>
                   </div>
-
-                  {/* 1. Academic Department Selector */}
-                  <div>
-                    <label className="text-[11px] font-semibold text-ink-2 block mb-1">
-                      Academic Department / Cohort
-                    </label>
-                    <select
-                      aria-label="Select academic department"
-                      value={selectedDeptCode}
-                      onChange={(e) => {
-                        setSelectedDeptCode(e.target.value);
-                        setSelectedStudentId("");
-                        setStudentSearch("");
-                        setStudentName("");
-                        setRollNo("");
-                      }}
-                      className={cn(inputClass, "text-xs py-1.5")}
-                    >
-                      {departmentOptions.map((opt) => (
-                        <option key={opt.id} value={opt.id}>
-                          {opt.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* 2. Dynamic Student Selector */}
-                  <div className="space-y-1.5">
+                ) : (
+                  <div className="space-y-3 pt-3 border-t border-line">
                     <div className="flex items-center justify-between">
-                      <label className="text-[11px] font-semibold text-ink-2">
-                        Select Student ({departmentStudents.length} in cohort)
-                      </label>
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <select
-                        aria-label="Select student from roster"
-                        value={selectedStudentId}
-                        onChange={(e) => handleSelectStudent(e.target.value)}
-                        disabled={departmentStudents.length === 0 || studentsQuery.isLoading}
-                        className={cn(
-                          inputClass,
-                          "text-xs py-1.5 font-medium disabled:opacity-75 disabled:cursor-not-allowed"
-                        )}
-                      >
-                        {studentsQuery.isLoading ? (
-                          <option value="">-- Loading students from directory... --</option>
-                        ) : departmentStudents.length === 0 ? (
-                          <option value="">-- No students enrolled in {activeDeptLabel} --</option>
-                        ) : (
-                          <>
-                            <option value="">
-                              -- Select student from {activeDeptLabel} ({departmentStudents.length} available) --
-                            </option>
-                            {filteredStudents.map((s) => (
-                              <option key={s.id} value={s.id}>
-                                {s.roll} · {s.name} ({s.section})
-                              </option>
-                            ))}
-                          </>
-                        )}
-                      </select>
-
-                      {departmentStudents.length > 5 ? (
-                        <div className="relative">
-                          <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-ink-3" />
-                          <input
-                            type="search"
-                            placeholder="Quick search student name or roll no..."
-                            value={studentSearch}
-                            onChange={(e) => setStudentSearch(e.target.value)}
-                            className={cn(inputClass, "pl-8 text-xs py-1")}
-                          />
-                        </div>
-                      ) : null}
-
-                      {departmentStudents.length === 0 && !studentsQuery.isLoading && (
-                        <div className="rounded-lg border border-amber-500/20 bg-amber-500/10 p-2 text-[11px] text-amber-700 dark:text-amber-300">
-                          No students are currently enrolled in <strong>{activeDeptLabel}</strong>. You can enter the student name and roll number manually below.
-                        </div>
+                      <div className="flex items-center gap-1.5 text-xs font-semibold text-ink">
+                        <GraduationCap className="size-4 text-brand" />
+                        <span>Department & Student Selection</span>
+                      </div>
+                      {studentsQuery.isLoading ? (
+                        <span className="flex items-center gap-1 text-[11px] text-ink-3">
+                          <Loader2 className="size-3 animate-spin" /> Fetching directory...
+                        </span>
+                      ) : (
+                        <span className="text-[11px] text-ink-3 font-medium">
+                          {allStudents.length} total students enrolled
+                        </span>
                       )}
                     </div>
-                  </div>
 
-                  {/* 3. Student Name and Roll Number inputs (auto-filled, editable) */}
-                  <div className="grid gap-3 sm:grid-cols-2 pt-1">
+                    {/* 1. Academic Department Selector */}
                     <div>
-                      <label className="text-xs font-semibold text-ink-2">Student Name</label>
-                      <input
-                        type="text"
-                        value={studentName}
+                      <label className="text-[11px] font-semibold text-ink-2 block mb-1">
+                        Academic Department / Cohort
+                      </label>
+                      <select
+                        aria-label="Select academic department"
+                        value={selectedDeptCode}
                         onChange={(e) => {
-                          setStudentName(e.target.value);
+                          setSelectedDeptCode(e.target.value);
                           setSelectedStudentId("");
+                          setStudentSearch("");
+                          setStudentName("");
+                          setRollNo("");
                         }}
-                        placeholder="Enter name (e.g. Anand Kumar)"
-                        className={cn(inputClass, "mt-1 text-xs py-1.5")}
-                      />
+                        className={cn(inputClass, "text-xs py-1.5")}
+                      >
+                        {departmentOptions.map((opt) => (
+                          <option key={opt.id} value={opt.id}>
+                            {opt.name}
+                          </option>
+                        ))}
+                      </select>
                     </div>
-                    <div>
-                      <label className="text-xs font-semibold text-ink-2">Roll Number</label>
-                      <input
-                        type="text"
-                        value={rollNo}
-                        onChange={(e) => {
-                          setRollNo(e.target.value);
-                          setSelectedStudentId("");
-                        }}
-                        placeholder="Enter roll no (e.g. 110124001)"
-                        className={cn(inputClass, "mt-1 text-xs py-1.5 font-mono")}
-                      />
+
+                    {/* 2. Dynamic Student Selector */}
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <label className="text-[11px] font-semibold text-ink-2">
+                          Select Student ({departmentStudents.length} in cohort)
+                        </label>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <select
+                          aria-label="Select student from roster"
+                          value={selectedStudentId}
+                          onChange={(e) => handleSelectStudent(e.target.value)}
+                          disabled={departmentStudents.length === 0 || studentsQuery.isLoading}
+                          className={cn(
+                            inputClass,
+                            "text-xs py-1.5 font-medium disabled:opacity-75 disabled:cursor-not-allowed"
+                          )}
+                        >
+                          {studentsQuery.isLoading ? (
+                            <option value="">-- Loading students from directory... --</option>
+                          ) : departmentStudents.length === 0 ? (
+                            <option value="">-- No students enrolled in {activeDeptLabel} --</option>
+                          ) : (
+                            <>
+                              <option value="">
+                                -- Select student from {activeDeptLabel} ({departmentStudents.length} available) --
+                              </option>
+                              {filteredStudents.map((s) => (
+                                <option key={s.id} value={s.id}>
+                                  {s.roll} · {s.name} ({s.section})
+                                </option>
+                              ))}
+                            </>
+                          )}
+                        </select>
+
+                        {departmentStudents.length > 5 ? (
+                          <div className="relative">
+                            <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-ink-3" />
+                            <input
+                              type="search"
+                              placeholder="Quick search student name or roll no..."
+                              value={studentSearch}
+                              onChange={(e) => setStudentSearch(e.target.value)}
+                              className={cn(inputClass, "pl-8 text-xs py-1")}
+                            />
+                          </div>
+                        ) : null}
+
+                        {departmentStudents.length === 0 && !studentsQuery.isLoading && (
+                          <div className="rounded-lg border border-amber-500/20 bg-amber-500/10 p-2 text-[11px] text-amber-700 dark:text-amber-300">
+                            No students are currently enrolled in <strong>{activeDeptLabel}</strong>. You can enter the student name and roll number manually below.
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* 3. Student Name and Roll Number inputs (auto-filled, editable) */}
+                    <div className="grid gap-3 sm:grid-cols-2 pt-1">
+                      <div>
+                        <label className="text-xs font-semibold text-ink-2">Student Name</label>
+                        <input
+                          type="text"
+                          value={studentName}
+                          onChange={(e) => {
+                            setStudentName(e.target.value);
+                            setSelectedStudentId("");
+                          }}
+                          placeholder="Enter name (e.g. Anand Kumar)"
+                          className={cn(inputClass, "mt-1 text-xs py-1.5")}
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs font-semibold text-ink-2">Roll Number</label>
+                        <input
+                          type="text"
+                          value={rollNo}
+                          onChange={(e) => {
+                            setRollNo(e.target.value);
+                            setSelectedStudentId("");
+                          }}
+                          placeholder="Enter roll no (e.g. 110124001)"
+                          className={cn(inputClass, "mt-1 text-xs py-1.5 font-mono")}
+                        />
+                      </div>
                     </div>
                   </div>
-                </div>
+                )}
 
                 <div className="grid gap-3 sm:grid-cols-[1fr_80px]">
                   <div>
-                    <label className="text-xs font-semibold text-ink-2">Question / Topic</label>
+                    <label className="text-xs font-semibold text-ink-2">
+                      {role === "student" ? "Topic / Subject (Optional)" : "Question / Topic"}
+                    </label>
                     <input
                       type="text"
                       value={question}
                       onChange={(e) => setQuestion(e.target.value)}
-                      placeholder="Enter question or topic (e.g. 3NF, Deadlocks...)"
+                      placeholder={
+                        role === "student"
+                          ? "e.g. Data Structures (or auto-detected from sheet)"
+                          : "Enter question or topic (e.g. 3NF, Deadlocks...)"
+                      }
                       className={cn(inputClass, "mt-1 text-xs py-1.5")}
                     />
                   </div>
@@ -965,48 +1046,67 @@ export function HandwrittenModule({ role = "faculty" }: { role?: Role } = {}) {
 
                 <Card>
                   <CardHeader
-                    title="Faculty mark confirmation"
-                    subtitle="Confirm AI evaluation or override marks before publishing"
+                    title={role === "student" ? "Save to My Practice Sheets" : "Faculty mark confirmation"}
+                    subtitle={
+                      role === "student"
+                        ? "Save this evaluation to your personal practice records"
+                        : "Confirm AI evaluation or override marks before publishing"
+                    }
                   />
                   <CardBody className="space-y-4">
-                    <div className="grid gap-4 sm:grid-cols-2">
-                      <div>
-                        <label className="text-xs font-semibold text-ink-2">
-                          Final Score (out of {maxMarks})
-                        </label>
-                        <div className="mt-1 flex items-center gap-2">
+                    {role === "student" ? (
+                      <div className="flex items-center justify-between p-3.5 rounded-xl bg-surface-2 border border-line">
+                        <div>
+                          <p className="text-xs font-medium text-ink-3">AI Evaluation Score</p>
+                          <p className="text-2xl font-bold font-mono text-ink">
+                            {evaluate.data.score}{" "}
+                            <span className="text-sm font-normal text-ink-3">/ {maxMarks}</span>
+                          </p>
+                        </div>
+                        <Badge tone={toneForScore(Math.round((evaluate.data.score / maxMarks) * 100))}>
+                          {Math.round((evaluate.data.score / maxMarks) * 100)}%
+                        </Badge>
+                      </div>
+                    ) : (
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        <div>
+                          <label className="text-xs font-semibold text-ink-2">
+                            Final Score (out of {maxMarks})
+                          </label>
+                          <div className="mt-1 flex items-center gap-2">
+                            <input
+                              type="number"
+                              step="0.5"
+                              min="0"
+                              max={maxMarks}
+                              value={finalScore}
+                              onChange={(e) => setFinalScore(e.target.value)}
+                              className={cn(inputClass, "w-28 font-mono font-bold text-base")}
+                            />
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              onClick={() => setFinalScore(String(evaluate.data.score))}
+                            >
+                              Reset to AI
+                            </Button>
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="text-xs font-semibold text-ink-2">
+                            Faculty Remarks (Optional)
+                          </label>
                           <input
-                            type="number"
-                            step="0.5"
-                            min="0"
-                            max={maxMarks}
-                            value={finalScore}
-                            onChange={(e) => setFinalScore(e.target.value)}
-                            className={cn(inputClass, "w-28 font-mono font-bold text-base")}
+                            type="text"
+                            value={facultyRemarks}
+                            onChange={(e) => setFacultyRemarks(e.target.value)}
+                            placeholder="e.g. Good decomposition, minor notation gap"
+                            className={cn(inputClass, "mt-1 text-xs py-1.5")}
                           />
-                          <Button
-                            variant="secondary"
-                            size="sm"
-                            onClick={() => setFinalScore(String(evaluate.data.score))}
-                          >
-                            Reset to AI
-                          </Button>
                         </div>
                       </div>
-
-                      <div>
-                        <label className="text-xs font-semibold text-ink-2">
-                          Faculty Remarks (Optional)
-                        </label>
-                        <input
-                          type="text"
-                          value={facultyRemarks}
-                          onChange={(e) => setFacultyRemarks(e.target.value)}
-                          placeholder="e.g. Good decomposition, minor notation gap"
-                          className={cn(inputClass, "mt-1 text-xs py-1.5")}
-                        />
-                      </div>
-                    </div>
+                    )}
 
                     <div className="pt-2">
                       <Button
@@ -1020,7 +1120,8 @@ export function HandwrittenModule({ role = "faculty" }: { role?: Role } = {}) {
                           </span>
                         ) : (
                           <span className="flex items-center gap-1.5">
-                            <Check className="size-4" /> Confirm & Save Mark
+                            <Check className="size-4" />{" "}
+                            {role === "student" ? "Save to My History" : "Confirm & Save Mark"}
                           </span>
                         )}
                       </Button>
@@ -1031,15 +1132,23 @@ export function HandwrittenModule({ role = "faculty" }: { role?: Role } = {}) {
                         <div className="flex items-center gap-2">
                           <Check className="size-4 shrink-0 text-teal font-bold" />
                           <span>
-                            Mark of <strong>{savedItem.finalScore} / {savedItem.result.max}</strong> saved for{" "}
-                            <strong>{savedItem.student}</strong> ({savedItem.rollNo}).
+                            {role === "student" ? (
+                              <>
+                                Score of <strong>{savedItem.finalScore} / {savedItem.result.max}</strong> saved to your practice records.
+                              </>
+                            ) : (
+                              <>
+                                Mark of <strong>{savedItem.finalScore} / {savedItem.result.max}</strong> saved for{" "}
+                                <strong>{savedItem.student}</strong> ({savedItem.rollNo}).
+                              </>
+                            )}
                           </span>
                         </div>
                         <Button
                           variant="secondary"
                           size="sm"
                           onClick={() => {
-                            setSelectedStudentFilter(savedItem.rollNo);
+                            if (role !== "student") setSelectedStudentFilter(savedItem.rollNo);
                             setActiveTab("history");
                           }}
                           className="text-xs"

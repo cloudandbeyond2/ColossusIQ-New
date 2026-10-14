@@ -203,6 +203,7 @@ function SetEditor({ d, draft, setDraft, errors, busy, onSave, onCancel, say }: 
   const sections = [...new Set(d.exams.filter((e) => draft.examIds.includes(e.id)).flatMap((e) => e.sections))];
   const setQ = (i: number, q: Q) => set("questions", draft.questions.map((x, j) => (j === i ? q : x)));
   const isNew = draft.topicId === NEW;
+  const isCustom = isNew || draft.topicId.startsWith("c-");
   const draftQuestions = () => {
     say(null);
     gen.mutate(
@@ -241,7 +242,7 @@ function SetEditor({ d, draft, setDraft, errors, busy, onSave, onCancel, say }: 
                 <input id="set-new" className={inputClass} maxLength={80} placeholder="e.g. Government schemes 2026" value={draft.newTopic} onChange={(e) => set("newTopic", e.target.value)} />
               </Field>
             ) : null}
-            <Field label={isNew ? "Exam section (required to publish a new topic)" : "Exam section (optional)"} htmlFor="set-section" error={errors.section}>
+            <Field label={isCustom ? "Exam section (required for new & custom topics)" : "Exam section (optional)"} htmlFor="set-section" error={errors.section}>
               <select id="set-section" className={inputClass} value={draft.section} onChange={(e) => set("section", e.target.value)} disabled={!sections.length}>
                 <option value="">{sections.length ? "Choose a section…" : "Pick an exam first"}</option>
                 {sections.map((x) => (
