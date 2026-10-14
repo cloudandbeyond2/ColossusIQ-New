@@ -171,6 +171,8 @@ export interface EvaluationStore {
   add?(session: SessionPayload, item: EvaluationQueueItem): Promise<EvaluationQueueItem>;
   /** Get evaluations for student */
   forStudent?(session: SessionPayload): Promise<EvaluationQueueItem[]>;
+  /** Delete an evaluated item from the queue / history */
+  delete?(session: SessionPayload, id: string): Promise<boolean>;
 }
 
 export interface InterviewSession {

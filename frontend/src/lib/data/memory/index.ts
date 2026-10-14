@@ -520,6 +520,24 @@ export const memoryStore: DataStore = {
         );
       });
     },
+    async delete(session, id) {
+      let q = evalQueues.get(session.sub);
+      if (!q) {
+        q = evaluationQueue();
+        evalQueues.set(session.sub, q);
+      }
+      const initial = q.length;
+      const updated = q.filter((i) => i.id !== id);
+      evalQueues.set(session.sub, updated);
+
+      // Also remove from any other queue map if present
+      for (const [key, queue] of evalQueues.entries()) {
+        if (key !== session.sub) {
+          evalQueues.set(key, queue.filter((i) => i.id !== id));
+        }
+      }
+      return updated.length < initial;
+    },
   },
 
   interviews: {

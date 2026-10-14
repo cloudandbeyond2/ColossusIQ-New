@@ -10,6 +10,7 @@ import { collegeStream, enabledGroups, getCollege, listColleges } from "./record
 import { cleanText } from "@/lib/security/sanitize";
 import { formatNumber } from "@/lib/utils";
 import { analyzeResume, chatReply, evaluateDescriptive, generate, interviewTurn } from "./ai";
+import { geminiImageOcr } from "@/lib/ai/gemini";
 import { MCQ_KEY, MOCK_TESTS, MOCK_TEST_SUMMARIES, PROJECTS, addLiveNotification } from "./fixtures";
 import { getDeliveryLogs, recordDeliveryLog } from "./notifications-engine";
 import { ROLE_HOMES } from "./homes";
@@ -267,6 +268,7 @@ export const PATTERNS = [
   "GET assessments/:id",
   "POST assessments/:id/submit",
   "POST ai/evaluate",
+  "POST ai/ocr",
   "POST evaluations/submit",
   "GET evaluations/mine",
   "GET projects",
@@ -286,6 +288,7 @@ export const PATTERNS = [
   "GET evaluations/queue",
   "POST evaluations/:id/approve",
   "POST evaluations/:id/override",
+  "DELETE evaluations/:id",
   "GET audit/recent",
   "POST branding/dns-verify",
   "POST branding/test-email",
@@ -883,7 +886,7 @@ export async function dispatch(method: string, segs: string[], rawBody: unknown,
         .safeParse(rawBody);
       if (!body.success) return err(400, "invalid_body", "Invalid request.");
       return ok(
-        evaluateDescriptive(
+        await evaluateDescriptive(
           body.data.testId,
           body.data.questionId,
           cleanText(body.data.answer, 8000),
@@ -893,6 +896,34 @@ export async function dispatch(method: string, segs: string[], rawBody: unknown,
           body.data.rubric,
         ),
       );
+    }
+    case "POST ai/ocr": {
+      if (!can(session.role, "assessment:attempt") && !can(session.role, "assessment:create")) return forbidden();
+      const body = z
+        .object({
+          image: z.string().min(10),
+          mimeType: z.string().optional().default("image/jpeg"),
+          fileName: z.string().optional(),
+        })
+        .safeParse(rawBody);
+      if (!body.success) return err(400, "invalid_body", "Invalid OCR request.");
+
+      let base64Clean = body.data.image;
+      let effectiveMime = body.data.mimeType;
+      if (base64Clean.includes(";base64,")) {
+        const parts = base64Clean.split(";base64,");
+        effectiveMime = parts[0]?.replace(/^data:/, "") || effectiveMime;
+        base64Clean = parts[1] || "";
+      }
+
+      const ocrRes = await geminiImageOcr(base64Clean, effectiveMime);
+      if (ocrRes.ok) {
+        return ok({ text: ocrRes.text });
+      }
+
+      return ok({
+        text: `[Transcribed from ${body.data.fileName || "Student Answer Sheet"}]:\n${ocrRes.reason === "disabled" ? "AI Vision service offline. You can review and edit text manually." : `OCR notice: ${ocrRes.reason}. You can edit text manually.`}`,
+      });
     }
     case "GET projects":
       if (session.role !== "student" && session.role !== "faculty" && session.role !== "admin" && session.role !== "hod") return forbidden();
@@ -1053,6 +1084,15 @@ export async function dispatch(method: string, segs: string[], rawBody: unknown,
       await audit(session.name, c === "approve" ? "Score approved" : "Score override", `${item.assessment} · ${item.rollNo}`, { collegeId: collegeOf(), actorSub: session.sub });
       return ok(item);
     }
+    case "DELETE evaluations/:id": {
+      if (!can(session.role, "assessment:override-score") && !can(session.role, "assessment:create")) return forbidden();
+      const delFn = getStore().evaluations.delete;
+      if (delFn) {
+        await delFn(session, b!);
+      }
+      await audit(session.name, "Evaluation deleted", `Evaluation ${b}`, { collegeId: collegeOf(), actorSub: session.sub });
+      return ok({ ok: true });
+    }
     case "POST evaluations/submit": {
       if (!can(session.role, "assessment:create") && !can(session.role, "assessment:override-score") && !can(session.role, "assessment:attempt")) return forbidden();
       const SubmitEvalSchema = z.object({
@@ -1167,8 +1207,9 @@ async function dispatchStudents(
   if (method === "GET" && segs.length === 1) {
     const q = query.get("q") || undefined;
     const section = query.get("section") || undefined;
+    const department = query.get("department") || undefined;
     const signal = query.get("signal") || undefined;
-    const list = await getStudentsList({ collegeId, q, section, signal });
+    const list = await getStudentsList({ collegeId, q, section, department, signal });
     return ok({ students: list, total: list.length });
   }
 

@@ -4,7 +4,7 @@ import type { FacultyEvent } from "@/lib/api/mock/faculty-activity";
 import type { ClassSummary, SavedOutline } from "@/lib/api/mock/teaching";
 import type { EvaluationQueueItem, Notification } from "@/lib/api/schemas";
 import type { BoosterStore, EvaluationStore, FacultyEventStore, InterviewStore, NotificationStore, OutlineStore, ResumeStore, SummaryStore } from "../store";
-import { db, isUuid } from "./db";
+import { db, isUuid, prisma } from "./db";
 import { enumValue, label } from "./enums";
 import { collegeByPublic, collegePublic, day, lookupId, studentOf, toDay } from "./lookups";
 
@@ -313,6 +313,16 @@ export const pgEvaluations: EvaluationStore = {
 
         return isSelf;
       });
+  },
+  async delete(session, id) {
+    if (!isUuid(id)) return false;
+    try {
+      await prisma().evaluationItem.delete({ where: { id } });
+      return true;
+    } catch (e) {
+      console.warn("[pgEvaluations] delete failed:", e);
+      return false;
+    }
   },
 };
 

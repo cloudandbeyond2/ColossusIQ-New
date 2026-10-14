@@ -733,7 +733,7 @@ export async function getFacultyAllocationProfile(
 
           const sections: AllocatedClassSection[] = facCourses.map((c, idx) => {
             const deptStudents = allCollegeStudents.filter((s) => s.departmentId === c.departmentId);
-            const studentCount = deptStudents.length > 0 ? deptStudents.length : allCollegeStudents.length;
+            const studentCount = deptStudents.length;
             const deptCode = c.department.name.includes("Computer")
               ? "CSE"
               : c.department.name.includes("Artificial") || c.department.name.includes("Data")

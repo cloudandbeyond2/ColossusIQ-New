@@ -219,7 +219,7 @@ async function handle(req: NextRequest, ctx: { params: Promise<{ path: string[] 
     if (!csrfValid(req)) return error(403, "csrf", "Security token missing or invalid. Refresh the page and try again.");
   }
 
-  const parsedBody = method === "GET" ? { ok: true as const, body: undefined } : await readJson(req, route === "media" || route === "fees/me/offline" ? MAX_MEDIA_BODY_BYTES : route === "knowledge/documents" ? KB_MAX_BODY_BYTES : method === "PUT" && /^learning-courses\/[^/]+$/.test(route) ? COURSE_MAX_BODY_BYTES : MAX_BODY_BYTES);
+  const parsedBody = method === "GET" ? { ok: true as const, body: undefined } : await readJson(req, route === "media" || route === "fees/me/offline" || route === "ai/ocr" ? MAX_MEDIA_BODY_BYTES : route === "knowledge/documents" ? KB_MAX_BODY_BYTES : method === "PUT" && /^learning-courses\/[^/]+$/.test(route) ? COURSE_MAX_BODY_BYTES : MAX_BODY_BYTES);
   if (!parsedBody.ok) return parsedBody.res;
   const body = parsedBody.body;
 

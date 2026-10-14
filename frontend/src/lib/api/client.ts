@@ -11,7 +11,7 @@ import { CSRF_HEADER } from "@/lib/auth/session";
 
 const MODE = process.env.NEXT_PUBLIC_API_MODE === "live" ? "live" : "mock";
 const BASE = MODE === "live" ? (process.env.NEXT_PUBLIC_API_BASE_URL ?? "").replace(/\/+$/, "") : "";
-const TIMEOUT_MS = 20_000;
+const TIMEOUT_MS = 60_000;
 
 export class ApiError extends Error {
   constructor(
