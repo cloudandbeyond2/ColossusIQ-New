@@ -94,7 +94,7 @@ export const MODULES: ModuleDef[] = [
   { slug: "assignments", title: "Assignments", description: "Create, distribute and track assignments and lab submissions.", group: "Academics", roles: ["student", "faculty"], template: "bespoke", icon: "clipboard", phase: "MVP" },
   { slug: "document-ai", title: "Document AI", description: "Upload PDFs, slides or scanned notes — summarise, extract, generate flashcards and questions.", group: "Academics", roles: ["student", "faculty"], template: "generator", icon: "file", phase: "Phase 2", agent: "document" },
 
-  { slug: "cbcs-electives", title: "CBCS & Electives", description: "Choice-based credit system: core, allied, skill-enhancement and elective choices with credit tracking.", group: "Academics", roles: ["student", "faculty", "hod", "institution"], template: "list", icon: "list", phase: "MVP", streams: ["artsScience", "management"] },
+  { slug: "cbcs-electives", title: "CBCS & Electives", description: "Choice-based credit system: core, allied, skill-enhancement and elective choices with credit tracking.", group: "Academics", roles: ["student", "faculty", "hod", "institution", "admin"], template: "bespoke", icon: "list", phase: "MVP", streams: ["artsScience", "management"] },
 
   // ───────────── Clinical & Hospital (medical colleges) ─────────────
   { slug: "clinical-rotations", title: "Clinical Rotations", description: "Schedule clinical postings by phase, department and ward; track attendance and certified competencies.", group: "Clinical & Hospital", roles: ["faculty", "hod", "institution", "admin"], template: "crud", resource: "rotations", icon: "stethoscope", phase: "MVP", streams: ["medical"] },

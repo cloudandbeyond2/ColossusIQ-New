@@ -76,6 +76,20 @@ import {
   UpdateNmcCommitteeInput,
   UpdateNmcProfileInput,
 } from "@/lib/api/nmc-schemas";
+import {
+  getCbcsOverview,
+  createCbcsCourse,
+  updateCbcsSeats,
+  enrollStudentElective,
+  dropStudentElective,
+  updateCbcsWindow,
+} from "./cbcs-electives";
+import {
+  CreateCbcsCourseInput,
+  UpdateCbcsSeatsInput,
+  EnrollStudentElectiveInput,
+  UpdateCbcsWindowInput,
+} from "@/lib/api/cbcs-schemas";
 import { dispatchRecords } from "./records-router";
 import { dispatchLearning } from "./learning";
 import { dispatchCourses } from "./course-builder";
@@ -247,6 +261,12 @@ export const PATTERNS = [
   "DELETE nmc-compliance/actions/:id",
   "PATCH nmc-compliance/committees/:id",
   "PUT nmc-compliance/profile",
+  "GET cbcs-electives",
+  "POST cbcs-electives/courses",
+  "PATCH cbcs-electives/courses/:id/seats",
+  "POST cbcs-electives/enroll",
+  "DELETE cbcs-electives/enrollments/:id",
+  "PUT cbcs-electives/window",
   "GET notifications",
   "POST notifications/test",
   "GET notifications/delivery-log",
@@ -591,6 +611,36 @@ export async function dispatch(method: string, segs: string[], rawBody: unknown,
       const parsed = UpdateNmcProfileInput.safeParse(rawBody);
       if (!parsed.success) return err(400, "invalid_body", parsed.error.issues[0]?.message ?? "Invalid profile payload.");
       return ok(await updateNmcProfile(session, parsed.data));
+    }
+    case "GET cbcs-electives": {
+      return ok(await getCbcsOverview(session));
+    }
+    case "POST cbcs-electives/courses": {
+      if (session.role !== "institution" && session.role !== "hod" && session.role !== "admin") return forbidden();
+      const parsed = CreateCbcsCourseInput.safeParse(rawBody);
+      if (!parsed.success) return err(400, "invalid_body", parsed.error.issues[0]?.message ?? "Invalid course payload.");
+      return ok(await createCbcsCourse(session, parsed.data));
+    }
+    case "PATCH cbcs-electives/courses/:id/seats": {
+      if (session.role !== "institution" && session.role !== "hod" && session.role !== "admin") return forbidden();
+      const courseId = found.id ?? segs[2] ?? "";
+      const parsed = UpdateCbcsSeatsInput.safeParse({ ...(typeof rawBody === "object" && rawBody !== null ? rawBody : {}), courseId });
+      if (!parsed.success) return err(400, "invalid_body", parsed.error.issues[0]?.message ?? "Invalid seat capacity payload.");
+      return ok(await updateCbcsSeats(session, parsed.data));
+    }
+    case "POST cbcs-electives/enroll": {
+      const parsed = EnrollStudentElectiveInput.safeParse(rawBody);
+      if (!parsed.success) return err(400, "invalid_body", parsed.error.issues[0]?.message ?? "Invalid enrollment payload.");
+      return ok(await enrollStudentElective(session, parsed.data));
+    }
+    case "DELETE cbcs-electives/enrollments/:id": {
+      return ok(await dropStudentElective(session, found.id ?? segs[2] ?? ""));
+    }
+    case "PUT cbcs-electives/window": {
+      if (session.role !== "institution" && session.role !== "admin") return forbidden();
+      const parsed = UpdateCbcsWindowInput.safeParse(rawBody);
+      if (!parsed.success) return err(400, "invalid_body", parsed.error.issues[0]?.message ?? "Invalid window payload.");
+      return ok(await updateCbcsWindow(session, parsed.data));
     }
 
     /* ── session & shell ── */

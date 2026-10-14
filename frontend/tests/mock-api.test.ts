@@ -6,6 +6,7 @@ import { MODULES } from "@/config/modules";
 import { DepartmentSkillsData, ModuleData, RoleHome, SettingsData, SkillIntervention } from "@/lib/api/schemas";
 import { HospitalOverviewSchema } from "@/lib/api/hospital-schemas";
 import { NmcComplianceDataSchema } from "@/lib/api/nmc-schemas";
+import { CbcsOverviewSchema } from "@/lib/api/cbcs-schemas";
 import { moduleData, _hasData } from "@/lib/api/mock/module-data";
 import { dispatch } from "@/lib/api/mock/router";
 import { looksLikeInjection, chatReply } from "@/lib/api/mock/ai";
@@ -1205,6 +1206,179 @@ describe("NMC / Council Compliance (/institution/nmc-compliance)", () => {
     }
   });
 });
+
+describe("CBCS & Electives (/institution/cbcs-electives)", () => {
+  const artsSession: SessionPayload = {
+    sub: "demo-institution",
+    role: "institution",
+    name: "Dr. Malathi",
+    tenant: "t",
+    college: "COL-1002", // Kaveri College of Arts & Science
+    mfa: true,
+    exp: 9e9,
+  };
+
+  const mgmtSession: SessionPayload = {
+    sub: "demo-institution",
+    role: "institution",
+    name: "Prof. Raghavan",
+    tenant: "t",
+    college: "COL-1004", // Coimbatore School of Management
+    mfa: true,
+    exp: 9e9,
+  };
+
+  const studentSession: SessionPayload = {
+    sub: "demo-student",
+    role: "student",
+    name: "Pooja V",
+    tenant: "t",
+    college: "COL-1002",
+    mfa: true,
+    exp: 9e9,
+  };
+
+  it("returns 200 and valid schema for Arts & Science CBCS overview", async () => {
+    const res = await dispatch("GET", ["cbcs-electives"], undefined, artsSession, new URLSearchParams());
+    expect(res.status).toBe(200);
+    const parsed = CbcsOverviewSchema.safeParse(res.body);
+    expect(parsed.success).toBe(true);
+    if (parsed.success) {
+      expect(parsed.data.stream).toBe("artsScience");
+      expect(parsed.data.courses.length).toBeGreaterThan(0);
+      expect(parsed.data.kpis.totalCourses).toBeGreaterThan(0);
+      expect(parsed.data.categorySummaries.length).toBeGreaterThan(0);
+    }
+  });
+
+  it("returns 200 and management electives for Management stream", async () => {
+    const res = await dispatch("GET", ["cbcs-electives"], undefined, mgmtSession, new URLSearchParams());
+    expect(res.status).toBe(200);
+    const parsed = CbcsOverviewSchema.safeParse(res.body);
+    expect(parsed.success).toBe(true);
+    if (parsed.success) {
+      expect(parsed.data.stream).toBe("management");
+      expect(parsed.data.courses.some((c) => c.offeringDepartment === "Finance" || c.offeringDepartment === "Marketing")).toBe(true);
+    }
+  });
+
+  it("allows institution to create a new CBCS elective course", async () => {
+    const newCourse = {
+      code: "SEC305",
+      title: "Content Writing & Digital Journalism",
+      offeringDepartment: "English Literature",
+      semester: 4,
+      category: "Skill Enhancement Course (SEC)" as const,
+      credits: 3,
+      seatsTotal: 45,
+      instructor: "Prof. Ananya Roy, M.A.",
+      schedule: "Wed & Fri, 02:00 PM - 03:30 PM",
+      syllabusSummary: "Journalistic writing, editorial review, copy-editing and blogging standards.",
+    };
+
+    const res = await dispatch("POST", ["cbcs-electives", "courses"], newCourse, artsSession, new URLSearchParams());
+    expect(res.status).toBe(200);
+    const created = res.body as { code: string; title: string; category: string; seatsFilled: number };
+    expect(created.code).toBe("SEC305");
+    expect(created.title).toBe("Content Writing & Digital Journalism");
+    expect(created.seatsFilled).toBe(0);
+
+    // Verify course appears in overview
+    const check = await dispatch("GET", ["cbcs-electives"], undefined, artsSession, new URLSearchParams());
+    const data = check.body as { courses: Array<{ code: string }> };
+    expect(data.courses.some((c) => c.code === "SEC305")).toBe(true);
+  });
+
+  it("allows institution to adjust course seat capacity", async () => {
+    // Get existing courses
+    const overview = await dispatch("GET", ["cbcs-electives"], undefined, artsSession, new URLSearchParams());
+    const courses = (overview.body as { courses: Array<{ id: string; seatsTotal: number }> }).courses;
+    const target = courses[0]!;
+    const newSeats = target.seatsTotal + 15;
+
+    const res = await dispatch(
+      "PATCH",
+      ["cbcs-electives", "courses", target.id, "seats"],
+      { seatsTotal: newSeats },
+      artsSession,
+      new URLSearchParams()
+    );
+    expect(res.status).toBe(200);
+    const updated = (res.body as { course: { seatsTotal: number } }).course;
+    expect(updated.seatsTotal).toBe(newSeats);
+  });
+
+  it("handles student enrollment and drop flow cleanly", async () => {
+    const overview = await dispatch("GET", ["cbcs-electives"], undefined, artsSession, new URLSearchParams());
+    const courses = (overview.body as { courses: Array<{ id: string; seatsFilled: number; seatsTotal: number; status: string }> }).courses;
+    const course = courses.find((c) => c.status === "Open" && c.seatsFilled < c.seatsTotal)!;
+    expect(course).toBeDefined();
+    const initialEnrolled = course.seatsFilled;
+
+    // Enroll a student
+    const enrollRes = await dispatch(
+      "POST",
+      ["cbcs-electives", "enroll"],
+      {
+        courseId: course.id,
+        studentName: "Aditi Ramesh",
+        regNo: "24ENG408",
+        department: "English Literature",
+        semester: 4,
+      },
+      artsSession,
+      new URLSearchParams()
+    );
+    expect(enrollRes.status).toBe(200);
+    const enrolledRecord = (enrollRes.body as { registration: { id: string; regNo: string } }).registration;
+    expect(enrolledRecord.regNo).toBe("24ENG408");
+
+    // Drop the student
+    const dropRes = await dispatch(
+      "DELETE",
+      ["cbcs-electives", "enrollments", enrolledRecord.id],
+      undefined,
+      artsSession,
+      new URLSearchParams()
+    );
+    expect(dropRes.status).toBe(200);
+
+    // Verify enrolled seats count reverted
+    const check = await dispatch("GET", ["cbcs-electives"], undefined, artsSession, new URLSearchParams());
+    const updatedCourse = (check.body as { courses: Array<{ id: string; seatsFilled: number }> }).courses.find(
+      (c) => c.id === course.id
+    );
+    expect(updatedCourse?.seatsFilled).toBe(initialEnrolled);
+  });
+
+  it("allows institution to toggle registration window", async () => {
+    const res = await dispatch(
+      "PUT",
+      ["cbcs-electives", "window"],
+      {
+        registrationWindowOpen: false,
+        registrationDeadline: "2026-10-31 23:59 IST",
+      },
+      artsSession,
+      new URLSearchParams()
+    );
+    expect(res.status).toBe(200);
+    const body = res.body as { registrationWindowOpen: boolean; registrationDeadline: string };
+    expect(body.registrationWindowOpen).toBe(false);
+    expect(body.registrationDeadline).toBe("2026-10-31 23:59 IST");
+  });
+
+  it("provides dynamic module-data for fallback and list data views", async () => {
+    const data = await moduleData("cbcs-electives");
+    expect(data).toBeDefined();
+    if (data && "items" in data) {
+      expect(Array.isArray((data as any).items)).toBe(true);
+      expect((data as any).items.length).toBeGreaterThan(0);
+      expect((data as any).columns.length).toBeGreaterThan(0);
+    }
+  });
+});
+
 
 
 

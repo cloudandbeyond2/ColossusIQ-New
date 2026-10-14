@@ -75,6 +75,7 @@ import {
 import { dynamicNaacReadiness } from "./naac-readiness";
 import { dynamicHospitalDashboardData } from "./teaching-hospital";
 import { dynamicNmcComplianceData } from "./nmc-compliance";
+import { dynamicCbcsElectivesData } from "./cbcs-electives";
 
 /* ── small builders ─────────────────────────────── */
 type Tone = Kpi["tone"];
@@ -187,7 +188,7 @@ const DATA: Record<string, (collegeScope: string, live: ScopeData) => ModuleData
       plan: d.actions.filter((a) => a.status !== "Resolved").slice(0, 4).map((a) => a.title),
     };
   },
-  "cbcs-electives": (_scope, live) => cbcsElectives(live.stream),
+  "cbcs-electives": (scope, live) => dynamicCbcsElectivesData(scope, live.stream),
   "bi-analytics": async (scope, live) => {
     const session = live.session ?? { college: scope, sub: "demo-institution", role: "institution" as const, name: "Principal", tenant: "TNTU", mfa: true, exp: 0 };
     const res = await dynamicBiAnalytics(session, scope !== "all" ? scope : undefined);
