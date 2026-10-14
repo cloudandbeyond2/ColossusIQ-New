@@ -73,8 +73,10 @@ import { ProjectIdeasModule } from "./bespoke/project-ideas";
 import { ProjectReviewModule } from "./bespoke/project-review";
 import { NotificationsConfigModule } from "./bespoke/notifications-config";
 import { HospitalDashboardModule } from "./bespoke/hospital-dashboard";
+import { NmcComplianceModule } from "./bespoke/nmc-compliance";
 
 const BESPOKE: Record<string, (props: { role: Role }) => React.ReactNode> = {
+  "nmc-compliance": ({ role }) => <NmcComplianceModule role={role} />,
   "hospital-dashboard": ({ role }) => <HospitalDashboardModule role={role} />,
   "notifications-config": () => <NotificationsConfigModule />,
   "project-review": () => <ProjectReviewModule />,

@@ -5,6 +5,7 @@ vi.mock("server-only", () => ({}));
 import { MODULES } from "@/config/modules";
 import { DepartmentSkillsData, ModuleData, RoleHome, SettingsData, SkillIntervention } from "@/lib/api/schemas";
 import { HospitalOverviewSchema } from "@/lib/api/hospital-schemas";
+import { NmcComplianceDataSchema } from "@/lib/api/nmc-schemas";
 import { moduleData, _hasData } from "@/lib/api/mock/module-data";
 import { dispatch } from "@/lib/api/mock/router";
 import { looksLikeInjection, chatReply } from "@/lib/api/mock/ai";
@@ -1092,6 +1093,119 @@ describe("Teaching Hospital Management (/institution/hospital-dashboard)", () =>
     }
   });
 });
+
+describe("NMC / Council Compliance (/institution/nmc-compliance)", () => {
+  const medicalSession = { ...session("institution"), college: "COL-1006" };
+
+  it("serves live NMC overview adhering to NmcComplianceDataSchema", async () => {
+    const res = await dispatch("GET", ["nmc-compliance"], undefined, medicalSession, new URLSearchParams());
+    expect(res.status).toBe(200);
+    const parsed = NmcComplianceDataSchema.safeParse(res.body);
+    expect(parsed.success).toBe(true);
+    if (!parsed.success) return;
+
+    expect(parsed.data.departments.length).toBe(21);
+    expect(parsed.data.committees.length).toBe(7);
+    expect(parsed.data.norms.length).toBe(8);
+    expect(parsed.data.overallScore).toBeGreaterThan(70);
+    expect(parsed.data.kpis.facultyAdequacy).toBeGreaterThan(80);
+    expect(parsed.data.kpis.aebasAverage).toBeGreaterThan(75);
+  });
+
+  it("denies access to unauthorized roles", async () => {
+    const studentSess = { ...session("student"), college: "COL-1006" };
+    const res = await dispatch("GET", ["nmc-compliance"], undefined, studentSess, new URLSearchParams());
+    expect(res.status).toBe(403);
+  });
+
+  it("manages NMC compliance action items: create, update status, and delete", async () => {
+    // 1. Create action
+    const createRes = await dispatch(
+      "POST",
+      ["nmc-compliance", "actions"],
+      {
+        title: "Procure Neonatal Resuscitation Model",
+        category: "Infrastructure & Labs",
+        priority: "High",
+        assignee: "Skills Lab Director",
+        dueDate: "2026-11-20",
+        notes: "Identified in internal council mock inspection.",
+      },
+      medicalSession,
+      new URLSearchParams()
+    );
+    expect(createRes.status).toBe(200);
+    const newAction = createRes.body as any;
+    expect(newAction.id).toBeDefined();
+    expect(newAction.status).toBe("Pending");
+
+    // 2. Update status
+    const updateRes = await dispatch(
+      "PATCH",
+      ["nmc-compliance", "actions", newAction.id],
+      { status: "Resolved", notes: "Procurement order PO-9921 placed." },
+      medicalSession,
+      new URLSearchParams()
+    );
+    expect(updateRes.status).toBe(200);
+
+    // 3. Delete action
+    const deleteRes = await dispatch(
+      "DELETE",
+      ["nmc-compliance", "actions", newAction.id],
+      undefined,
+      medicalSession,
+      new URLSearchParams()
+    );
+    expect(deleteRes.status).toBe(200);
+  });
+
+  it("updates statutory committee details", async () => {
+    const res = await dispatch(
+      "PATCH",
+      ["nmc-compliance", "committees", "NMC-COM-01"],
+      {
+        chairperson: "Dr. R. Meenakshi, MD",
+        convener: "Dr. P. Sundaram, MD",
+        membersCount: 15,
+        status: "Constituted & Active",
+        lastMeetingDate: "2026-10-12",
+        momUploaded: true,
+        notes: "MEU CISP-IV preparation scheduled.",
+      },
+      medicalSession,
+      new URLSearchParams()
+    );
+    expect(res.status).toBe(200);
+  });
+
+  it("updates NMC college profile", async () => {
+    const res = await dispatch(
+      "PUT",
+      ["nmc-compliance", "profile"],
+      {
+        nmcCode: "NMC-MED-TN-042",
+        mbbsSeats: 250,
+        ethicsCommitteeRegNo: "ECR/124/Inst/TN/2021/RR-24",
+        cctvStreamsOnline: 25,
+      },
+      medicalSession,
+      new URLSearchParams()
+    );
+    expect(res.status).toBe(200);
+  });
+
+  it("provides dynamic scorecard module-data for backwards compatibility", async () => {
+    const data = await moduleData("nmc-compliance");
+    expect(data).toBeDefined();
+    if (data && "overall" in data) {
+      expect(typeof (data as any).overall).toBe("number");
+      expect((data as any).dimensions.length).toBeGreaterThan(0);
+      expect((data as any).strengths.length).toBeGreaterThan(0);
+    }
+  });
+});
+
 
 
 

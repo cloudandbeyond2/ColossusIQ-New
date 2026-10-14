@@ -62,6 +62,20 @@ import {
 } from "./aicte-compliance";
 import { getHospitalOverview, updateHospitalCensus, certifyClinicalRotation } from "./teaching-hospital";
 import { UpdateHospitalCensusInput, CertifyRotationInput } from "@/lib/api/hospital-schemas";
+import {
+  getNmcComplianceOverview,
+  createNmcAction,
+  updateNmcActionStatus,
+  deleteNmcAction,
+  updateNmcCommittee,
+  updateNmcProfile,
+} from "./nmc-compliance";
+import {
+  CreateNmcActionInput,
+  UpdateNmcActionStatusInput,
+  UpdateNmcCommitteeInput,
+  UpdateNmcProfileInput,
+} from "@/lib/api/nmc-schemas";
 import { dispatchRecords } from "./records-router";
 import { dispatchLearning } from "./learning";
 import { dispatchCourses } from "./course-builder";
@@ -227,6 +241,12 @@ export const PATTERNS = [
   "GET hospital/overview",
   "POST hospital/census",
   "POST hospital/rotations/:id/certify",
+  "GET nmc-compliance",
+  "POST nmc-compliance/actions",
+  "PATCH nmc-compliance/actions/:id",
+  "DELETE nmc-compliance/actions/:id",
+  "PATCH nmc-compliance/committees/:id",
+  "PUT nmc-compliance/profile",
   "GET notifications",
   "POST notifications/test",
   "GET notifications/delivery-log",
@@ -539,6 +559,38 @@ export async function dispatch(method: string, segs: string[], rawBody: unknown,
       const parsed = CertifyRotationInput.safeParse({ ...(typeof rawBody === "object" && rawBody !== null ? rawBody : {}), rotationId });
       if (!parsed.success) return err(400, "invalid_body", parsed.error.issues[0]?.message ?? "Invalid rotation certification payload.");
       return ok(await certifyClinicalRotation(session, parsed.data));
+    }
+    case "GET nmc-compliance": {
+      if (session.role !== "institution" && session.role !== "admin") return forbidden();
+      return ok(await getNmcComplianceOverview(session));
+    }
+    case "POST nmc-compliance/actions": {
+      if (session.role !== "institution" && session.role !== "admin") return forbidden();
+      const parsed = CreateNmcActionInput.safeParse(rawBody);
+      if (!parsed.success) return err(400, "invalid_body", parsed.error.issues[0]?.message ?? "Invalid action payload.");
+      return ok(await createNmcAction(session, parsed.data));
+    }
+    case "PATCH nmc-compliance/actions/:id": {
+      if (session.role !== "institution" && session.role !== "admin") return forbidden();
+      const parsed = UpdateNmcActionStatusInput.safeParse(rawBody);
+      if (!parsed.success) return err(400, "invalid_body", parsed.error.issues[0]?.message ?? "Invalid status payload.");
+      return ok(await updateNmcActionStatus(session, found.id ?? segs[2] ?? "", parsed.data));
+    }
+    case "DELETE nmc-compliance/actions/:id": {
+      if (session.role !== "institution" && session.role !== "admin") return forbidden();
+      return ok(await deleteNmcAction(session, found.id ?? segs[2] ?? ""));
+    }
+    case "PATCH nmc-compliance/committees/:id": {
+      if (session.role !== "institution" && session.role !== "admin") return forbidden();
+      const parsed = UpdateNmcCommitteeInput.safeParse(rawBody);
+      if (!parsed.success) return err(400, "invalid_body", parsed.error.issues[0]?.message ?? "Invalid committee payload.");
+      return ok(await updateNmcCommittee(session, found.id ?? segs[2] ?? "", parsed.data));
+    }
+    case "PUT nmc-compliance/profile": {
+      if (session.role !== "institution" && session.role !== "admin") return forbidden();
+      const parsed = UpdateNmcProfileInput.safeParse(rawBody);
+      if (!parsed.success) return err(400, "invalid_body", parsed.error.issues[0]?.message ?? "Invalid profile payload.");
+      return ok(await updateNmcProfile(session, parsed.data));
     }
 
     /* ── session & shell ── */

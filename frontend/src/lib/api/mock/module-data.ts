@@ -74,6 +74,7 @@ import {
 } from "./stream-content";
 import { dynamicNaacReadiness } from "./naac-readiness";
 import { dynamicHospitalDashboardData } from "./teaching-hospital";
+import { dynamicNmcComplianceData } from "./nmc-compliance";
 
 /* ── small builders ─────────────────────────────── */
 type Tone = Kpi["tone"];
@@ -171,7 +172,7 @@ const DATA: Record<string, (collegeScope: string, live: ScopeData) => ModuleData
   "competency-logbook": competencyLogbook,
   osce: osceStations,
   "hospital-dashboard": (scope, live) => dynamicHospitalDashboardData(scope, live.session),
-  "nmc-compliance": nmcCompliance,
+  "nmc-compliance": (scope, live) => dynamicNmcComplianceData(scope, live.session),
   "naac-readiness": (scope, live) => dynamicNaacReadiness(scope, live.session),
   "aicte-compliance": async (scope, live) => {
     const session = live.session ?? { college: scope, sub: "demo-institution", role: "institution" as const, name: "Principal", tenant: "TNTU", mfa: true, exp: 0 };
