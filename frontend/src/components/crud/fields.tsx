@@ -227,6 +227,13 @@ export function ValueView({
       <span className="whitespace-pre-wrap">{String(value)}</span>
     );
   }
+  if (field.name === "department" || field.name === "title") {
+    return (
+      <span className="whitespace-normal break-words leading-relaxed" title={String(value)}>
+        {String(value)}
+      </span>
+    );
+  }
   return inTable ? (
     <span className="line-clamp-1 break-words" title={String(value)}>
       {String(value)}

@@ -91,6 +91,47 @@ export function CrudList({
   });
 
   const columns = useMemo(() => resource.fields.filter((f) => f.column), [resource]);
+  const primaryColName = useMemo(() => {
+    return columns.some((c) => c.name === resource.titleField)
+      ? resource.titleField
+      : columns[0]?.name;
+  }, [columns, resource.titleField]);
+
+  const getHeaderClass = (c: (typeof columns)[number]) => {
+    if (c.name === primaryColName) {
+      return "min-w-[240px] md:min-w-[280px] lg:min-w-[320px]";
+    }
+    if (c.name === "department") {
+      return "min-w-[220px] lg:min-w-[260px] whitespace-nowrap";
+    }
+    if (c.name === "code") {
+      return "min-w-[110px] whitespace-nowrap";
+    }
+    if (c.column === "number" || c.name === "credits" || c.name === "semester") {
+      return "whitespace-nowrap text-center";
+    }
+    return "whitespace-nowrap";
+  };
+
+  const getCellClass = (c: (typeof columns)[number]) => {
+    if (c.name === primaryColName) {
+      return "min-w-[240px] md:min-w-[280px] lg:min-w-[320px] font-medium text-ink";
+    }
+    if (c.name === "department") {
+      return "min-w-[220px] lg:min-w-[260px] whitespace-normal break-words text-ink-2";
+    }
+    if (c.name === "code") {
+      return "min-w-[110px] whitespace-nowrap font-mono text-ink";
+    }
+    if (c.column === "number" || c.name === "credits" || c.name === "semester") {
+      return "whitespace-nowrap text-center tabular-nums text-ink-2";
+    }
+    if (c.name === "faculty" || c.name === "createdBy") {
+      return "min-w-[160px] whitespace-nowrap text-ink-2";
+    }
+    return "max-w-[200px]";
+  };
+
   const stats = resource.stats ?? [];
   const statusOptions = resource.fields.find((f) => f.name === resource.statusField)?.options ?? [];
   const totalAll = data ? Object.values(data.counts).reduce((a, b) => a + b, 0) : 0;
@@ -240,13 +281,13 @@ export function CrudList({
                         College
                       </th>
                     ) : null}
-                    {columns.map((c, j) => (
+                    {columns.map((c) => (
                       <th
                         key={c.name}
                         scope="col"
                         className={cn(
                           "px-4 py-3 font-semibold",
-                          j === 0 ? "min-w-[280px] md:min-w-[340px] lg:min-w-[420px] max-w-xl" : "whitespace-nowrap"
+                          getHeaderClass(c)
                         )}
                       >
                         {c.label.replace(/ \(.*\)$/, "")}
@@ -273,7 +314,8 @@ export function CrudList({
                           </span>
                         </td>
                       ) : null}
-                      {columns.map((c, j) => {
+                      {columns.map((c) => {
+                        const isPrimary = c.name === primaryColName;
                         const isExpanded = Boolean(expandedRows[r.id]);
                         const valStr = String(r[c.name] ?? "");
                         const isLong = valStr.length > 80;
@@ -282,12 +324,10 @@ export function CrudList({
                             key={c.name}
                             className={cn(
                               "px-4 py-3 align-middle",
-                              j === 0
-                                ? "min-w-[280px] md:min-w-[340px] lg:min-w-[420px] max-w-xl font-medium text-ink"
-                                : "max-w-[180px]"
+                              getCellClass(c)
                             )}
                           >
-                            {j === 0 ? (
+                            {isPrimary ? (
                               <div className="space-y-1">
                                 <Link
                                   href={`${base}/${encodeURIComponent(r.id)}`}
@@ -296,8 +336,8 @@ export function CrudList({
                                 >
                                   <span
                                     className={cn(
-                                      "break-words leading-relaxed",
-                                      isExpanded ? "whitespace-pre-wrap" : "line-clamp-2"
+                                      "break-words leading-relaxed font-semibold",
+                                      isExpanded ? "whitespace-pre-wrap" : "whitespace-normal"
                                     )}
                                   >
                                     {valStr || "—"}
@@ -317,6 +357,18 @@ export function CrudList({
                                   </button>
                                 )}
                               </div>
+                            ) : c.name === "code" ? (
+                              <Link
+                                href={`${base}/${encodeURIComponent(r.id)}`}
+                                className="font-mono font-semibold text-ink hover:text-brand transition-colors"
+                                title={valStr}
+                              >
+                                {valStr || "—"}
+                              </Link>
+                            ) : c.name === "department" ? (
+                              <span className="whitespace-normal break-words leading-relaxed text-ink-2 font-medium" title={valStr}>
+                                {valStr || "—"}
+                              </span>
                             ) : c.column === "masked" ? (
                               // Contact details stay masked in lists (shoulder-surfing, screenshots); full value only on the detail page.
                               <span className="font-mono text-xs text-ink-2">{r[c.name] ? (String(r[c.name]).includes("•") ? String(r[c.name]) : mask(String(r[c.name]))) : "—"}</span>
@@ -347,14 +399,14 @@ export function CrudList({
                 <li key={r.id} className="p-4">
                   <div className="flex items-start justify-between gap-3">
                     <Link href={`${base}/${encodeURIComponent(r.id)}`} className="min-w-0 flex-1">
-                      <p className="line-clamp-2 font-medium text-ink leading-snug" title={String(r[resource.titleField] ?? r.id)}>
+                      <p className="font-semibold text-ink leading-snug break-words" title={String(r[resource.titleField] ?? r.id)}>
                         {String(r[resource.titleField] ?? r.id)}
                       </p>
                       <p className="font-mono text-xs text-ink-3 mt-0.5">{r.id}</p>
                     </Link>
                     {resource.statusField ? <Badge tone={toneForStatus(String(r[resource.statusField]))}>{String(r[resource.statusField])}</Badge> : null}
                   </div>
-                  <p className="mt-1.5 text-xs text-ink-2">{[showCollege ? r.collegeName : null, ...resource.subtitleFields.map((f) => r[f])].filter(Boolean).join(" · ")}</p>
+                  <p className="mt-1.5 text-xs text-ink-2 break-words leading-relaxed">{[showCollege ? r.collegeName : null, ...resource.subtitleFields.map((f) => r[f])].filter(Boolean).join(" · ")}</p>
                   <div className="mt-3">
                     <RowActions base={base} record={r} canManage={canManage} onDelete={() => { del.reset(); setToDelete(r); }} />
                   </div>
