@@ -10,7 +10,8 @@ import { collegeStream, enabledGroups, getCollege, listColleges } from "./record
 import { cleanText } from "@/lib/security/sanitize";
 import { formatNumber } from "@/lib/utils";
 import { analyzeResume, chatReply, evaluateDescriptive, generate, interviewTurn } from "./ai";
-import { MCQ_KEY, MOCK_TESTS, MOCK_TEST_SUMMARIES, PROJECTS } from "./fixtures";
+import { MCQ_KEY, MOCK_TESTS, MOCK_TEST_SUMMARIES, PROJECTS, addLiveNotification } from "./fixtures";
+import { getDeliveryLogs, recordDeliveryLog } from "./notifications-engine";
 import { ROLE_HOMES } from "./homes";
 import { roleHomeFor, studentCourses, studentDashboard } from "./stream-content";
 import { dynamicInstitutionHome } from "./institution-home";
@@ -39,6 +40,7 @@ import {
   UpdateAicteProfileInput,
   UpdateReviewStatusInput,
   CreateReportInputSchema,
+  Notification,
 } from "@/lib/api/schemas";
 import {
   createReport,
@@ -219,6 +221,8 @@ export const PATTERNS = [
   "PATCH aicte-compliance/committees/:id",
   "PUT aicte-compliance/profile",
   "GET notifications",
+  "POST notifications/test",
+  "GET notifications/delivery-log",
   "GET search",
   "GET home/:id",
   "GET modules/:id",
@@ -533,6 +537,21 @@ export async function dispatch(method: string, segs: string[], rawBody: unknown,
         list = list.filter((n) => !n.title.toLowerCase().includes("digest") && !n.title.toLowerCase().includes("weekly summary"));
       }
 
+      // Rule: Fees reminders
+      if (cfg.fees === false) {
+        list = list.filter((n) => !n.title.toLowerCase().includes("fee") && !n.body.toLowerCase().includes("fee") && !n.body.toLowerCase().includes("tuition"));
+      }
+
+      // Rule: Attendance threshold warnings
+      if (cfg.attendance === false) {
+        list = list.filter((n) => !n.title.toLowerCase().includes("attendance") && !n.body.toLowerCase().includes("attendance"));
+      }
+
+      // Rule: Campus placement drive alerts
+      if (cfg.placement === false) {
+        list = list.filter((n) => !n.title.toLowerCase().includes("placement") && !n.title.toLowerCase().includes("drive") && !n.title.toLowerCase().includes("interview"));
+      }
+
       // Rule: Quiet hours
       if (typeof cfg.quiet === "string" && cfg.quiet !== "None") {
         const parts = cfg.quiet.split("–");
@@ -551,6 +570,82 @@ export async function dispatch(method: string, segs: string[], rawBody: unknown,
       }
 
       return ok(list);
+    }
+    case "POST notifications/test": {
+      if (session.role !== "institution" && session.role !== "admin") return forbidden();
+      const TestBody = z.object({
+        title: z.string().min(1).max(120),
+        body: z.string().min(1).max(500),
+        channel: z.enum(["web", "email", "push", "sms", "whatsapp"]).default("web"),
+        tone: z.enum(["brand", "teal", "amber", "rose"]).default("brand"),
+        role: z.enum(["student", "faculty", "institution", "all"]).default("institution"),
+      });
+      const parsed = TestBody.safeParse(rawBody);
+      if (!parsed.success) return err(400, "invalid_body", "Invalid notification test payload.");
+
+      const { title, body: msgBody, channel, tone, role: targetRole } = parsed.data;
+
+      const cfg = (await getStore().settings.get(session.college, "notifications-config"))
+        ?? (session.college !== "all" ? await getStore().settings.get("all", "notifications-config") : undefined);
+
+      if (cfg && cfg[channel] === false) {
+        recordDeliveryLog({
+          id: `log-${Date.now()}`,
+          title,
+          body: msgBody,
+          channel,
+          targetRole,
+          dispatchedAt: "Just now",
+          status: "Blocked by Channel Rule",
+          reason: `Channel '${channel}' is disabled in active Notification Rules.`,
+        });
+        return ok({
+          delivered: false,
+          channel,
+          status: "Blocked",
+          reason: `Channel '${channel}' is switched OFF in active Notification Rules. Enable it to deliver notifications.`,
+        });
+      }
+
+      const notifId = `test-${Date.now()}`;
+      const notif: Notification = {
+        id: notifId,
+        title,
+        body: msgBody,
+        when: "Just now",
+        unread: true,
+        tone,
+      };
+
+      addLiveNotification(notif, targetRole);
+
+      recordDeliveryLog({
+        id: `log-${Date.now()}`,
+        title,
+        body: msgBody,
+        channel,
+        targetRole,
+        dispatchedAt: "Just now",
+        status: "Delivered",
+      });
+
+      await getStore().audit.add({
+        actor: session.name,
+        action: `Dispatched test alert [${channel.toUpperCase()}]: "${title}" to ${targetRole}`,
+        target: "notifications-config",
+        collegeId: session.college === "all" ? null : session.college,
+        actorSub: session.sub,
+      });
+
+      return ok({
+        delivered: true,
+        channel,
+        status: "Delivered",
+        notification: notif,
+      });
+    }
+    case "GET notifications/delivery-log": {
+      return ok(getDeliveryLogs());
     }
     case "GET search": {
       const q = cleanText(query.get("q") ?? "", 80).toLowerCase();
@@ -618,9 +713,8 @@ export async function dispatch(method: string, segs: string[], rawBody: unknown,
     case "PUT modules/:id": {
       const mod = b ? findModule(b) : undefined;
       if (!mod) return notFound();
-      if (!mod.roles.includes(session.role)) return forbidden();
       if (session.role !== "institution" && session.role !== "admin") return forbidden();
-      if (mod.template !== "settings" && mod.slug !== "branding" && mod.slug !== "security-settings") return err(400, "invalid_module", "Module is not configurable.");
+      if (mod.template !== "settings" && mod.slug !== "branding" && mod.slug !== "security-settings" && mod.slug !== "notifications-config") return err(400, "invalid_module", "Module is not configurable.");
 
       const parsed = UpdateSettingsBody.safeParse(rawBody);
       if (!parsed.success) return err(400, "invalid_body", "Invalid settings payload.");

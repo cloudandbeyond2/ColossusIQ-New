@@ -71,8 +71,10 @@ import { HackathonsModule } from "./bespoke/hackathons";
 import { TeamFinderModule } from "./bespoke/team-finder";
 import { ProjectIdeasModule } from "./bespoke/project-ideas";
 import { ProjectReviewModule } from "./bespoke/project-review";
+import { NotificationsConfigModule } from "./bespoke/notifications-config";
 
 const BESPOKE: Record<string, (props: { role: Role }) => React.ReactNode> = {
+  "notifications-config": () => <NotificationsConfigModule />,
   "project-review": () => <ProjectReviewModule />,
   "team-finder": () => <TeamFinderModule />,
   "project-ideas": () => <ProjectIdeasModule />,

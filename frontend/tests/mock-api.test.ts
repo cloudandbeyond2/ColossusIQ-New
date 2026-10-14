@@ -166,6 +166,68 @@ describe("Dynamic module settings and notifications config", () => {
     );
     expect(res.status).toBe(403);
   });
+
+  it("dispatches live test notifications and records delivery log", async () => {
+    const instSession = session("institution");
+
+    // Re-enable web notifications
+    await dispatch(
+      "PUT",
+      ["modules", "notifications-config"],
+      { values: { web: true, email: true, push: true, sms: false, exam: "1 day before", quiet: "None", digest: true } },
+      instSession,
+      new URLSearchParams(),
+    );
+
+    // 1. Dispatch a test notification via web
+    const testRes = await dispatch(
+      "POST",
+      ["notifications", "test"],
+      {
+        title: "Test Live Broadcast",
+        body: "Checking dynamic notification delivery bell.",
+        channel: "web",
+        tone: "brand",
+        role: "institution",
+      },
+      instSession,
+      new URLSearchParams(),
+    );
+    expect(testRes.status).toBe(200);
+    const testBody = testRes.body as { delivered: boolean; channel: string };
+    expect(testBody.delivered).toBe(true);
+
+    // 2. Verify it appears in notifications list
+    const notifs = await dispatch("GET", ["notifications"], undefined, instSession, new URLSearchParams());
+    expect(notifs.status).toBe(200);
+    const list = notifs.body as Array<{ title: string }>;
+    expect(list.some((n) => n.title === "Test Live Broadcast")).toBe(true);
+
+    // 3. Verify it is recorded in delivery log
+    const logRes = await dispatch("GET", ["notifications", "delivery-log"], undefined, instSession, new URLSearchParams());
+    expect(logRes.status).toBe(200);
+    const logs = logRes.body as Array<{ title: string; channel: string; status: string }>;
+    expect(logs.some((l) => l.title === "Test Live Broadcast" && l.status === "Delivered")).toBe(true);
+
+    // 4. If channel is turned off (e.g. sms is false), dispatching is blocked
+    const blockedRes = await dispatch(
+      "POST",
+      ["notifications", "test"],
+      {
+        title: "Blocked SMS Alert",
+        body: "Should not deliver because SMS channel is off.",
+        channel: "sms",
+        tone: "rose",
+        role: "institution",
+      },
+      instSession,
+      new URLSearchParams(),
+    );
+    expect(blockedRes.status).toBe(200);
+    const blockedBody = blockedRes.body as { delivered: boolean; status: string };
+    expect(blockedBody.delivered).toBe(false);
+    expect(blockedBody.status).toBe("Blocked");
+  });
 });
 
 describe("Campus clubs API and live management", () => {

@@ -8,6 +8,7 @@ import type {
   Project,
   StudentDashboard,
 } from "@/lib/api/schemas";
+import { sharedState } from "./global-state";
 
 export const TENANT = { id: "tn-anna-tech", name: "Anna Institute of Technology", university: "Tamil Nadu Technical University" };
 
@@ -316,7 +317,25 @@ export const PROJECTS: Project[] = [
   },
 ];
 
+export interface LiveNotificationRecord extends Notification {
+  targetRole?: string;
+}
+
+const liveNotifications = sharedState("notifications.live", () => [] as LiveNotificationRecord[]);
+
+export function addLiveNotification(notif: Notification, targetRole = "all") {
+  liveNotifications.unshift({ ...notif, targetRole });
+}
+
+export function clearLiveNotifications() {
+  liveNotifications.length = 0;
+}
+
 export function notificationsFor(role: string): Notification[] {
+  const custom = liveNotifications
+    .filter((n) => !n.targetRole || n.targetRole === "all" || n.targetRole === role)
+    .map(({ targetRole, ...notif }) => notif);
+
   const common: Notification[] = [
     { id: "n1", title: "Security", body: "New sign-in from Chrome on Windows. Not you? Change your password.", when: "Just now", unread: true, tone: "rose" },
   ];
@@ -331,7 +350,7 @@ export function notificationsFor(role: string): Notification[] {
       { id: "n3", title: "Skill Booster", body: "Week 5 of \"AI for Teaching\" is unlocked.", when: "Yesterday", unread: false, tone: "brand" },
     ],
   };
-  return [...(byRole[role] ?? [
+  return [...custom, ...(byRole[role] ?? [
     { id: "n2", title: "Weekly summary", body: "Your weekly institutional summary is ready.", when: "3h ago", unread: true, tone: "brand" },
   ]), ...common];
 }

@@ -1323,19 +1323,29 @@ const DATA: Record<string, (collegeScope: string, live: ScopeData) => ModuleData
     template: "settings",
     sections: [
       {
-        title: "Channels", description: "Channels approved by the institution.", fields: [
+        title: "Channels",
+        description: "Channels approved and active across campus.",
+        fields: [
           { id: "web", label: "In-app / web", type: "toggle", value: true },
           { id: "email", label: "Email", type: "toggle", value: true },
           { id: "push", label: "Mobile push", type: "toggle", value: true },
           { id: "sms", label: "SMS", type: "toggle", value: false, help: "Charged per message by your SMS gateway." },
-        ]
+          { id: "whatsapp", label: "WhatsApp Alerts", type: "toggle", value: false, help: "Institutional WhatsApp Business API gateway." },
+        ],
       },
       {
-        title: "Rules", description: "Event + priority + audience + timing.", fields: [
+        title: "Rules",
+        description: "Event + priority + audience + timing.",
+        fields: [
           { id: "exam", label: "Exam reminders", type: "select", value: "7 days and 1 day before", options: ["Off", "1 day before", "7 days and 1 day before"] },
-          { id: "quiet", label: "Quiet hours", type: "select", value: "22:00–07:00", options: ["None", "22:00–07:00", "21:00–08:00"] },
+          { id: "quiet", label: "Quiet hours", type: "select", value: "22:00–07:00", options: ["None", "22:00–07:00", "21:00–08:00", "23:00–06:00"] },
           { id: "digest", label: "Weekly faculty digest", type: "toggle", value: true },
-        ]
+          { id: "fees", label: "Fee due & clearance alerts", type: "toggle", value: true },
+          { id: "attendance", label: "Attendance threshold warnings (<75%)", type: "toggle", value: true },
+          { id: "placement", label: "Campus placement drive alerts", type: "toggle", value: true },
+          { id: "emergency", label: "Emergency broadcast override", type: "toggle", value: true, help: "Bypasses quiet hours for high-severity safety alerts." },
+          { id: "frequency-cap", label: "Daily notification cap per student", type: "select", value: "10 per day", options: ["5 per day", "10 per day", "20 per day", "Unlimited"] },
+        ],
       },
     ],
   }),
