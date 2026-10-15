@@ -1,4 +1,6 @@
 import "server-only";
+import fs from "node:fs";
+import path from "node:path";
 import type { Stream } from "@/config/streams";
 import type { SessionPayload } from "@/lib/auth/session";
 import { collegeStream } from "./records";
@@ -428,7 +430,7 @@ function getDefaultTimetableForStream(_stream: Stream, allocSections: AllocatedC
 }
 
 // ── Attendance Session Records Store ──────────────────────────
-let attendanceHistoryStore: AttendanceSessionRecord[] = [
+const INITIAL_ATTENDANCE_HISTORY: AttendanceSessionRecord[] = [
   {
     id: "att-rec-101",
     sectionId: "sec-CSE101",
@@ -491,6 +493,69 @@ let attendanceHistoryStore: AttendanceSessionRecord[] = [
   },
 ];
 
+function getStoragePath(): string {
+  const base = process.cwd();
+  if (fs.existsSync(path.join(base, "frontend"))) {
+    return path.join(base, "frontend", ".attendance-data.json");
+  }
+  return path.join(base, ".attendance-data.json");
+}
+
+function loadAttendanceStore(): AttendanceSessionRecord[] {
+  try {
+    const p = getStoragePath();
+    if (fs.existsSync(p)) {
+      const data = fs.readFileSync(p, "utf-8");
+      const parsed = JSON.parse(data);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed;
+      }
+    }
+  } catch (err) {
+    console.warn("[attendance] Failed to load from disk:", err);
+  }
+  return [...INITIAL_ATTENDANCE_HISTORY];
+}
+
+function persistAttendanceStore(records: AttendanceSessionRecord[]): void {
+  try {
+    const p = getStoragePath();
+    fs.writeFileSync(p, JSON.stringify(records, null, 2), "utf-8");
+  } catch (err) {
+    console.warn("[attendance] Failed to write to disk:", err);
+  }
+}
+
+const globalHolder = globalThis as unknown as { __ciqAttendanceStore?: AttendanceSessionRecord[] };
+
+export function getAttendanceStore(): AttendanceSessionRecord[] {
+  if (!globalHolder.__ciqAttendanceStore) {
+    globalHolder.__ciqAttendanceStore = loadAttendanceStore();
+  }
+  return globalHolder.__ciqAttendanceStore;
+}
+
+export function setAttendanceStore(records: AttendanceSessionRecord[]): void {
+  globalHolder.__ciqAttendanceStore = records;
+  persistAttendanceStore(records);
+}
+
+export function matchesSection(session: AttendanceSessionRecord, targetSectionId: string, courseCode?: string): boolean {
+  if (!targetSectionId && !courseCode) return false;
+  if (targetSectionId) {
+    if (session.sectionId === targetSectionId) return true;
+    if (targetSectionId.startsWith("sec-") && session.sectionId === targetSectionId.slice(4)) return true;
+    if (!targetSectionId.startsWith("sec-") && session.sectionId === `sec-${targetSectionId}`) return true;
+    if (session.sectionId.includes(targetSectionId) || targetSectionId.includes(session.sectionId)) return true;
+  }
+  if (courseCode) {
+    if (session.courseCode && session.courseCode.toLowerCase() === courseCode.toLowerCase()) return true;
+    if (targetSectionId && targetSectionId.toLowerCase().includes(courseCode.toLowerCase())) return true;
+    if (session.sectionId && session.sectionId.toLowerCase().includes(courseCode.toLowerCase())) return true;
+  }
+  return false;
+}
+
 // ── Realistic Student Names Roster ─────────────────────────────
 const INDIAN_STUDENT_NAMES = [
   "Aaditya Raj", "Abinaya S", "Adarsh Nair", "Aishwarya R", "Akash V",
@@ -510,6 +575,45 @@ const INDIAN_STUDENT_NAMES = [
 ];
 
 export async function getSectionRoster(sectionId: string, collegeId?: string): Promise<StudentRosterItem[]> {
+  const store = getAttendanceStore();
+  const sectionSessions = store.filter((s) => matchesSection(s, sectionId));
+  const latestSession = sectionSessions[0] || null;
+
+  const studentLastStatusMap = new Map<string, "Present" | "Absent" | "Late" | "OD">();
+  if (latestSession && latestSession.records && latestSession.records.length > 0) {
+    for (const r of latestSession.records) {
+      if (r.studentId) studentLastStatusMap.set(r.studentId, r.status);
+      if (r.rollNo) studentLastStatusMap.set(r.rollNo, r.status);
+    }
+  } else if (latestSession && latestSession.absentRolls) {
+    for (const roll of latestSession.absentRolls) {
+      studentLastStatusMap.set(roll, "Absent");
+    }
+  }
+
+  const studentStats = new Map<string, { attended: number; total: number }>();
+  if (sectionSessions.length > 0) {
+    for (const sess of sectionSessions) {
+      if (sess.records && sess.records.length > 0) {
+        for (const r of sess.records) {
+          const keys = [r.studentId, r.rollNo].filter(Boolean) as string[];
+          for (const key of keys) {
+            const curr = studentStats.get(key) || { attended: 0, total: 0 };
+            curr.total += 1;
+            if (r.status !== "Absent") curr.attended += 1;
+            studentStats.set(key, curr);
+          }
+        }
+      } else if (sess.absentRolls) {
+        for (const roll of sess.absentRolls) {
+          const curr = studentStats.get(roll) || { attended: 0, total: 0 };
+          curr.total += 1;
+          studentStats.set(roll, curr);
+        }
+      }
+    }
+  }
+
   if (dataBackend() === "postgres") {
     try {
       const t = db();
@@ -547,21 +651,36 @@ export async function getSectionRoster(sectionId: string, collegeId?: string): P
           const totalClasses = 32;
           const attended = Math.round((attPct / 100) * totalClasses);
 
+          const lastStatus = studentLastStatusMap.get(s.id) || studentLastStatusMap.get(s.rollNo);
+          const defaultStatus = attPct < 75 ? (idx % 2 === 0 ? "Absent" : "Present") : "Present";
+          const finalStatus = lastStatus || defaultStatus;
+
+          const stats = studentStats.get(s.id) || studentStats.get(s.rollNo);
+          let finalAttPct = attPct;
+          let finalAttended = attended;
+          let finalTotalClasses = totalClasses;
+
+          if (stats && stats.total > 0) {
+            finalTotalClasses = totalClasses + stats.total;
+            finalAttended = attended + stats.attended;
+            finalAttPct = Math.round((finalAttended / finalTotalClasses) * 100);
+          }
+
           let signal: StudentRosterItem["riskSignal"] = "Normal";
-          if (attPct < 75) signal = "Attendance Warning";
+          if (finalAttPct < 75) signal = "Attendance Warning";
           else if (avgScore < 50) signal = "Low Mastery";
-          else if (avgScore >= 85 && attPct >= 90) signal = "Top Performer";
+          else if (avgScore >= 85 && finalAttPct >= 90) signal = "Top Performer";
 
           return {
             id: s.id,
             name: s.user?.fullName || `Student ${s.rollNo}`,
             rollNo: s.rollNo,
             section,
-            attendancePercent: attPct,
-            classesAttended: attended,
-            totalClasses,
+            attendancePercent: finalAttPct,
+            classesAttended: finalAttended,
+            totalClasses: finalTotalClasses,
             averageScore: avgScore,
-            status: attPct < 75 ? (idx % 2 === 0 ? "Absent" : "Present") : "Present",
+            status: finalStatus,
             riskSignal: signal,
             email: s.user?.email,
             phone: s.college?.phone,
@@ -601,22 +720,39 @@ export async function getSectionRoster(sectionId: string, collegeId?: string): P
     const attPct = Math.min(98, Math.max(64, 98 - baseVariance));
     const attended = Math.round((attPct / 100) * totalClasses);
     const avgScore = Math.min(98, Math.max(45, 50 + ((i * 13) % 48)));
-    
+
+    const studentId = `std-${sectionId}-${num}`;
+    const rollNo = `${prefix}${num}`;
+    const lastStatus = studentLastStatusMap.get(studentId) || studentLastStatusMap.get(rollNo);
+    const defaultStatus = attPct < 75 ? (i % 3 === 0 ? "Absent" : "Present") : "Present";
+    const finalStatus = lastStatus || defaultStatus;
+
+    const stats = studentStats.get(studentId) || studentStats.get(rollNo);
+    let finalAttPct = attPct;
+    let finalAttended = attended;
+    let finalTotalClasses = totalClasses;
+
+    if (stats && stats.total > 0) {
+      finalTotalClasses = totalClasses + stats.total;
+      finalAttended = attended + stats.attended;
+      finalAttPct = Math.round((finalAttended / finalTotalClasses) * 100);
+    }
+
     let signal: StudentRosterItem["riskSignal"] = "Normal";
-    if (attPct < 75) signal = "Attendance Warning";
+    if (finalAttPct < 75) signal = "Attendance Warning";
     else if (avgScore < 50) signal = "Low Mastery";
-    else if (avgScore >= 88 && attPct >= 90) signal = "Top Performer";
+    else if (avgScore >= 88 && finalAttPct >= 90) signal = "Top Performer";
 
     roster.push({
-      id: `std-${sectionId}-${num}`,
+      id: studentId,
       name,
-      rollNo: `${prefix}${num}`,
+      rollNo,
       section: sectionName,
-      attendancePercent: attPct,
-      classesAttended: attended,
-      totalClasses,
+      attendancePercent: finalAttPct,
+      classesAttended: finalAttended,
+      totalClasses: finalTotalClasses,
       averageScore: avgScore,
-      status: attPct < 75 ? (i % 3 === 0 ? "Absent" : "Present") : "Present",
+      status: finalStatus,
       riskSignal: signal,
       email: `${name.toLowerCase().replace(/[^a-z]/g, "")}.${prefix.toLowerCase()}${num}@campus.edu`,
       phone: `+91 98${((i * 123456) % 90000000 + 10000000).toString().slice(0, 8)}`,
@@ -626,10 +762,11 @@ export async function getSectionRoster(sectionId: string, collegeId?: string): P
 }
 
 export function getAttendanceHistory(sectionId?: string): AttendanceSessionRecord[] {
+  const store = getAttendanceStore();
   if (sectionId && sectionId !== "all") {
-    return attendanceHistoryStore.filter((s) => s.sectionId === sectionId);
+    return store.filter((s) => matchesSection(s, sectionId));
   }
-  return [...attendanceHistoryStore];
+  return [...store];
 }
 
 export function saveAttendanceSession(record: Omit<AttendanceSessionRecord, "id" | "createdAt">): AttendanceSessionRecord {
@@ -640,12 +777,15 @@ export function saveAttendanceSession(record: Omit<AttendanceSessionRecord, "id"
     createdAt: new Date().toISOString(),
   };
 
-  // Prepend to history store
-  attendanceHistoryStore = [fullRecord, ...attendanceHistoryStore];
+  const store = getAttendanceStore();
+  const updatedStore = [fullRecord, ...store];
+  setAttendanceStore(updatedStore);
 
   // Update section average attendance dynamically in allocation table
   for (const streamKey of Object.keys(STREAM_FACULTY_ALLOCATIONS) as Stream[]) {
-    const sec = STREAM_FACULTY_ALLOCATIONS[streamKey]?.sections.find((s) => s.id === record.sectionId);
+    const sec = STREAM_FACULTY_ALLOCATIONS[streamKey]?.sections.find(
+      (s) => matchesSection(fullRecord, s.id, s.courseCode)
+    );
     if (sec) {
       sec.attendancePercent = Math.round((sec.attendancePercent * 4 + record.attendancePercent) / 5);
       break;
@@ -730,6 +870,7 @@ export async function getFacultyAllocationProfile(
 
         if (facCourses.length > 0) {
           const streamName = (await collegeStream(session.college)) || "engineering";
+          const store = getAttendanceStore();
 
           const sections: AllocatedClassSection[] = facCourses.map((c, idx) => {
             const deptStudents = allCollegeStudents.filter((s) => s.departmentId === c.departmentId);
@@ -744,15 +885,23 @@ export async function getFacultyAllocationProfile(
 
             const sectionLabel = `${deptCode}-A · Term ${c.term?.name || "1"}`;
             const hoursPerWeek = c.credits || 4;
+            const secId = `sec-${c.id}`;
+
+            const secSessions = store.filter((s) => matchesSection(s, secId, c.code));
+            let attendancePercent = Math.min(94, Math.max(78, 86 + ((idx * 5) % 9)));
+            if (secSessions.length > 0) {
+              const totalPct = secSessions.reduce((sum, s) => sum + s.attendancePercent, 0);
+              attendancePercent = Math.round(totalPct / secSessions.length);
+            }
 
             return {
-              id: `sec-${c.id}`,
+              id: secId,
               courseCode: c.code,
               courseTitle: c.title,
               shortName: c.code,
               section: sectionLabel,
               studentsCount: studentCount,
-              attendancePercent: Math.min(94, Math.max(78, 86 + ((idx * 5) % 9))),
+              attendancePercent,
               averageScore: Math.min(92, Math.max(65, 70 + ((idx * 6) % 15))),
               nextClass: idx === 0 ? "Today 09:00" : idx === 1 ? "Today 11:15" : "Tomorrow 10:00",
               room: `LH-${202 + idx * 2}`,
@@ -770,7 +919,7 @@ export async function getFacultyAllocationProfile(
           const totalTeachingLoad = sections.reduce((sum, s) => sum + s.hoursPerWeek, 0);
           const totalStudents = sections.reduce((sum, s) => sum + s.studentsCount, 0);
           const averageAttendance = Math.round(
-            sections.reduce((sum, s) => sum + s.attendancePercent, 0) / sections.length
+            sections.reduce((sum, s) => sum + s.attendancePercent, 0) / (sections.length || 1)
           );
 
           const timetable: ClassTimetableSlot[] = [];
@@ -814,7 +963,7 @@ export async function getFacultyAllocationProfile(
             averageAttendance,
             assignedSections: sections,
             timetable,
-            recentAttendance: attendanceHistoryStore,
+            recentAttendance: store,
           };
         }
       }
@@ -826,15 +975,28 @@ export async function getFacultyAllocationProfile(
   // Fallback to in-memory fixtures
   const stream = (await collegeStream(session.college)) || "engineering";
   const alloc = STREAM_FACULTY_ALLOCATIONS[stream] || STREAM_FACULTY_ALLOCATIONS.engineering;
+  const store = getAttendanceStore();
 
-  const totalTeachingLoad = alloc.sections.reduce((sum, s) => sum + s.hoursPerWeek, 0);
-  const totalStudents = alloc.sections.reduce((sum, s) => sum + s.studentsCount, 0);
+  const sections = alloc.sections.map((sec) => {
+    const secSessions = store.filter((s) => matchesSection(s, sec.id, sec.courseCode));
+    if (secSessions.length > 0) {
+      const totalPct = secSessions.reduce((sum, s) => sum + s.attendancePercent, 0);
+      return {
+        ...sec,
+        attendancePercent: Math.round(totalPct / secSessions.length),
+      };
+    }
+    return sec;
+  });
+
+  const totalTeachingLoad = sections.reduce((sum, s) => sum + s.hoursPerWeek, 0);
+  const totalStudents = sections.reduce((sum, s) => sum + s.studentsCount, 0);
   const averageAttendance = Math.round(
-    alloc.sections.reduce((sum, s) => sum + s.attendancePercent, 0) / (alloc.sections.length || 1)
+    sections.reduce((sum, s) => sum + s.attendancePercent, 0) / (sections.length || 1)
   );
 
   if (!TIMETABLE_SLOTS_CACHE[stream]) {
-    TIMETABLE_SLOTS_CACHE[stream] = getDefaultTimetableForStream(stream, alloc.sections);
+    TIMETABLE_SLOTS_CACHE[stream] = getDefaultTimetableForStream(stream, sections);
   }
 
   return {
@@ -847,8 +1009,8 @@ export async function getFacultyAllocationProfile(
     totalTeachingLoad,
     totalStudents,
     averageAttendance,
-    assignedSections: alloc.sections,
+    assignedSections: sections,
     timetable: TIMETABLE_SLOTS_CACHE[stream],
-    recentAttendance: attendanceHistoryStore.slice(0, 10),
+    recentAttendance: store.slice(0, 20),
   };
 }
