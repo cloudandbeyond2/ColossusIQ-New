@@ -42,8 +42,6 @@ export async function dynamicInstitutionHome(session: SessionPayload): Promise<R
     teachingStaff,
     activeCourses,
     draftCourses,
-    totalUsers,
-    activeUsers,
     invitedUsers,
     totalEvents,
     publishedEvents,
@@ -62,8 +60,6 @@ export async function dynamicInstitutionHome(session: SessionPayload): Promise<R
     count("staff", { staffType: "Teaching", status: "Active" }),
     count("courses", { status: "Active" }),
     count("courses", { status: "Draft" }),
-    count("users"),
-    count("users", { status: "Active" }),
     count("users", { status: "Invited" }),
     count("events"),
     count("events", { status: "Published" }),
@@ -200,12 +196,6 @@ export async function dynamicInstitutionHome(session: SessionPayload): Promise<R
             value: String(publishedEvents),
             delta: draftEvents ? `${draftEvents} draft` : `${totalEvents} total`,
             tone: "sky",
-          },
-          {
-            label: "Platform users",
-            value: formatNumber(totalUsers),
-            delta: `${activeUsers} active logins`,
-            tone: "teal",
           },
         ];
 
