@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Award, Check, Clock, ExternalLink, Filter, Pencil, Plus, RotateCcw, Search, ShieldCheck, Trash2 } from "lucide-react";
+import { Award, Check, Clock, ExternalLink, Filter, Pencil, Plus, Printer, RotateCcw, Search, ShieldCheck, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { z } from "zod";
 import { LoadError } from "@/components/ui/load-error";
@@ -10,6 +10,7 @@ import { apiFetch } from "@/lib/api/client";
 import { EXPERIENCE_CATEGORIES, ExperienceItem, ExperienceOverview, type ExperienceStatus } from "@/lib/api/experience-schemas";
 import { cn } from "@/lib/utils";
 import { Modal, problemOf } from "./assignments-shared";
+import { GoldSeal } from "@/components/certificate/seals";
 
 const KEY = ["experience"] as const;
 const ExperienceOverviewOk = z.object({ ok: z.boolean() });
@@ -64,6 +65,7 @@ function Mine({ data }: { data: ExperienceOverview }) {
   const [status, setStatus] = useState<"All" | ExperienceStatus>("All");
   const [editing, setEditing] = useState<ExperienceItem | "new" | null>(null);
   const [removing, setRemoving] = useState<ExperienceItem | null>(null);
+  const [viewingCertificate, setViewingCertificate] = useState<ExperienceItem | null>(null);
   const remove = useMutation({
     mutationFn: (id: string) => apiFetch(`/api/v1/experience/${encodeURIComponent(id)}`, ExperienceOverviewOk, { method: "DELETE" }),
     onSuccess: () => {
@@ -117,11 +119,21 @@ function Mine({ data }: { data: ExperienceOverview }) {
                     <p className="mt-0.5 text-sm text-ink-2">{[x.role, x.organisation].filter(Boolean).join(" · ") || "No role or organisation added"}</p>
                     <p className="text-xs text-ink-3">{x.period}</p>
                     {x.description ? <p className="mt-2 text-sm text-ink-2">{x.description}</p> : null}
-                    {x.link ? (
-                      <a href={x.link} target="_blank" rel="noopener noreferrer" className="mt-1 inline-flex items-center gap-1 text-xs text-brand hover:underline">
-                        Evidence <ExternalLink className="h-3 w-3" aria-hidden="true" />
-                      </a>
-                    ) : null}
+                    <div className="mt-2 flex flex-wrap items-center gap-2.5">
+                      <button
+                        type="button"
+                        onClick={() => setViewingCertificate(x)}
+                        className="inline-flex items-center gap-1.5 rounded-md border border-line bg-surface px-2.5 py-1 text-xs font-medium text-brand hover:bg-surface-2 transition cursor-pointer"
+                      >
+                        <Award className="size-3.5" aria-hidden="true" />
+                        View Certificate
+                      </button>
+                      {x.link ? (
+                        <a href={x.link} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-ink-3 hover:text-brand hover:underline">
+                          External Link <ExternalLink className="h-3 w-3" aria-hidden="true" />
+                        </a>
+                      ) : null}
+                    </div>
                     <div className="mt-2 flex flex-wrap items-center gap-2">
                       <Badge tone={TONE[x.status]}>{STATUS_LABEL[x.status]}</Badge>
                       {x.status === "Verified" ? (
@@ -171,6 +183,7 @@ function Mine({ data }: { data: ExperienceOverview }) {
           </div>
         </Modal>
       ) : null}
+      {viewingCertificate ? <EvidenceCertificateModal item={viewingCertificate} onClose={() => setViewingCertificate(null)} /> : null}
     </div>
   );
 }
@@ -274,6 +287,7 @@ function Review({ data }: { data: ExperienceOverview }) {
   const [text, setText] = useState("");
   const [deciding, setDeciding] = useState<{ item: ExperienceItem; decision: "Verified" | "Rejected" } | null>(null);
   const [removing, setRemoving] = useState<ExperienceItem | null>(null);
+  const [viewingCertificate, setViewingCertificate] = useState<ExperienceItem | null>(null);
 
   const removeMutation = useMutation({
     mutationFn: (id: string) => apiFetch(`/api/v1/experience/${encodeURIComponent(id)}`, ExperienceOverviewOk, { method: "DELETE" }),
@@ -400,19 +414,27 @@ function Review({ data }: { data: ExperienceOverview }) {
                         ) : null}
 
                         <div className="mt-3 flex flex-wrap items-center gap-3">
+                          <button
+                            type="button"
+                            onClick={() => setViewingCertificate(x)}
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-surface px-3 py-1.5 text-xs font-medium text-brand shadow-xs transition hover:bg-surface-2 cursor-pointer"
+                          >
+                            <Award className="size-3.5" aria-hidden="true" />
+                            View Evidence Certificate
+                          </button>
+
                           {x.link ? (
                             <a
                               href={x.link}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-surface px-3 py-1.5 text-xs font-medium text-brand shadow-xs transition hover:bg-surface-2"
+                              className="inline-flex items-center gap-1 text-xs text-ink-3 hover:text-brand hover:underline"
+                              title="Direct external link"
                             >
-                              <ExternalLink className="size-3.5" aria-hidden="true" />
-                              View Evidence Certificate
+                              <ExternalLink className="size-3" aria-hidden="true" />
+                              External proof
                             </a>
-                          ) : (
-                            <span className="text-xs text-ink-3">No certificate link attached</span>
-                          )}
+                          ) : null}
 
                           {x.status !== "Pending" && x.reviewedAt ? (
                             <span className="text-xs text-ink-3">
@@ -483,6 +505,8 @@ function Review({ data }: { data: ExperienceOverview }) {
           </div>
         </Modal>
       ) : null}
+
+      {viewingCertificate ? <EvidenceCertificateModal item={viewingCertificate} onClose={() => setViewingCertificate(null)} /> : null}
     </div>
   );
 }
@@ -527,6 +551,166 @@ function DecisionDialog({ item, decision, onClose }: { item: ExperienceItem; dec
           </Button>
         </div>
       </form>
+    </Modal>
+  );
+}
+
+function EvidenceCertificateModal({ item, onClose }: { item: ExperienceItem; onClose: () => void }) {
+  const year = item.reviewedAt ? new Date(item.reviewedAt).getFullYear().toString() : new Date().getFullYear().toString();
+  const uid = item.id.replace(/[^A-Za-z0-9]/g, "").slice(0, 8);
+  const certId = `EXP-${item.id.replace(/[^A-Za-z0-9]/g, "").slice(0, 8).toUpperCase()}`;
+
+  const handlePrint = () => {
+    window.print();
+  };
+
+  return (
+    <Modal title="Evidence Certificate" onClose={onClose} wide>
+      <div className="space-y-5">
+        {/* Certificate Display Sheet */}
+        <div className="relative overflow-hidden rounded-2xl border-2 border-amber-500/30 bg-gradient-to-br from-amber-50/70 via-surface to-amber-100/40 p-6 sm:p-8 shadow-inner">
+          {/* Decorative Corner Borders */}
+          <div className="pointer-events-none absolute inset-2.5 rounded-xl border border-amber-600/20" />
+          <div className="pointer-events-none absolute inset-3.5 rounded-lg border border-amber-600/10" />
+
+          {/* Header */}
+          <div className="relative z-10 text-center">
+            <div className="inline-flex items-center gap-1.5 rounded-full bg-amber-500/15 px-3 py-1 text-xs font-semibold tracking-wider text-amber-800 uppercase">
+              <Award className="size-3.5" />
+              Institutional Experience Credential
+            </div>
+            <h2 className="mt-3 font-serif text-2xl font-bold tracking-tight text-ink sm:text-3xl">
+              Certificate of Experience
+            </h2>
+            <p className="mt-1 font-mono text-[11px] font-medium tracking-wider text-ink-3 uppercase">
+              Official Credential Record · ID: {certId}
+            </p>
+          </div>
+
+          {/* Recipient */}
+          <div className="relative z-10 mt-6 text-center">
+            <p className="text-xs uppercase tracking-widest text-ink-3">This is certified to</p>
+            <h3 className="mt-1 font-serif text-2xl font-bold text-ink sm:text-3xl">
+              {item.studentName || "Student"}
+            </h3>
+            {item.rollNo ? (
+              <p className="mt-1 font-mono text-xs font-medium text-ink-2">
+                Roll / Registration No: <span className="text-ink font-semibold">{item.rollNo}</span>
+              </p>
+            ) : null}
+          </div>
+
+          {/* Body */}
+          <div className="relative z-10 mt-6 rounded-xl border border-line/70 bg-surface/90 p-5 shadow-xs backdrop-blur-xs">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line/60 pb-3">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-ink-3">Activity & Achievement</p>
+                <h4 className="text-base font-bold text-ink">{item.title}</h4>
+              </div>
+              <Badge tone="neutral">{item.category}</Badge>
+            </div>
+
+            <div className="mt-3 grid grid-cols-1 gap-2.5 sm:grid-cols-2 text-xs">
+              <div>
+                <span className="text-ink-3">Role / Contribution:</span>{" "}
+                <span className="font-semibold text-ink">{item.role || "Participant"}</span>
+              </div>
+              <div>
+                <span className="text-ink-3">Host Organisation:</span>{" "}
+                <span className="font-semibold text-ink">{item.organisation || "Academic Institution / Society"}</span>
+              </div>
+              <div>
+                <span className="text-ink-3">Tenure / Period:</span>{" "}
+                <span className="font-semibold text-ink">{item.period}</span>
+              </div>
+              <div>
+                <span className="text-ink-3">Verification Status:</span>{" "}
+                <Badge tone={TONE[item.status]}>
+                  {item.status === "Verified" ? "Verified & Authenticated" : item.status === "Pending" ? "Pending Faculty Verification" : "Returned for Changes"}
+                </Badge>
+              </div>
+            </div>
+
+            {item.description ? (
+              <div className="mt-3.5 border-t border-line/60 pt-3">
+                <p className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-ink-3">
+                  Key Achievement / Impact
+                </p>
+                <p className="text-xs leading-relaxed text-ink-2">{item.description}</p>
+              </div>
+            ) : null}
+          </div>
+
+          {/* Footer Seals & Verification */}
+          <div className="relative z-10 mt-6 flex flex-col items-center justify-between gap-4 border-t border-amber-600/20 pt-4 sm:flex-row">
+            <div className="text-center sm:text-left">
+              <div className="inline-flex items-center gap-1.5 text-xs font-semibold text-teal">
+                <ShieldCheck className="size-4" />
+                {item.status === "Verified" ? "Authenticated Faculty Verification" : "Pending Verification"}
+              </div>
+              <p className="mt-0.5 text-[11px] text-ink-3">
+                {item.reviewedAt ? `Verified on ${date(item.reviewedAt)}` : `Recorded on ${date(item.createdAt)}`}
+              </p>
+            </div>
+
+            {item.status === "Verified" && (
+              <div className="flex items-center justify-center">
+                <GoldSeal uid={uid} year={year} className="h-16 w-16" />
+              </div>
+            )}
+
+            <div className="text-center sm:text-right text-xs">
+              <div className="font-semibold text-ink">
+                {item.reviewerName || "Faculty Verification Authority"}
+              </div>
+              <div className="text-[11px] text-ink-3">
+                {item.reviewerRole || "Department Evaluator"}
+              </div>
+              {item.reviewNote ? (
+                <div className="mt-1 text-[11px] italic text-ink-2">“{item.reviewNote}”</div>
+              ) : null}
+            </div>
+          </div>
+        </div>
+
+        {/* Evidence Link / Attachment Section */}
+        <div className="rounded-xl border border-line bg-surface-2/60 p-4">
+          <h4 className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-ink-3">
+            Submitted Proof & External Evidence
+          </h4>
+          {item.link ? (
+            <div className="flex flex-col gap-3 rounded-lg border border-line bg-surface p-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="min-w-0 flex-1">
+                <p className="break-all text-xs font-medium text-ink">{item.link}</p>
+                <p className="mt-0.5 text-[11px] text-ink-3">External evidence link provided by student during submission</p>
+              </div>
+              <a
+                href={item.link}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-brand px-3 py-1.5 text-xs font-medium text-white shadow-xs transition hover:bg-brand/90"
+              >
+                <ExternalLink className="size-3.5" />
+                Open External Proof
+              </a>
+            </div>
+          ) : (
+            <p className="text-xs text-ink-3">
+              No external web URL was attached to this activity. Verification is authenticated via institutional activity records and faculty attestation.
+            </p>
+          )}
+        </div>
+
+        {/* Action Buttons */}
+        <div className="flex items-center justify-between gap-3 border-t border-line pt-3">
+          <Button variant="secondary" onClick={handlePrint} className="gap-1.5 text-xs">
+            <Printer className="size-3.5" /> Print Certificate
+          </Button>
+          <Button onClick={onClose} className="text-xs">
+            Close
+          </Button>
+        </div>
+      </div>
     </Modal>
   );
 }
