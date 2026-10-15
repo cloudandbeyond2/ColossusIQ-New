@@ -23,6 +23,7 @@ export function EvaluationReviewModule() {
   const [formError, setFormError] = useState<string | null>(null);
   const [filterMode, setFilterMode] = useState<"evaluations" | "all">("evaluations");
   const [showAllAudit, setShowAllAudit] = useState(false);
+  const [showFullAnswer, setShowFullAnswer] = useState(false);
 
   const isEvalAction = (action: string) => {
     const lower = action.toLowerCase();
@@ -66,6 +67,7 @@ export function EvaluationReviewModule() {
   if (queue.isLoading || !queue.data) return <TemplateSkeleton />;
   const items = queue.data;
   const item = items.find((i) => i.id === selectedId) ?? items[0];
+  const isLongAnswer = (item?.answer?.length ?? 0) > 140 || (item?.answer?.split("\n").length ?? 0) > 4;
 
   return (
     <div className="grid gap-6 xl:grid-cols-[340px_1fr]">
@@ -78,6 +80,7 @@ export function EvaluationReviewModule() {
                 onClick={() => {
                   setSelectedId(i.id);
                   setFormError(null);
+                  setShowFullAnswer(false);
                 }}
                 className={cn("w-full rounded-lg px-3 py-3 text-left", item?.id === i.id ? "bg-brand-soft" : "hover:bg-surface-2")}
               >
@@ -104,7 +107,40 @@ export function EvaluationReviewModule() {
             <CardHeader title={item.assessment} subtitle={item.question} />
             <CardBody>
               <p className="mb-2 text-xs font-medium uppercase tracking-wide text-ink-3">Student answer</p>
-              <p className="whitespace-pre-wrap rounded-lg bg-surface-2 p-4 text-sm leading-relaxed text-ink">{item.answer}</p>
+              <div
+                className="relative rounded-lg bg-surface-2 transition-all"
+                style={!showFullAnswer && isLongAnswer ? { maxHeight: "180px", overflow: "hidden" } : undefined}
+              >
+                <p className="whitespace-pre-wrap p-4 text-sm leading-relaxed text-ink">
+                  {item.answer}
+                </p>
+                {!showFullAnswer && isLongAnswer ? (
+                  <div className="pointer-events-none absolute inset-x-0 bottom-0 h-20 rounded-b-lg bg-gradient-to-t from-surface-2 via-surface-2/90 to-transparent" />
+                ) : null}
+              </div>
+              {isLongAnswer ? (
+                <div className="mt-2.5 flex justify-center">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => setShowFullAnswer((prev) => !prev)}
+                    className="text-xs cursor-pointer"
+                  >
+                    {showFullAnswer ? (
+                      <>
+                        <ChevronUp className="mr-1 size-3.5" />
+                        Show less
+                      </>
+                    ) : (
+                      <>
+                        <ChevronDown className="mr-1 size-3.5" />
+                        Show more
+                      </>
+                    )}
+                  </Button>
+                </div>
+              ) : null}
             </CardBody>
           </Card>
           <EvaluationCard result={item.result} />
