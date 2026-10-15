@@ -43,12 +43,40 @@ export async function streamLookups(): Promise<StreamLookups> {
   return lookups;
 }
 
+export const DEPT_ALIASES: Record<string, string> = {
+  cse: "Computer Science & Engineering",
+  cs: "Computer Science & Engineering",
+  "computer science": "Computer Science & Engineering",
+  it: "Information Technology",
+  "information tech": "Information Technology",
+  aids: "Artificial Intelligence & Data Science",
+  "ai&ds": "Artificial Intelligence & Data Science",
+  "ai & ds": "Artificial Intelligence & Data Science",
+  "ai and ds": "Artificial Intelligence & Data Science",
+  ece: "Electronics & Communication",
+  eee: "Electrical & Electronics",
+  mech: "Mechanical Engineering",
+  me: "Mechanical Engineering",
+  civil: "Civil Engineering",
+  ce: "Civil Engineering",
+  sh: "Science & Humanities",
+  "s&h": "Science & Humanities",
+  mba: "Business Administration",
+  bba: "Business Administration",
+};
+
 type LookupKind = "departments" | "programmes" | "terms" | "designations";
 
 /** Lookup id for a name within a stream (designations also match the stream-independent ones). */
 export async function lookupId(kind: LookupKind, stream: Stream, name: string): Promise<number> {
   const l = await streamLookups();
-  const row = l[kind].find((r) => r.name === name && (r.stream === stream || (kind === "designations" && r.stream === null)));
+  const raw = (name ?? "").trim();
+  const canonical = kind === "departments" ? (DEPT_ALIASES[raw.toLowerCase()] ?? raw) : raw;
+  const row = l[kind].find(
+    (r) =>
+      (r.name === canonical || r.name.toLowerCase() === canonical.toLowerCase()) &&
+      (r.stream === stream || (kind === "designations" && r.stream === null))
+  );
   if (!row) throw new LookupError(kind, name, stream);
   return row.id;
 }

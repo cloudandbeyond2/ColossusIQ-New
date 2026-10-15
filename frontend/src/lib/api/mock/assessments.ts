@@ -133,7 +133,7 @@ export async function submitAssessmentTest(
             .filter((w: string) => w.length > 3)
         : undefined;
 
-      const evalResult = evaluateDescriptive(test.id, q.id, text, q.marks, q.prompt, keywords);
+      const evalResult = await evaluateDescriptive(test.id, q.id, text, q.marks, q.prompt, keywords);
       descriptive.push({ questionId: q.id, ...evalResult });
       answers.push({
         questionId: q.id,

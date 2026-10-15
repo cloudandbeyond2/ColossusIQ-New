@@ -166,10 +166,43 @@ export async function getFacultyById(id: string): Promise<FacultyRecord | null> 
   return found ? { ...found } : null;
 }
 
+const DEPT_ALIASES: Record<string, string> = {
+  cse: "Computer Science & Engineering",
+  cs: "Computer Science & Engineering",
+  "computer science": "Computer Science & Engineering",
+  it: "Information Technology",
+  "information tech": "Information Technology",
+  aids: "Artificial Intelligence & Data Science",
+  "ai&ds": "Artificial Intelligence & Data Science",
+  "ai & ds": "Artificial Intelligence & Data Science",
+  "ai and ds": "Artificial Intelligence & Data Science",
+  ece: "Electronics & Communication",
+  eee: "Electrical & Electronics",
+  mech: "Mechanical Engineering",
+  me: "Mechanical Engineering",
+  civil: "Civil Engineering",
+  ce: "Civil Engineering",
+  sh: "Science & Humanities",
+  "s&h": "Science & Humanities",
+  mba: "Business Administration",
+  bba: "Business Administration",
+};
+
 export async function createFaculty(
   input: FacultyInput,
   collegeId?: string | null
 ): Promise<FacultyRecord> {
+  const cleanName = cleanText(input.name, 120).trim();
+  const rawDept = (input.department || "").trim();
+  const deptMapped = DEPT_ALIASES[rawDept.toLowerCase()] || cleanText(rawDept || "Computer Science & Engineering", 80).trim();
+
+  const emailPrefix = cleanName.toLowerCase().replace(/[^a-z0-9]/g, "") || "faculty";
+  const defaultEmail = `${emailPrefix}.${Date.now().toString(36)}@ait.edu.in`;
+  const cleanEmail = input.email && input.email.trim() ? cleanText(input.email, 120).trim() : defaultEmail;
+
+  const digitsOnly = (input.phone || "").replace(/\D/g, "");
+  const cleanPhone = digitsOnly.length >= 10 ? digitsOnly.slice(-10) : "9840012345";
+
   if (dataBackend() === "postgres") {
     const { getStore } = await import("@/lib/data");
     const { RESOURCES } = await import("@/config/resources");
@@ -177,11 +210,11 @@ export async function createFaculty(
     const rec = await getStore().records.create(
       RESOURCES.staff!,
       {
-        fullName: cleanText(input.name, 120).trim(),
-        email: input.email ? cleanText(input.email, 120).trim() : `${input.name.toLowerCase().replace(/[^a-z0-9]/g, "")}@ait.edu.in`,
-        phone: input.phone ? cleanText(input.phone, 20).trim() : "9840012345",
+        fullName: cleanName,
+        email: cleanEmail,
+        phone: cleanPhone,
         qualification: "Ph.D",
-        department: cleanText(input.department || "Computer Science & Engineering", 80).trim(),
+        department: deptMapped,
         designation: input.designation || "Assistant Professor",
         staffType: "Teaching",
         employment: "Permanent",
@@ -223,11 +256,11 @@ export async function createFaculty(
 
   const record: FacultyRecord = {
     id,
-    name: cleanText(input.name, 120).trim(),
+    name: cleanName,
     designation,
-    department: cleanText(input.department || "CSE", 80).trim(),
-    email: input.email ? cleanText(input.email, 120).trim() : undefined,
-    phone: input.phone ? cleanText(input.phone, 20).trim() : undefined,
+    department: deptMapped,
+    email: cleanEmail,
+    phone: cleanPhone,
     load: Math.min(40, Math.max(0, Math.round(Number(input.load || 12)))),
     development: Math.min(100, Math.max(0, Math.round(Number(input.development || 50)))),
     ai,
@@ -253,9 +286,15 @@ export async function updateFaculty(
     const patch: Record<string, any> = { ...existing };
     if (data.name !== undefined) patch.fullName = cleanText(data.name, 120).trim();
     if (data.email !== undefined) patch.email = cleanText(data.email, 120).trim();
-    if (data.phone !== undefined) patch.phone = cleanText(data.phone, 20).trim();
+    if (data.phone !== undefined) {
+      const digits = data.phone.replace(/\D/g, "");
+      patch.phone = digits.length >= 10 ? digits.slice(-10) : cleanText(data.phone, 20).trim();
+    }
     if (data.designation !== undefined) patch.designation = data.designation;
-    if (data.department !== undefined) patch.department = cleanText(data.department, 80).trim();
+    if (data.department !== undefined) {
+      const rawDept = data.department.trim();
+      patch.department = DEPT_ALIASES[rawDept.toLowerCase()] || cleanText(rawDept, 80).trim();
+    }
 
     const updated = await getStore().records.update(RESOURCES.staff!, id, patch, existing.version);
     if (!updated || updated === "stale") return null;

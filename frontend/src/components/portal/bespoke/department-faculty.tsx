@@ -27,6 +27,7 @@ import {
   inputClass,
 } from "@/components/ui/primitives";
 import { cn } from "@/lib/utils";
+import { ALL_DEPARTMENTS } from "@/config/streams";
 
 /* ── Types ─────────────────────────────────────────── */
 
@@ -156,7 +157,7 @@ interface FacultyFormData {
 const EMPTY_FORM: FacultyFormData = {
   name: "",
   designation: "Assistant Professor",
-  department: "CSE",
+  department: "Computer Science & Engineering",
   email: "",
   phone: "",
   load: 12,
@@ -194,9 +195,12 @@ function FacultyForm({
             {DESIGNATIONS.map((d) => <option key={d} value={d}>{d}</option>)}
           </select>
         </Field>
-        <Field label="Department" htmlFor="ff-dept">
-          <input id="ff-dept" className={inputClass} value={form.department} onChange={setStr("department")}
-            placeholder="CSE" maxLength={80} />
+        <Field label="Department *" htmlFor="ff-dept">
+          <select id="ff-dept" className={inputClass} value={form.department} onChange={setStr("department")}>
+            {ALL_DEPARTMENTS.map((d) => (
+              <option key={d} value={d}>{d}</option>
+            ))}
+          </select>
         </Field>
         <Field label="Email" htmlFor="ff-email">
           <input id="ff-email" type="email" className={inputClass} value={form.email} onChange={setStr("email")}
@@ -277,7 +281,10 @@ export function DepartmentFacultyModule({ role }: { role: Role }) {
       setShowAdd(false);
       showToast("Faculty member added successfully");
     },
-    onError: () => showToast("Failed to add faculty", false),
+    onError: (err: any) => {
+      const msg = err?.message || "Failed to add faculty";
+      showToast(msg, false);
+    },
   });
 
   /* ── PUT ───────────────────────────────────────────── */
@@ -289,7 +296,10 @@ export function DepartmentFacultyModule({ role }: { role: Role }) {
       setEditing(null);
       showToast("Faculty member updated successfully");
     },
-    onError: () => showToast("Failed to update faculty", false),
+    onError: (err: any) => {
+      const msg = err?.message || "Failed to update faculty";
+      showToast(msg, false);
+    },
   });
 
   /* ── DELETE ─────────────────────────────────────────── */
@@ -301,7 +311,10 @@ export function DepartmentFacultyModule({ role }: { role: Role }) {
       setDeleting(null);
       showToast("Faculty member removed");
     },
-    onError: () => showToast("Failed to delete faculty", false),
+    onError: (err: any) => {
+      const msg = err?.message || "Failed to delete faculty";
+      showToast(msg, false);
+    },
   });
 
   const canManage = role === "hod" || role === "institution" || role === "admin";
