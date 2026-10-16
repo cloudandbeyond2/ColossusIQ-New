@@ -373,7 +373,7 @@ const SummaryBody = z
         illustration: z.enum(["flow", "layers", "cycle"]),
         question: z.object({ q: z.string().trim().min(3).max(400), a: z.string().trim().min(1).max(600) }).strict().nullable(),
       })
-      .strict()
+      .passthrough()
       .nullable(),
   })
   .strict();
