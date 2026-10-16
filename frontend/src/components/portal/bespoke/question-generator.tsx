@@ -87,7 +87,7 @@ export function QuestionGeneratorModule({ role }: { role?: string }) {
   const papersQuery = useQuery({
     queryKey: PAPERS_KEY,
     queryFn: async () => {
-      const res = await apiFetch<{ papers: QuestionPaperRecord[] }>("/api/v1/faculty/question-papers", z.object({
+      const res = await apiFetch("/api/v1/faculty/question-papers", z.object({
         papers: z.array(z.any()),
       }));
       return res.papers as QuestionPaperRecord[];
@@ -128,7 +128,7 @@ export function QuestionGeneratorModule({ role }: { role?: string }) {
       const cleanedPattern = cleanText(pattern, 100) || PATTERN_OPTIONS[0]!;
 
       // 1. Generate with AI
-      const genRes = await apiFetch<{ markdown: string }>("/api/v1/ai/generate", z.object({
+      const genRes = await apiFetch("/api/v1/ai/generate", z.object({
         agent: z.string().optional(),
         markdown: z.string(),
       }), {
