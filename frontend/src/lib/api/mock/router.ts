@@ -149,6 +149,12 @@ import {
   updateRemedialStatus,
   generateAiRemedialWorksheet,
 } from "./class-analytics-engine";
+import {
+  listQuestionPapers,
+  createQuestionPaper,
+  updateQuestionPaper,
+  deleteQuestionPaper,
+} from "./question-papers";
 
 export interface MockResult {
   status: number;
@@ -1473,6 +1479,53 @@ async function dispatchFaculty(
       records: Array.isArray(rec.records) ? rec.records : [],
     });
     return ok({ ok: true, session: saved });
+  }
+
+  // GET /faculty/question-papers — question paper history & repository
+  if (method === "GET" && segs.length === 2 && segs[1] === "question-papers") {
+    const courseCode = query.get("courseCode") || undefined;
+    return ok({ papers: listQuestionPapers(session.college, courseCode) });
+  }
+
+  // POST /faculty/question-papers — save generated question paper
+  if (method === "POST" && segs.length === 2 && segs[1] === "question-papers") {
+    const rec = rawBody as any;
+    if (!rec?.courseCode || !rec?.markdown) {
+      return err(400, "invalid_body", "courseCode and markdown are required");
+    }
+    const saved = createQuestionPaper({
+      collegeId: session.college,
+      courseCode: String(rec.courseCode),
+      courseTitle: String(rec.courseTitle || rec.courseCode),
+      department: rec.department ? String(rec.department) : undefined,
+      semester: rec.semester ? String(rec.semester) : undefined,
+      academicYear: rec.academicYear ? String(rec.academicYear) : undefined,
+      examType: rec.examType || "Internal Assessment I",
+      units: String(rec.units || "Units 1–2"),
+      marks: Number(rec.marks || 50),
+      duration: rec.duration ? String(rec.duration) : undefined,
+      pattern: String(rec.pattern || "Part A (2 marks) + Part B (13 marks)"),
+      bloomLevels: Array.isArray(rec.bloomLevels) ? rec.bloomLevels : undefined,
+      markdown: String(rec.markdown),
+      authorName: session.name || "Dr. Meena Raghavan",
+      authorSub: session.sub || "USR-004",
+      status: rec.status || "Finalized",
+    });
+    return ok({ ok: true, paper: saved });
+  }
+
+  // PATCH /faculty/question-papers/:id — update status
+  if (method === "PATCH" && segs.length === 3 && segs[1] === "question-papers" && segs[2]) {
+    const updated = updateQuestionPaper(segs[2], rawBody as any);
+    if (!updated) return err(404, "not_found", "Question paper not found");
+    return ok({ ok: true, paper: updated });
+  }
+
+  // DELETE /faculty/question-papers/:id — delete question paper
+  if (method === "DELETE" && segs.length === 3 && segs[1] === "question-papers" && segs[2]) {
+    const deleted = deleteQuestionPaper(segs[2]);
+    if (!deleted) return err(404, "not_found", "Question paper not found");
+    return ok({ ok: true });
   }
 
   // POST /faculty/classes/extra — schedule compensatory class
