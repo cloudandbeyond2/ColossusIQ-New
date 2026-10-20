@@ -27,6 +27,18 @@ import { createProject, deleteProject, listProjects, reviewProject, updateProjec
 import { CreateProjectInput, FacultyReviewInput, UpdateProjectStageInput } from "@/lib/api/project-schemas";
 import { applyToTeamRequest, createTeamRequest, getTeamFinderOverview, inviteStudentToProject } from "./team-finder";
 import { AddTeammateInput, CreateTeamRequestInput } from "@/lib/api/team-finder-schemas";
+import {
+  createPipelineVenture,
+  deletePipelineVenture,
+  getIncubationPipelineOverview,
+  reviewPipelineVenture,
+  updatePipelineVentureStage,
+} from "./incubation-store";
+import {
+  CreateVentureInput,
+  ReviewVentureInput,
+  UpdateVentureStageInput,
+} from "@/lib/api/incubation-schemas";
 import { CalendarError, calendarNotifications, createCalendarItem, deleteCalendarItem, getCalendarOverview, syncCampusEvents, updateCalendarItem } from "./academic-calendar";
 import {
   CreateAicteActionInput,
@@ -344,6 +356,11 @@ export const PATTERNS = [
   "POST branding/dns-verify",
   "POST branding/test-email",
   "POST branding/reset",
+  "GET incubation-pipeline",
+  "POST incubation-pipeline/ventures",
+  "PATCH incubation-pipeline/ventures/:id/stage",
+  "POST incubation-pipeline/ventures/:id/review",
+  "DELETE incubation-pipeline/ventures/:id",
 ] as const;
 
 const ID = /^[A-Za-z0-9_-]{1,64}$/;
@@ -1103,6 +1120,63 @@ export async function dispatch(method: string, segs: string[], rawBody: unknown,
       if (session.role !== "student" && session.role !== "faculty" && session.role !== "admin" && session.role !== "hod") return forbidden();
       if (!b) return notFound();
       const deleted = await deleteProject(session, b);
+      if (!deleted) return notFound();
+      return ok({ ok: true, deleted: b });
+    }
+
+    /* ── Incubation Pipeline ── */
+    case "GET incubation-pipeline": {
+      if (session.role !== "incubation" && session.role !== "institution" && session.role !== "admin") return forbidden();
+      const qCohort = query.get("cohort") || undefined;
+      return ok(await getIncubationPipelineOverview(session, qCohort));
+    }
+
+    case "POST incubation-pipeline/ventures": {
+      if (session.role !== "incubation" && session.role !== "institution" && session.role !== "admin") return forbidden();
+      let body = rawBody;
+      if (typeof body === "string") {
+        try { body = JSON.parse(body); } catch {}
+      }
+      const data = (body as { data?: unknown })?.data ?? body;
+      const parsed = CreateVentureInput.safeParse(data);
+      if (!parsed.success) return err(400, "invalid_body", parsed.error.issues[0]?.message ?? "Invalid venture payload.");
+      return ok(await createPipelineVenture(session, parsed.data));
+    }
+
+    case "PATCH incubation-pipeline/ventures/:id/stage": {
+      if (session.role !== "incubation" && session.role !== "institution" && session.role !== "admin") return forbidden();
+      if (!b) return notFound();
+      let body = rawBody;
+      if (typeof body === "string") {
+        try { body = JSON.parse(body); } catch {}
+      }
+      const data = (body as { data?: unknown })?.data ?? body;
+      const parsed = UpdateVentureStageInput.safeParse(data);
+      if (!parsed.success) return err(400, "invalid_body", parsed.error.issues[0]?.message ?? "Invalid stage payload.");
+      const updated = await updatePipelineVentureStage(session, b, parsed.data.stage);
+      if (!updated) return notFound();
+      return ok(updated);
+    }
+
+    case "POST incubation-pipeline/ventures/:id/review": {
+      if (session.role !== "incubation" && session.role !== "institution" && session.role !== "admin") return forbidden();
+      if (!b) return notFound();
+      let body = rawBody;
+      if (typeof body === "string") {
+        try { body = JSON.parse(body); } catch {}
+      }
+      const data = (body as { data?: unknown })?.data ?? body;
+      const parsed = ReviewVentureInput.safeParse(data);
+      if (!parsed.success) return err(400, "invalid_body", parsed.error.issues[0]?.message ?? "Invalid review payload.");
+      const updated = await reviewPipelineVenture(session, b, parsed.data);
+      if (!updated) return notFound();
+      return ok(updated);
+    }
+
+    case "DELETE incubation-pipeline/ventures/:id": {
+      if (session.role !== "incubation" && session.role !== "institution" && session.role !== "admin") return forbidden();
+      if (!b) return notFound();
+      const deleted = await deletePipelineVenture(session, b);
       if (!deleted) return notFound();
       return ok({ ok: true, deleted: b });
     }

@@ -58,6 +58,10 @@ const BESPOKE_API: Record<string, string[]> = {
   "course-roadmap": ["course-roadmap"],
   integrations: ["integrations"],
   hackathons: ["hackathons"],
+  "incubation-pipeline": ["incubation-pipeline"],
+  "cbcs-electives": ["cbcs-electives"],
+  "nmc-compliance": ["nmc-compliance"],
+  "question-generator": ["faculty/question-papers"],
 };
 /** Pages without a dispatcher GET (static, or served by the route handler itself, like the college website). */
 const UNIVERSITY_ONLY = new Set(["content-desk"]);

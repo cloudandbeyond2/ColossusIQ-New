@@ -42,7 +42,20 @@ const DOMAINS: Record<string, string> = {
 function devCredentialsFor(r: Role, cId: string) {
   if (r === "admin") return { email: "admin@tntu.edu.in", password: "Dev-6WQsYmZ2" };
   const domain = DOMAINS[cId] ?? "ait.edu.in";
-  const userPrefix = r === "student" ? "student1" : r === "institution" ? "principal" : r === "faculty" ? "faculty" : r === "hod" ? "hod" : r === "placement" ? "placement" : "office";
+  const userPrefix =
+    r === "student"
+      ? "student1"
+      : r === "institution"
+      ? "principal"
+      : r === "faculty"
+      ? "faculty"
+      : r === "hod"
+      ? "hod"
+      : r === "placement"
+      ? "placement"
+      : r === "incubation"
+      ? "incubation"
+      : "office";
   return { email: `${userPrefix}@${domain}`, password: "Dev-6WQsYmZ2" };
 }
 

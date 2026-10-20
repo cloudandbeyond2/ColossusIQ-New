@@ -76,6 +76,7 @@ import { HospitalDashboardModule } from "./bespoke/hospital-dashboard";
 import { NmcComplianceModule } from "./bespoke/nmc-compliance";
 import { CbcsElectivesModule } from "./bespoke/cbcs-electives";
 import { QuestionGeneratorModule } from "./bespoke/question-generator";
+import { IncubationPipelineModule } from "./bespoke/incubation-pipeline";
 
 const BESPOKE: Record<string, (props: { role: Role }) => React.ReactNode> = {
   "cbcs-electives": ({ role }) => <CbcsElectivesModule role={role} />,
@@ -152,6 +153,7 @@ const BESPOKE: Record<string, (props: { role: Role }) => React.ReactNode> = {
   "student-fees": () => <StudentFeesModule />,
   hackathons: ({ role }) => <HackathonsModule role={role} />,
   "question-generator": ({ role }) => <QuestionGeneratorModule role={role} />,
+  "incubation-pipeline": ({ role }) => <IncubationPipelineModule role={role} />,
 };
 
 

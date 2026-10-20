@@ -56,6 +56,7 @@ import {
 import { getFacultyAllocationProfile } from "./faculty-allocation";
 import { analyticsDashboard, placementSnapshot } from "./placement-stats";
 import { listProjects } from "./projects";
+import { getIncubationPipelineOverview } from "./incubation-store";
 
 /** Live data a builder may need, fetched once per request. */
 interface ScopeData {
@@ -932,20 +933,20 @@ const DATA: Record<string, (collegeScope: string, live: ScopeData) => ModuleData
   "mission-planner": (scope, live) => generateDynamicMissionPlanner(live.session ?? { college: scope, sub: "demo-student" }),
   certifications: (scope, live) => generateDynamicCertifications(live.session ?? { college: scope, sub: "demo-student" }),
   "startup-hub": (scope, live) => generateDynamicStartupHub(live.session ?? { college: scope, sub: "demo-student" }),
-  "incubation-pipeline": () =>
-    stagesOf("Incubation pipeline — 2026 cohort", [
-      ["Idea", "41 submissions", ["Screened by Incubation Agent + panel"]],
-      ["Problem validation", "22 ventures"],
-      ["Market analysis", "15 ventures"],
-      ["Customer persona", "15 ventures"],
-      ["Business model", "11 ventures"],
-      ["MVP", "8 ventures"],
-      ["Mentor", "8 ventures matched"],
-      ["Prototype", "6 ventures"],
-      ["Pitch deck", "5 ventures"],
-      ["Incubation review", "Panel Nov 12"],
-      ["Startup readiness", "Funding track"],
-    ], 6),
+  "incubation-pipeline": async (scope, live) => {
+    const session = live.session ?? { college: scope, sub: "demo-incubation", role: "incubation" as const, name: "Incubation Head", tenant: "TNTU", mfa: true, exp: 0 };
+    const ov = await getIncubationPipelineOverview(session);
+    return {
+      template: "workflow",
+      title: `Incubation Pipeline — ${ov.cohort} (${ov.totalVentures} ventures)`,
+      stages: ov.stages.map((stg, i) => ({
+        title: `${stg.label} (${stg.count} ventures)`,
+        description: stg.description,
+        status: i < 3 ? "done" : i === 3 ? "active" : "todo",
+        items: ov.ventures.filter((v) => v.stage === stg.stage).map((v) => `${v.name} · ${v.leadFounder} (${v.domain})`),
+      })),
+    };
+  },
   "skill-booster": () =>
     stagesOf("Faculty roadmap — AI for Teaching (12 weeks)", [
       ["Current level", "Self + AI assessment", ["Digital skills: 72", "AI literacy: 41", "Assessment design: 66"]],
