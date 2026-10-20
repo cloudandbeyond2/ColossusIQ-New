@@ -53,6 +53,16 @@ import {
   InviteMentorInput,
   LogSessionInput,
 } from "@/lib/api/mentor-network-schemas";
+import {
+  createStartup,
+  deleteStartup,
+  getStartupPortfolioOverview,
+  updateStartup,
+} from "./startup-store";
+import {
+  CreateStartupInput,
+  UpdateStartupInput,
+} from "@/lib/api/startup-schemas";
 import { CalendarError, calendarNotifications, createCalendarItem, deleteCalendarItem, getCalendarOverview, syncCampusEvents, updateCalendarItem } from "./academic-calendar";
 import {
   CreateAicteActionInput,
@@ -382,6 +392,10 @@ export const PATTERNS = [
   "POST incubation/mentors/:id/unassign",
   "POST incubation/mentors/:id/session",
   "DELETE incubation/mentors/:id",
+  "GET incubation/startups",
+  "POST incubation/startups",
+  "PATCH incubation/startups/:id",
+  "DELETE incubation/startups/:id",
 ] as const;
 
 const ID = /^[A-Za-z0-9_-]{1,64}$/;
@@ -1281,6 +1295,48 @@ export async function dispatch(method: string, segs: string[], rawBody: unknown,
       if (session.role !== "incubation" && session.role !== "institution" && session.role !== "admin") return forbidden();
       if (!b) return notFound();
       const deleted = await deleteMentor(session, b);
+      if (!deleted) return notFound();
+      return ok({ ok: true, deleted: b });
+    }
+
+    /* ── Incubation Startups ── */
+    case "GET incubation/startups": {
+      if (session.role !== "incubation" && session.role !== "institution" && session.role !== "admin") return forbidden();
+      return ok(await getStartupPortfolioOverview(session));
+    }
+
+    case "POST incubation/startups": {
+      if (session.role !== "incubation" && session.role !== "institution" && session.role !== "admin") return forbidden();
+      let body = rawBody;
+      if (typeof body === "string") {
+        try { body = JSON.parse(body); } catch {}
+      }
+      const data = (body as { data?: unknown })?.data ?? body;
+      const parsed = CreateStartupInput.safeParse(data);
+      if (!parsed.success) return err(400, "invalid_body", parsed.error.issues[0]?.message ?? "Invalid startup payload.");
+      const created = await createStartup(session, parsed.data);
+      return ok(created);
+    }
+
+    case "PATCH incubation/startups/:id": {
+      if (session.role !== "incubation" && session.role !== "institution" && session.role !== "admin") return forbidden();
+      if (!b) return notFound();
+      let body = rawBody;
+      if (typeof body === "string") {
+        try { body = JSON.parse(body); } catch {}
+      }
+      const data = (body as { data?: unknown })?.data ?? body;
+      const parsed = UpdateStartupInput.safeParse(data);
+      if (!parsed.success) return err(400, "invalid_body", parsed.error.issues[0]?.message ?? "Invalid startup payload.");
+      const updated = await updateStartup(session, b, parsed.data);
+      if (!updated) return notFound();
+      return ok(updated);
+    }
+
+    case "DELETE incubation/startups/:id": {
+      if (session.role !== "incubation" && session.role !== "institution" && session.role !== "admin") return forbidden();
+      if (!b) return notFound();
+      const deleted = await deleteStartup(session, b);
       if (!deleted) return notFound();
       return ok({ ok: true, deleted: b });
     }

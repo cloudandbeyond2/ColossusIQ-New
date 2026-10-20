@@ -63,6 +63,7 @@ const BESPOKE_API: Record<string, string[]> = {
   "nmc-compliance": ["nmc-compliance"],
   "question-generator": ["faculty/question-papers"],
   mentors: ["incubation/mentors"],
+  startups: ["incubation/startups"],
 };
 /** Pages without a dispatcher GET (static, or served by the route handler itself, like the college website). */
 const UNIVERSITY_ONLY = new Set(["content-desk"]);

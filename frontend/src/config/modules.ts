@@ -185,7 +185,7 @@ export const MODULES: ModuleDef[] = [
 
   // ───────────── Incubation ─────────────
   { slug: "incubation-pipeline", title: "Incubation Pipeline", description: "Idea → validation → market → business model → MVP → pitch → incubation review.", group: "Incubation", roles: ["incubation"], template: "bespoke", icon: "rocket", phase: "Phase 2" },
-  { slug: "startups", title: "Startups", description: "Student ventures, stage, mentors and funding readiness.", group: "Incubation", roles: ["incubation"], template: "list", icon: "lightbulb", phase: "Phase 2" },
+  { slug: "startups", title: "Startups", description: "Student ventures, stage, mentors and funding readiness.", group: "Incubation", roles: ["incubation"], template: "bespoke", icon: "lightbulb", phase: "Phase 2" },
   { slug: "mentors", title: "Mentor Network", description: "Industry, alumni and startup mentors with assignments.", group: "Incubation", roles: ["incubation"], template: "bespoke", icon: "handshake", phase: "Phase 2" },
   { slug: "funding-readiness", title: "Funding Readiness", description: "Team, traction, product and pitch readiness per venture.", group: "Incubation", roles: ["incubation"], template: "scorecard", icon: "coins", phase: "Phase 3" },
 

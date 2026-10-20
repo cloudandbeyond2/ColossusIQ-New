@@ -58,6 +58,7 @@ import { analyticsDashboard, placementSnapshot } from "./placement-stats";
 import { listProjects } from "./projects";
 import { getIncubationPipelineOverview } from "./incubation-store";
 import { getMentorNetworkOverview } from "./mentor-network-store";
+import { getStartupPortfolioOverview } from "./startup-store";
 
 /** Live data a builder may need, fetched once per request. */
 interface ScopeData {
@@ -795,13 +796,32 @@ const DATA: Record<string, (collegeScope: string, live: ScopeData) => ModuleData
       "sector",
       "Add employer",
     ),
-  startups: () =>
-    list(
-      [col("name", "Venture"), col("domain", "Domain", "badge"), col("founders", "Founders"), col("stage", "Stage", "badge"), col("readiness", "Readiness", "progress")],
-      [],
+  startups: async (scope, live) => {
+    const session = live.session ?? { college: scope, sub: "demo-incubation", role: "incubation" as const, name: "Incubation Head", tenant: "TNTU", mfa: true, exp: 0 };
+    const ov = await getStartupPortfolioOverview(session);
+    return list(
+      [
+        col("name", "Venture"),
+        col("domain", "Domain", "badge"),
+        col("founders", "Lead Founder"),
+        col("incorporation", "Incorporation", "badge"),
+        col("stage", "Stage", "badge"),
+        col("readiness", "Readiness", "progress"),
+        col("funding", "Funding Raised"),
+      ],
+      ov.startups.map((s) => ({
+        name: s.name,
+        domain: s.domain,
+        founders: `${s.leadFounder} (${s.department})`,
+        incorporation: s.incorporationStatus,
+        stage: s.stage,
+        readiness: s.readinessScore,
+        funding: s.fundingRaised,
+      })),
       "stage",
-      "Add venture",
-    ),
+      "Register Startup",
+    );
+  },
   mentors: async (scope, live) => {
     const session = live.session ?? { college: scope, sub: "demo-incubation", role: "incubation" as const, name: "Incubation Head", tenant: "TNTU", mfa: true, exp: 0 };
     const ov = await getMentorNetworkOverview(session);

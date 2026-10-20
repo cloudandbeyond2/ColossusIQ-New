@@ -78,6 +78,7 @@ import { CbcsElectivesModule } from "./bespoke/cbcs-electives";
 import { QuestionGeneratorModule } from "./bespoke/question-generator";
 import { IncubationPipelineModule } from "./bespoke/incubation-pipeline";
 import { MentorNetworkModule } from "./bespoke/mentors";
+import { StartupsPortfolioModule } from "./bespoke/startups";
 
 const BESPOKE: Record<string, (props: { role: Role }) => React.ReactNode> = {
   "cbcs-electives": ({ role }) => <CbcsElectivesModule role={role} />,
@@ -156,6 +157,7 @@ const BESPOKE: Record<string, (props: { role: Role }) => React.ReactNode> = {
   "question-generator": ({ role }) => <QuestionGeneratorModule role={role} />,
   "incubation-pipeline": ({ role }) => <IncubationPipelineModule role={role} />,
   mentors: ({ role }) => <MentorNetworkModule role={role} />,
+  startups: ({ role }) => <StartupsPortfolioModule role={role} />,
 };
 
 
