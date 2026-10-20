@@ -174,8 +174,9 @@ export async function postgresGetHackathonsOverview(
 ): Promise<HackathonsOverview> {
   const teams = await postgresListHackathonTeams(session);
   const userSub = requestUser() || session.sub;
+  const isStaff = ["incubation", "admin", "institution", "hod"].includes(session.role);
 
-  const myTeams = teams.filter((t) => t.isMine || t.teamLeadName === session.name);
+  const myTeams = teams.filter((t) => isStaff || t.isMine || t.teamLeadName === session.name);
   const myRegisteredHackathonIds = new Set(myTeams.map((t) => t.hackathonId));
 
   // Count teams per hackathon
@@ -216,4 +217,44 @@ export async function postgresGetHackathonsOverview(
     hackathons: baseHackathons,
     myTeams,
   };
+}
+
+export async function postgresDeleteHackathonTeam(
+  session: SessionPayload,
+  teamId: string,
+): Promise<boolean> {
+  const t = db();
+  const cId = await resolveCollegeId(session.college);
+  const isStaff = ["incubation", "admin", "institution", "hod"].includes(session.role);
+  const userSub = requestUser() || session.sub;
+  if (isStaff) {
+    if (cId) {
+      await t.$executeRaw`
+        DELETE FROM hackathon_teams
+        WHERE id = ${teamId}::uuid
+          AND college_id = ${cId}::uuid
+      `;
+    } else {
+      await t.$executeRaw`
+        DELETE FROM hackathon_teams
+        WHERE id = ${teamId}::uuid
+      `;
+    }
+  } else {
+    if (cId) {
+      await t.$executeRaw`
+        DELETE FROM hackathon_teams
+        WHERE id = ${teamId}::uuid
+          AND user_id = ${userSub}::uuid
+          AND college_id = ${cId}::uuid
+      `;
+    } else {
+      await t.$executeRaw`
+        DELETE FROM hackathon_teams
+        WHERE id = ${teamId}::uuid
+          AND user_id = ${userSub}::uuid
+      `;
+    }
+  }
+  return true;
 }
