@@ -70,6 +70,23 @@ import {
 import {
   UpdateReadinessInput,
 } from "@/lib/api/funding-readiness-schemas";
+import {
+  cancelInterview,
+  createShortlist,
+  deleteShortlist,
+  getInterviewsOverview,
+  getShortlistsOverview,
+  scheduleInterview,
+  searchCandidates,
+  updateInterviewFeedback,
+  updateShortlistStage,
+} from "./recruiter-store";
+import {
+  CreateShortlistInput,
+  ScheduleInterviewInput,
+  SubmitInterviewFeedbackInput,
+  UpdateShortlistStageInput,
+} from "@/lib/api/recruiter-schemas";
 import { CalendarError, calendarNotifications, createCalendarItem, deleteCalendarItem, getCalendarOverview, syncCampusEvents, updateCalendarItem } from "./academic-calendar";
 import {
   CreateAicteActionInput,
@@ -405,6 +422,15 @@ export const PATTERNS = [
   "DELETE incubation/startups/:id",
   "GET incubation/funding-readiness",
   "PATCH incubation/funding-readiness/:id",
+  "GET recruiter/candidates",
+  "GET recruiter/shortlists",
+  "POST recruiter/shortlists",
+  "PATCH recruiter/shortlists/:id",
+  "DELETE recruiter/shortlists/:id",
+  "GET recruiter/interviews",
+  "POST recruiter/interviews",
+  "PATCH recruiter/interviews/:id",
+  "DELETE recruiter/interviews/:id",
 ] as const;
 
 const ID = /^[A-Za-z0-9_-]{1,64}$/;
@@ -1370,6 +1396,110 @@ export async function dispatch(method: string, segs: string[], rawBody: unknown,
       const updated = await updateVentureReadiness(session, b, parsed.data);
       if (!updated) return notFound();
       return ok(updated);
+    }
+
+    /* ── Recruiter Talent Workspace ── */
+    case "GET recruiter/candidates": {
+      if (session.role !== "recruiter" && session.role !== "placement" && session.role !== "institution" && session.role !== "admin") return forbidden();
+      const q = query.get("q") || undefined;
+      const dept = query.get("department") || undefined;
+      const skill = query.get("skill") || undefined;
+      const minReadiness = query.get("minReadiness") ? Number(query.get("minReadiness")) : undefined;
+      const minCgpa = query.get("minCgpa") ? Number(query.get("minCgpa")) : undefined;
+      return ok(await searchCandidates(session, { q, department: dept, skill, minReadiness, minCgpa }));
+    }
+
+    case "GET recruiter/shortlists": {
+      if (session.role !== "recruiter" && session.role !== "placement" && session.role !== "institution" && session.role !== "admin") return forbidden();
+      const roleFilter = query.get("role") || undefined;
+      return ok(await getShortlistsOverview(session, roleFilter));
+    }
+
+    case "POST recruiter/shortlists": {
+      if (session.role !== "recruiter" && session.role !== "placement" && session.role !== "institution" && session.role !== "admin") return forbidden();
+      let body = rawBody;
+      if (typeof body === "string") {
+        try { body = JSON.parse(body); } catch {}
+      }
+      const data = (body as { data?: unknown })?.data ?? body;
+      const parsed = CreateShortlistInput.safeParse(data);
+      if (!parsed.success) return err(400, "invalid_body", parsed.error.issues[0]?.message ?? "Invalid shortlist input.");
+      try {
+        const created = await createShortlist(session, parsed.data);
+        return ok(created);
+      } catch (e) {
+        return err(400, "bad_request", (e as Error).message);
+      }
+    }
+
+    case "PATCH recruiter/shortlists/:id": {
+      if (session.role !== "recruiter" && session.role !== "placement" && session.role !== "institution" && session.role !== "admin") return forbidden();
+      if (!b) return notFound();
+      let body = rawBody;
+      if (typeof body === "string") {
+        try { body = JSON.parse(body); } catch {}
+      }
+      const data = (body as { data?: unknown })?.data ?? body;
+      const parsed = UpdateShortlistStageInput.safeParse(data);
+      if (!parsed.success) return err(400, "invalid_body", parsed.error.issues[0]?.message ?? "Invalid stage update.");
+      const updated = await updateShortlistStage(session, b, parsed.data);
+      if (!updated) return notFound();
+      return ok(updated);
+    }
+
+    case "DELETE recruiter/shortlists/:id": {
+      if (session.role !== "recruiter" && session.role !== "placement" && session.role !== "institution" && session.role !== "admin") return forbidden();
+      if (!b) return notFound();
+      const deleted = await deleteShortlist(session, b);
+      if (!deleted) return notFound();
+      return ok({ ok: true, deleted: b });
+    }
+
+    case "GET recruiter/interviews": {
+      if (session.role !== "recruiter" && session.role !== "placement" && session.role !== "institution" && session.role !== "admin") return forbidden();
+      const status = query.get("status") || undefined;
+      const round = query.get("round") || undefined;
+      return ok(await getInterviewsOverview(session, { status, round }));
+    }
+
+    case "POST recruiter/interviews": {
+      if (session.role !== "recruiter" && session.role !== "placement" && session.role !== "institution" && session.role !== "admin") return forbidden();
+      let body = rawBody;
+      if (typeof body === "string") {
+        try { body = JSON.parse(body); } catch {}
+      }
+      const data = (body as { data?: unknown })?.data ?? body;
+      const parsed = ScheduleInterviewInput.safeParse(data);
+      if (!parsed.success) return err(400, "invalid_body", parsed.error.issues[0]?.message ?? "Invalid schedule input.");
+      try {
+        const created = await scheduleInterview(session, parsed.data);
+        return ok(created);
+      } catch (e) {
+        return err(400, "bad_request", (e as Error).message);
+      }
+    }
+
+    case "PATCH recruiter/interviews/:id": {
+      if (session.role !== "recruiter" && session.role !== "placement" && session.role !== "institution" && session.role !== "admin") return forbidden();
+      if (!b) return notFound();
+      let body = rawBody;
+      if (typeof body === "string") {
+        try { body = JSON.parse(body); } catch {}
+      }
+      const data = (body as { data?: unknown })?.data ?? body;
+      const parsed = SubmitInterviewFeedbackInput.safeParse(data);
+      if (!parsed.success) return err(400, "invalid_body", parsed.error.issues[0]?.message ?? "Invalid feedback input.");
+      const updated = await updateInterviewFeedback(session, b, parsed.data);
+      if (!updated) return notFound();
+      return ok(updated);
+    }
+
+    case "DELETE recruiter/interviews/:id": {
+      if (session.role !== "recruiter" && session.role !== "placement" && session.role !== "institution" && session.role !== "admin") return forbidden();
+      if (!b) return notFound();
+      const cancelled = await cancelInterview(session, b);
+      if (!cancelled) return notFound();
+      return ok({ ok: true, cancelled: b });
     }
 
     /* ── Team Finder ── */

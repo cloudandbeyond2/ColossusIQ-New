@@ -214,9 +214,9 @@ export const MODULES: ModuleDef[] = [
   { slug: "integrations", title: "Integrations & Setup", description: "Connect cloud storage, email, WhatsApp, SMS, online payments, single sign-on, online classes and your ERP. Secrets are stored encrypted and never shown again.", group: "Platform", roles: ["admin", "institution"], template: "bespoke", icon: "plug", phase: "MVP" },
 
   // ───────────── Recruiter ─────────────
-  { slug: "talent-search", title: "Talent Search", description: "Search verified student profiles by skills, projects and readiness.", group: "Recruiter", roles: ["recruiter"], template: "list", icon: "search", phase: "Phase 4" },
-  { slug: "shortlists", title: "Shortlists", description: "Candidates you have shortlisted, with stage and notes.", group: "Recruiter", roles: ["recruiter"], template: "list", icon: "list", phase: "Phase 4" },
-  { slug: "recruiter-interviews", title: "Interview Schedule", description: "Upcoming candidate interviews and panels.", group: "Recruiter", roles: ["recruiter"], template: "calendar", icon: "calendar", phase: "Phase 4" },
+  { slug: "talent-search", title: "Talent Search", description: "Search verified student profiles by skills, projects and readiness.", group: "Recruiter", roles: ["recruiter"], template: "bespoke", icon: "search", phase: "Phase 4" },
+  { slug: "shortlists", title: "Shortlists", description: "Candidates you have shortlisted, with stage and notes.", group: "Recruiter", roles: ["recruiter"], template: "bespoke", icon: "list", phase: "Phase 4" },
+  { slug: "recruiter-interviews", title: "Interview Schedule", description: "Upcoming candidate interviews and panels.", group: "Recruiter", roles: ["recruiter"], template: "bespoke", icon: "calendar", phase: "Phase 4" },
 
   // ───────────── Platform ─────────────
   { slug: "content-desk", title: "University Content Desk", description: "Draft current affairs, question sets and university events with AI or by hand, verify them, and publish to every college or the ones you choose.", group: "University", roles: ["admin"], template: "bespoke", icon: "clipboard", phase: "MVP", notice: "AI drafts are suggestions. Nothing reaches students until you verify and publish it; every publish is audit-logged and can be withdrawn." },

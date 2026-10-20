@@ -65,6 +65,9 @@ const BESPOKE_API: Record<string, string[]> = {
   mentors: ["incubation/mentors"],
   startups: ["incubation/startups"],
   "funding-readiness": ["incubation/funding-readiness"],
+  "talent-search": ["recruiter/candidates"],
+  shortlists: ["recruiter/shortlists"],
+  "recruiter-interviews": ["recruiter/interviews"],
 };
 /** Pages without a dispatcher GET (static, or served by the route handler itself, like the college website). */
 const UNIVERSITY_ONLY = new Set(["content-desk"]);

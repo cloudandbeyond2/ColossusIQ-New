@@ -80,8 +80,14 @@ import { IncubationPipelineModule } from "./bespoke/incubation-pipeline";
 import { MentorNetworkModule } from "./bespoke/mentors";
 import { StartupsPortfolioModule } from "./bespoke/startups";
 import { FundingReadinessModule } from "./bespoke/funding-readiness";
+import { TalentSearchModule } from "./bespoke/talent-search";
+import { ShortlistsModule } from "./bespoke/shortlists";
+import { RecruiterInterviewsModule } from "./bespoke/recruiter-interviews";
 
 const BESPOKE: Record<string, (props: { role: Role }) => React.ReactNode> = {
+  "talent-search": ({ role }) => <TalentSearchModule role={role} />,
+  shortlists: ({ role }) => <ShortlistsModule role={role} />,
+  "recruiter-interviews": ({ role }) => <RecruiterInterviewsModule role={role} />,
   "cbcs-electives": ({ role }) => <CbcsElectivesModule role={role} />,
   "nmc-compliance": ({ role }) => <NmcComplianceModule role={role} />,
   "hospital-dashboard": ({ role }) => <HospitalDashboardModule role={role} />,

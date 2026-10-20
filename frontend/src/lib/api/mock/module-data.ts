@@ -60,6 +60,11 @@ import { getIncubationPipelineOverview } from "./incubation-store";
 import { getMentorNetworkOverview } from "./mentor-network-store";
 import { getStartupPortfolioOverview } from "./startup-store";
 import { getFundingReadinessOverview } from "./funding-readiness-store";
+import {
+  getInterviewsOverview,
+  getShortlistsOverview,
+  searchCandidates,
+} from "./recruiter-store";
 
 /** Live data a builder may need, fetched once per request. */
 interface ScopeData {
@@ -880,18 +885,52 @@ const DATA: Record<string, (collegeScope: string, live: ScopeData) => ModuleData
       undefined,
       "Generate report"
     ),
-  "talent-search": () =>
-    list(
-      [col("candidate", "Candidate"), col("college", "College"), col("dept", "Department"), col("skills", "Verified skills"), col("projects", "Projects", "number"), col("readiness", "Readiness", "progress")],
-      [],
+  "talent-search": async (scope, live) => {
+    const session = live.session ?? { college: scope, sub: "demo-recruiter", role: "recruiter" as const, name: "Talent Recruiter", tenant: "TNTU", mfa: true, exp: 0 };
+    const ov = await searchCandidates(session);
+    return list(
+      [
+        col("candidate", "Candidate"),
+        col("college", "College"),
+        col("dept", "Department"),
+        col("skills", "Verified skills"),
+        col("projects", "Projects", "badge"),
+        col("readiness", "Readiness", "progress"),
+      ],
+      ov.candidates.map((c) => ({
+        candidate: `${c.name} (${c.roll})`,
+        college: c.college,
+        dept: c.department,
+        skills: c.skills.join(", "),
+        projects: c.projectDomain,
+        readiness: c.readiness,
+      })),
       "dept",
-    ),
-  shortlists: () =>
-    list(
-      [col("candidate", "Candidate"), col("role", "Role"), col("stage", "Stage", "badge"), col("assessment", "Assessment", "progress"), col("updated", "Updated")],
-      [],
+      "Shortlist Candidate",
+    );
+  },
+  shortlists: async (scope, live) => {
+    const session = live.session ?? { college: scope, sub: "demo-recruiter", role: "recruiter" as const, name: "Talent Recruiter", tenant: "TNTU", mfa: true, exp: 0 };
+    const ov = await getShortlistsOverview(session);
+    return list(
+      [
+        col("candidate", "Candidate"),
+        col("role", "Role Requisition"),
+        col("stage", "Stage", "badge"),
+        col("assessment", "Assessment", "progress"),
+        col("updated", "Updated"),
+      ],
+      ov.shortlists.map((s) => ({
+        candidate: `${s.candidateName} (${s.roll})`,
+        role: s.roleRequisition,
+        stage: s.stage,
+        assessment: s.assessmentScore,
+        updated: s.updatedAt.slice(0, 10),
+      })),
       "stage",
-    ),
+      "Schedule Interview",
+    );
+  },
   users: async (collegeScope) => {
     if (dataBackend() === "postgres") {
       const t = db();
@@ -1135,19 +1174,25 @@ const DATA: Record<string, (collegeScope: string, live: ScopeData) => ModuleData
     ],
     tips: ["Educational guidance only — not medical advice.", "Student Welfare Office: Block C, Room 104 · Counsellor hours 10:00–17:00."],
   }),
-  "recruiter-interviews": () => ({
-    template: "calendar",
-    days: [
-      {
-        day: "Today", items: [
-          { time: "10:00", title: "Divya Raman — SDE-1 technical", tag: "Technical", tone: "brand" },
-          { time: "14:30", title: "Karthik Iyer — Data Analyst", tag: "Technical", tone: "brand" },
-        ]
-      },
-      { day: "Tomorrow", items: [{ time: "11:00", title: "Priya Nair — HR round", tag: "HR", tone: "gold" }] },
-    ],
-    tips: [],
-  }),
+  "recruiter-interviews": async (scope, live) => {
+    const session = live.session ?? { college: scope, sub: "demo-recruiter", role: "recruiter" as const, name: "Talent Recruiter", tenant: "TNTU", mfa: true, exp: 0 };
+    const ov = await getInterviewsOverview(session);
+    return {
+      template: "calendar",
+      days: [
+        {
+          day: "Scheduled Panels",
+          items: ov.interviews.map((it) => ({
+            time: it.dateTime,
+            title: `${it.candidateName} (${it.roleRequisition}) — ${it.round}`,
+            tag: it.status,
+            tone: it.status === "Completed" ? ("teal" as const) : it.status === "Scheduled" ? ("brand" as const) : ("amber" as const),
+          })),
+        },
+      ],
+      tips: ["Placement Cell Interview Rooms: Block C, 2nd Floor · Video conferencing enabled."],
+    };
+  },
 
   /* ── galleries ── */
   passport: (scope, live) => generateDynamicPassport(live.session ?? { college: scope, sub: "demo-student" }),
