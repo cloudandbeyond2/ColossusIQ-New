@@ -57,6 +57,7 @@ import { getFacultyAllocationProfile } from "./faculty-allocation";
 import { analyticsDashboard, placementSnapshot } from "./placement-stats";
 import { listProjects } from "./projects";
 import { getIncubationPipelineOverview } from "./incubation-store";
+import { getMentorNetworkOverview } from "./mentor-network-store";
 
 /** Live data a builder may need, fetched once per request. */
 interface ScopeData {
@@ -801,13 +802,22 @@ const DATA: Record<string, (collegeScope: string, live: ScopeData) => ModuleData
       "stage",
       "Add venture",
     ),
-  mentors: () =>
-    list(
-      [col("name", "Mentor"), col("type", "Type", "badge"), col("expertise", "Expertise"), col("mentees", "Mentees", "number"), col("availability", "Availability", "badge")],
-      [],
+  mentors: async (scope, live) => {
+    const session = live.session ?? { college: scope, sub: "demo-incubation", role: "incubation" as const, name: "Incubation Head", tenant: "TNTU", mfa: true, exp: 0 };
+    const ov = await getMentorNetworkOverview(session);
+    return list(
+      [col("name", "Mentor"), col("type", "Type", "badge"), col("expertise", "Expertise"), col("mentees", "Active Mentees", "number"), col("availability", "Availability", "badge")],
+      ov.mentors.map((m) => ({
+        name: `${m.name} (${m.company})`,
+        type: m.type,
+        expertise: m.expertise.join(", "),
+        mentees: m.assignedVentures.length,
+        availability: m.availability,
+      })),
       "type",
       "Invite mentor",
-    ),
+    );
+  },
   "knowledge-base": async (collegeScope) => {
     const store = kbStore();
     const docs = await store.list(collegeScope);

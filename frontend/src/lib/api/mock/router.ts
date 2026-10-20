@@ -39,6 +39,20 @@ import {
   ReviewVentureInput,
   UpdateVentureStageInput,
 } from "@/lib/api/incubation-schemas";
+import {
+  assignMentorToVenture,
+  deleteMentor,
+  getMentorNetworkOverview,
+  inviteMentor,
+  logMentorshipSession,
+  unassignMentorFromVenture,
+  updateMentor,
+} from "./mentor-network-store";
+import {
+  AssignMentorInput,
+  InviteMentorInput,
+  LogSessionInput,
+} from "@/lib/api/mentor-network-schemas";
 import { CalendarError, calendarNotifications, createCalendarItem, deleteCalendarItem, getCalendarOverview, syncCampusEvents, updateCalendarItem } from "./academic-calendar";
 import {
   CreateAicteActionInput,
@@ -361,6 +375,13 @@ export const PATTERNS = [
   "PATCH incubation-pipeline/ventures/:id/stage",
   "POST incubation-pipeline/ventures/:id/review",
   "DELETE incubation-pipeline/ventures/:id",
+  "GET incubation/mentors",
+  "POST incubation/mentors",
+  "PATCH incubation/mentors/:id",
+  "POST incubation/mentors/:id/assign",
+  "POST incubation/mentors/:id/unassign",
+  "POST incubation/mentors/:id/session",
+  "DELETE incubation/mentors/:id",
 ] as const;
 
 const ID = /^[A-Za-z0-9_-]{1,64}$/;
@@ -1177,6 +1198,89 @@ export async function dispatch(method: string, segs: string[], rawBody: unknown,
       if (session.role !== "incubation" && session.role !== "institution" && session.role !== "admin") return forbidden();
       if (!b) return notFound();
       const deleted = await deletePipelineVenture(session, b);
+      if (!deleted) return notFound();
+      return ok({ ok: true, deleted: b });
+    }
+
+    /* ── Incubation Mentor Network ── */
+    case "GET incubation/mentors": {
+      if (session.role !== "incubation" && session.role !== "institution" && session.role !== "admin") return forbidden();
+      return ok(await getMentorNetworkOverview(session));
+    }
+
+    case "POST incubation/mentors": {
+      if (session.role !== "incubation" && session.role !== "institution" && session.role !== "admin") return forbidden();
+      let body = rawBody;
+      if (typeof body === "string") {
+        try { body = JSON.parse(body); } catch {}
+      }
+      const data = (body as { data?: unknown })?.data ?? body;
+      const parsed = InviteMentorInput.safeParse(data);
+      if (!parsed.success) return err(400, "invalid_body", parsed.error.issues[0]?.message ?? "Invalid mentor payload.");
+      return ok(await inviteMentor(session, parsed.data));
+    }
+
+    case "PATCH incubation/mentors/:id": {
+      if (session.role !== "incubation" && session.role !== "institution" && session.role !== "admin") return forbidden();
+      if (!b) return notFound();
+      let body = rawBody;
+      if (typeof body === "string") {
+        try { body = JSON.parse(body); } catch {}
+      }
+      const data = (body as { data?: unknown })?.data ?? body;
+      const updated = await updateMentor(session, b, (data as Record<string, unknown>) || {});
+      if (!updated) return notFound();
+      return ok(updated);
+    }
+
+    case "POST incubation/mentors/:id/assign": {
+      if (session.role !== "incubation" && session.role !== "institution" && session.role !== "admin") return forbidden();
+      if (!b) return notFound();
+      let body = rawBody;
+      if (typeof body === "string") {
+        try { body = JSON.parse(body); } catch {}
+      }
+      const data = (body as { data?: unknown })?.data ?? body;
+      const parsed = AssignMentorInput.safeParse(data);
+      if (!parsed.success) return err(400, "invalid_body", parsed.error.issues[0]?.message ?? "Invalid assignment payload.");
+      const updated = await assignMentorToVenture(session, b, parsed.data);
+      if (!updated) return notFound();
+      return ok(updated);
+    }
+
+    case "POST incubation/mentors/:id/unassign": {
+      if (session.role !== "incubation" && session.role !== "institution" && session.role !== "admin") return forbidden();
+      if (!b) return notFound();
+      let body = rawBody;
+      if (typeof body === "string") {
+        try { body = JSON.parse(body); } catch {}
+      }
+      const data = (body as { ventureId?: string }) ?? {};
+      const ventureId = data.ventureId || "";
+      const updated = await unassignMentorFromVenture(session, b, ventureId);
+      if (!updated) return notFound();
+      return ok(updated);
+    }
+
+    case "POST incubation/mentors/:id/session": {
+      if (session.role !== "incubation" && session.role !== "institution" && session.role !== "admin") return forbidden();
+      if (!b) return notFound();
+      let body = rawBody;
+      if (typeof body === "string") {
+        try { body = JSON.parse(body); } catch {}
+      }
+      const data = (body as { data?: unknown })?.data ?? body;
+      const parsed = LogSessionInput.safeParse(data);
+      if (!parsed.success) return err(400, "invalid_body", parsed.error.issues[0]?.message ?? "Invalid session payload.");
+      const updated = await logMentorshipSession(session, b, parsed.data);
+      if (!updated) return notFound();
+      return ok(updated);
+    }
+
+    case "DELETE incubation/mentors/:id": {
+      if (session.role !== "incubation" && session.role !== "institution" && session.role !== "admin") return forbidden();
+      if (!b) return notFound();
+      const deleted = await deleteMentor(session, b);
       if (!deleted) return notFound();
       return ok({ ok: true, deleted: b });
     }
