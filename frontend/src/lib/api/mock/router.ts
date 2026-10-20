@@ -87,6 +87,11 @@ import {
   SubmitInterviewFeedbackInput,
   UpdateShortlistStageInput,
 } from "@/lib/api/recruiter-schemas";
+import {
+  getPlacementAnalyticsOverview,
+  updatePlacementTargets,
+} from "./placement-analytics-store";
+import { UpdatePlacementTargetsInput } from "@/lib/api/placement-analytics-schemas";
 import { CalendarError, calendarNotifications, createCalendarItem, deleteCalendarItem, getCalendarOverview, syncCampusEvents, updateCalendarItem } from "./academic-calendar";
 import {
   CreateAicteActionInput,
@@ -431,6 +436,8 @@ export const PATTERNS = [
   "POST recruiter/interviews",
   "PATCH recruiter/interviews/:id",
   "DELETE recruiter/interviews/:id",
+  "GET placement-analytics",
+  "PATCH placement-analytics/targets",
 ] as const;
 
 const ID = /^[A-Za-z0-9_-]{1,64}$/;
@@ -1500,6 +1507,27 @@ export async function dispatch(method: string, segs: string[], rawBody: unknown,
       const cancelled = await cancelInterview(session, b);
       if (!cancelled) return notFound();
       return ok({ ok: true, cancelled: b });
+    }
+
+    /* ── Placement Analytics ── */
+    case "GET placement-analytics": {
+      if (session.role !== "institution" && session.role !== "placement" && session.role !== "hod" && session.role !== "admin") return forbidden();
+      const dept = query.get("department") || undefined;
+      const tier = query.get("tier") || undefined;
+      return ok(await getPlacementAnalyticsOverview(session, { department: dept, tier }));
+    }
+
+    case "PATCH placement-analytics/targets": {
+      if (session.role !== "institution" && session.role !== "placement" && session.role !== "admin") return forbidden();
+      let body = rawBody;
+      if (typeof body === "string") {
+        try { body = JSON.parse(body); } catch {}
+      }
+      const data = (body as { data?: unknown })?.data ?? body;
+      const parsed = UpdatePlacementTargetsInput.safeParse(data);
+      if (!parsed.success) return err(400, "invalid_body", parsed.error.issues[0]?.message ?? "Invalid placement targets payload.");
+      const updated = await updatePlacementTargets(session, parsed.data);
+      return ok(updated);
     }
 
     /* ── Team Finder ── */

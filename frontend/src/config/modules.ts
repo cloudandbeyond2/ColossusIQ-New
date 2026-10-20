@@ -181,7 +181,7 @@ export const MODULES: ModuleDef[] = [
   { slug: "drives", title: "Placement Drives", description: "Schedule and manage campus recruitment drives.", group: "Placement", roles: ["placement"], template: "bespoke", icon: "briefcase", phase: "MVP" },
   { slug: "jobs", title: "Job Matching", description: "Open roles matched to verified student profiles and eligibility.", group: "Placement", roles: ["placement", "student"], template: "bespoke", icon: "handshake", phase: "MVP" },
   { slug: "employers", title: "Employers", description: "Recruiter relationships, history and hiring outcomes.", group: "Placement", roles: ["placement"], template: "bespoke", icon: "building", phase: "MVP" },
-  { slug: "placement-analytics", title: "Placement Analytics", description: "Readiness, resume completion, mock-interview participation and offers.", group: "Placement", roles: ["placement", "hod", "institution"], template: "dashboard", icon: "chart", phase: "Phase 2" },
+  { slug: "placement-analytics", title: "Placement Analytics", description: "Readiness, resume completion, mock-interview participation and offers.", group: "Placement", roles: ["placement", "hod", "institution", "admin"], template: "bespoke", icon: "chart", phase: "Phase 2" },
 
   // ───────────── Incubation ─────────────
   { slug: "incubation-pipeline", title: "Incubation Pipeline", description: "Idea → validation → market → business model → MVP → pitch → incubation review.", group: "Incubation", roles: ["incubation"], template: "bespoke", icon: "rocket", phase: "Phase 2" },
