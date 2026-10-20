@@ -21,7 +21,7 @@ import { dynamicBiAnalytics } from "./bi-analytics";
 import { moduleData } from "./module-data";
 import { createClub, deleteClub, getClubsOverview, toggleJoinClub, updateClub } from "./clubs";
 import { createSport, deleteSport, getSportsOverview, toggleRegisterTrial, updateSport } from "./sports";
-import { getHackathonsOverview, listHackathonTeams, registerHackathonTeam } from "./hackathons";
+import { deleteHackathonTeam, getHackathonsOverview, listHackathonTeams, registerHackathonTeam } from "./hackathons";
 import { RegisterHackathonTeamInput } from "@/lib/api/hackathon-schemas";
 import { createProject, deleteProject, listProjects, reviewProject, updateProjectStage } from "./projects";
 import { CreateProjectInput, FacultyReviewInput, UpdateProjectStageInput } from "@/lib/api/project-schemas";
@@ -388,6 +388,7 @@ export const PATTERNS = [
   "POST hackathons/register",
   "POST hackathons/teams",
   "GET hackathons/teams",
+  "DELETE hackathons/teams/:id",
   "GET academic-calendar",
   "POST academic-calendar",
   "PUT academic-calendar/:id",
@@ -1033,6 +1034,13 @@ export async function dispatch(method: string, segs: string[], rawBody: unknown,
       const parsed = RegisterHackathonTeamInput.safeParse(rawBody);
       if (!parsed.success) return err(400, "invalid_body", parsed.error.issues[0]?.message ?? "Invalid hackathon registration payload.");
       return ok(await registerHackathonTeam(session, parsed.data));
+    }
+    case "DELETE hackathons/teams/:id": {
+      if (session.role === "recruiter") return forbidden();
+      const teamId = found.id ?? segs[2] ?? "";
+      if (!teamId) return err(400, "missing_id", "Team ID is required.");
+      const success = await deleteHackathonTeam(session, teamId);
+      return ok({ ok: success });
     }
 
     /* ── academic calendar ── */

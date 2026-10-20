@@ -17,8 +17,10 @@ import {
   ChevronLeft,
   ChevronRight,
   ShieldCheck,
+  Trash2,
 } from "lucide-react";
 import { useMemo, useState } from "react";
+import { z } from "zod";
 import { apiFetch, ApiError } from "@/lib/api/client";
 import {
   HackathonItem,
@@ -62,7 +64,7 @@ function statusTone(status: string): "teal" | "amber" | "sky" | "brand" {
   }
 }
 
-export function HackathonsModule({ role: _role }: { role?: Role }) {
+export function HackathonsModule({ role }: { role?: Role }) {
   const qc = useQueryClient();
   const [activeTab, setActiveTab] = useState<"hackathons" | "my-teams">("hackathons");
   const [search, setSearch] = useState("");
@@ -72,6 +74,26 @@ export function HackathonsModule({ role: _role }: { role?: Role }) {
   const [toast, setToast] = useState<string | null>(null);
   const [rowsPerPage, setRowsPerPage] = useState<number>(10);
   const [page, setPage] = useState<number>(1);
+  const [deletingTeamId, setDeletingTeamId] = useState<string | null>(null);
+
+  const isStaff = role && ["incubation", "admin", "institution", "hod"].includes(role);
+
+  const deleteTeamMutation = useMutation({
+    mutationFn: async (teamId: string) => {
+      return apiFetch(`/api/v1/hackathons/teams/${teamId}`, z.object({ ok: z.boolean() }), {
+        method: "DELETE",
+      });
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["hackathons"] });
+      setToast("Registered team removed successfully.");
+      setDeletingTeamId(null);
+    },
+    onError: (err) => {
+      setToast(err instanceof Error ? err.message : "Failed to remove registered team");
+      setDeletingTeamId(null);
+    },
+  });
 
   const query = useQuery({
     queryKey: ["hackathons"],
@@ -167,7 +189,9 @@ export function HackathonsModule({ role: _role }: { role?: Role }) {
 
         <Card className="p-5">
           <div className="flex items-center justify-between">
-            <p className="text-xs font-semibold uppercase tracking-wider text-ink-3">My Registered Teams</p>
+            <p className="text-xs font-semibold uppercase tracking-wider text-ink-3">
+              {isStaff ? "Registered Teams" : "My Registered Teams"}
+            </p>
             <div className="flex size-8 items-center justify-center rounded-lg bg-sky-soft text-sky">
               <ShieldCheck className="size-4" />
             </div>
@@ -212,7 +236,7 @@ export function HackathonsModule({ role: _role }: { role?: Role }) {
                 : "border-transparent text-ink-3 hover:text-ink",
             )}
           >
-            My Registered Teams
+            {isStaff ? "Registered Teams" : "My Registered Teams"}
             {myTeams.length > 0 ? (
               <span className="flex size-5 items-center justify-center rounded-full bg-brand-soft text-[10px] font-bold text-brand">
                 {myTeams.length}
@@ -392,41 +416,75 @@ export function HackathonsModule({ role: _role }: { role?: Role }) {
             ) : (
               <div className="grid gap-4 sm:grid-cols-2">
                 {myTeams.map((team) => (
-                  <div key={team.id} className="rounded-xl border border-line bg-surface p-4 shadow-2xs hover:border-brand/40 transition-colors">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <h4 className="font-bold text-ink text-base">{team.teamName}</h4>
-                        <p className="text-xs text-brand font-medium mt-0.5">{team.hackathonName}</p>
+                  <div key={team.id} className="rounded-xl border border-line bg-surface p-4 shadow-2xs hover:border-brand/40 transition-colors flex flex-col justify-between">
+                    <div>
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <h4 className="font-bold text-ink text-base">{team.teamName}</h4>
+                          <p className="text-xs text-brand font-medium mt-0.5">{team.hackathonName}</p>
+                        </div>
+                        <Badge tone="teal">{team.status}</Badge>
                       </div>
-                      <Badge tone="teal">{team.status}</Badge>
-                    </div>
 
-                    <div className="mt-3 space-y-1.5 text-xs text-ink-2">
-                      <p className="line-clamp-2">
-                        <span className="font-semibold text-ink">Problem / Project:</span> {team.problemStatement}
-                      </p>
-                      <p>
-                        <span className="font-semibold text-ink">Lead:</span> {team.teamLeadName} {team.rollNo ? `(${team.rollNo})` : ""}
-                      </p>
-                      <p>
-                        <span className="font-semibold text-ink">Members:</span> {team.membersCount} students {team.memberNames ? `— ${team.memberNames}` : ""}
-                      </p>
-                      <p>
-                        <span className="font-semibold text-ink">Track:</span> {team.domain}
-                      </p>
-                      {team.repoUrl ? (
-                        <p className="flex items-center gap-1 text-brand">
-                          <ExternalLink className="size-3" />
-                          <a href={team.repoUrl} target="_blank" rel="noopener noreferrer" className="hover:underline">
-                            Repository / Demo Link
-                          </a>
+                      <div className="mt-3 space-y-1.5 text-xs text-ink-2">
+                        <p className="line-clamp-2">
+                          <span className="font-semibold text-ink">Problem / Project:</span> {team.problemStatement}
                         </p>
-                      ) : null}
+                        <p>
+                          <span className="font-semibold text-ink">Lead:</span> {team.teamLeadName} {team.rollNo ? `(${team.rollNo})` : ""}
+                        </p>
+                        <p>
+                          <span className="font-semibold text-ink">Members:</span> {team.membersCount} students {team.memberNames ? `— ${team.memberNames}` : ""}
+                        </p>
+                        <p>
+                          <span className="font-semibold text-ink">Track:</span> {team.domain}
+                        </p>
+                        {team.repoUrl ? (
+                          <p className="flex items-center gap-1 text-brand">
+                            <ExternalLink className="size-3" />
+                            <a href={team.repoUrl} target="_blank" rel="noopener noreferrer" className="hover:underline">
+                              Repository / Demo Link
+                            </a>
+                          </p>
+                        ) : null}
+                      </div>
                     </div>
 
-                    <div className="mt-3 border-t border-line/60 pt-2 text-[11px] text-ink-3 flex items-center justify-between">
-                      <span>Saved in PostgreSQL</span>
-                      <span>{new Date(team.createdAt).toLocaleDateString()}</span>
+                    <div className="mt-4 border-t border-line/60 pt-3 text-xs flex items-center justify-between gap-2">
+                      <span className="text-[11px] text-ink-3">
+                        Registered {new Date(team.createdAt).toLocaleDateString()}
+                      </span>
+                      {deletingTeamId === team.id ? (
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs text-rose-600 font-medium">Delete team?</span>
+                          <button
+                            type="button"
+                            onClick={() => deleteTeamMutation.mutate(team.id)}
+                            disabled={deleteTeamMutation.isPending}
+                            className="rounded bg-rose-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-rose-700 disabled:opacity-50 transition-colors shadow-2xs"
+                          >
+                            {deleteTeamMutation.isPending ? "Deleting..." : "Confirm"}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setDeletingTeamId(null)}
+                            disabled={deleteTeamMutation.isPending}
+                            className="rounded border border-line bg-surface-2 px-2 py-1 text-xs font-medium text-ink hover:bg-surface-3 transition-colors"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setDeletingTeamId(team.id)}
+                          className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors"
+                          title="Delete registered team"
+                        >
+                          <Trash2 className="size-3.5" />
+                          <span>Delete Team</span>
+                        </button>
+                      )}
                     </div>
                   </div>
                 ))}
