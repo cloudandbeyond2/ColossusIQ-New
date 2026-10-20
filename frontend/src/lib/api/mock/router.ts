@@ -155,6 +155,22 @@ import {
   EnrollStudentElectiveInput,
   UpdateCbcsWindowInput,
 } from "@/lib/api/cbcs-schemas";
+import {
+  getOsceOverview,
+  createOsceStation,
+  createOsceSession,
+  createSkillsLabBooking,
+  updateBookingStatus,
+  gradeStudentOsce,
+  toggleStationStatus,
+} from "./osce-store";
+import {
+  CreateOsceStationInput,
+  CreateOsceSessionInput,
+  CreateSkillsLabBookingInput,
+  UpdateBookingStatusInput,
+  GradeStudentOsceInput,
+} from "@/lib/api/osce-schemas";
 import { dispatchRecords } from "./records-router";
 import { dispatchLearning } from "./learning";
 import { dispatchCourses } from "./course-builder";
@@ -338,6 +354,13 @@ export const PATTERNS = [
   "POST cbcs-electives/enroll",
   "DELETE cbcs-electives/enrollments/:id",
   "PUT cbcs-electives/window",
+  "GET osce",
+  "POST osce/stations",
+  "POST osce/stations/:id/toggle",
+  "POST osce/sessions",
+  "POST osce/bookings",
+  "PATCH osce/bookings/:id/status",
+  "POST osce/grade",
   "GET notifications",
   "POST notifications/test",
   "GET notifications/delivery-log",
@@ -741,6 +764,43 @@ export async function dispatch(method: string, segs: string[], rawBody: unknown,
       const parsed = UpdateCbcsWindowInput.safeParse(rawBody);
       if (!parsed.success) return err(400, "invalid_body", parsed.error.issues[0]?.message ?? "Invalid window payload.");
       return ok(await updateCbcsWindow(session, parsed.data));
+    }
+
+    case "GET osce": {
+      return ok(await getOsceOverview(session));
+    }
+    case "POST osce/stations": {
+      if (session.role !== "hod" && session.role !== "faculty" && session.role !== "admin") return forbidden();
+      const parsed = CreateOsceStationInput.safeParse(rawBody);
+      if (!parsed.success) return err(400, "invalid_body", parsed.error.issues[0]?.message ?? "Invalid station payload.");
+      return ok(await createOsceStation(session, parsed.data));
+    }
+    case "POST osce/stations/:id/toggle": {
+      if (session.role !== "hod" && session.role !== "faculty" && session.role !== "admin") return forbidden();
+      return ok(await toggleStationStatus(session, found.id ?? segs[2] ?? ""));
+    }
+    case "POST osce/sessions": {
+      if (session.role !== "hod" && session.role !== "faculty" && session.role !== "admin") return forbidden();
+      const parsed = CreateOsceSessionInput.safeParse(rawBody);
+      if (!parsed.success) return err(400, "invalid_body", parsed.error.issues[0]?.message ?? "Invalid session payload.");
+      return ok(await createOsceSession(session, parsed.data));
+    }
+    case "POST osce/bookings": {
+      const parsed = CreateSkillsLabBookingInput.safeParse(rawBody);
+      if (!parsed.success) return err(400, "invalid_body", parsed.error.issues[0]?.message ?? "Invalid booking payload.");
+      return ok(await createSkillsLabBooking(session, parsed.data));
+    }
+    case "PATCH osce/bookings/:id/status": {
+      if (session.role !== "hod" && session.role !== "faculty" && session.role !== "admin") return forbidden();
+      const parsed = UpdateBookingStatusInput.safeParse(rawBody);
+      if (!parsed.success) return err(400, "invalid_body", parsed.error.issues[0]?.message ?? "Invalid booking status payload.");
+      return ok(await updateBookingStatus(session, found.id ?? segs[2] ?? "", parsed.data));
+    }
+    case "POST osce/grade": {
+      if (session.role !== "hod" && session.role !== "faculty" && session.role !== "admin") return forbidden();
+      const parsed = GradeStudentOsceInput.safeParse(rawBody);
+      if (!parsed.success) return err(400, "invalid_body", parsed.error.issues[0]?.message ?? "Invalid grading payload.");
+      return ok(await gradeStudentOsce(session, parsed.data));
     }
 
     /* ── session & shell ── */

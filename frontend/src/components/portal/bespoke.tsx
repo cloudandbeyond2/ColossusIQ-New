@@ -84,8 +84,10 @@ import { TalentSearchModule } from "./bespoke/talent-search";
 import { ShortlistsModule } from "./bespoke/shortlists";
 import { RecruiterInterviewsModule } from "./bespoke/recruiter-interviews";
 import { PlacementAnalyticsModule } from "./bespoke/placement-analytics";
+import { OsceModule } from "./bespoke/osce";
 
 const BESPOKE: Record<string, (props: { role: Role }) => React.ReactNode> = {
+  osce: ({ role }) => <OsceModule role={role} />,
   "placement-analytics": ({ role }) => <PlacementAnalyticsModule role={role} />,
   "talent-search": ({ role }) => <TalentSearchModule role={role} />,
   shortlists: ({ role }) => <ShortlistsModule role={role} />,
