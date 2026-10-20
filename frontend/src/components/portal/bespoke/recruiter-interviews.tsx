@@ -92,7 +92,7 @@ export function RecruiterInterviewsModule({ role: _role }: { role?: Role }) {
     queryKey: ["recruiter-interviews", queryString],
     queryFn: () =>
       apiFetch(
-        `recruiter/interviews${queryString ? `?${queryString}` : ""}`,
+        `/api/v1/recruiter/interviews${queryString ? `?${queryString}` : ""}`,
         InterviewsOverview
       ),
   });
@@ -100,7 +100,7 @@ export function RecruiterInterviewsModule({ role: _role }: { role?: Role }) {
   // Submit Feedback Mutation
   const feedbackMutation = useMutation({
     mutationFn: ({ id, input }: { id: string; input: SubmitInterviewFeedbackInput }) =>
-      apiFetch(`recruiter/interviews/${id}`, z.any(), {
+      apiFetch(`/api/v1/recruiter/interviews/${id}`, z.any(), {
         method: "PATCH",
         body: input,
       }),
@@ -120,7 +120,7 @@ export function RecruiterInterviewsModule({ role: _role }: { role?: Role }) {
   // Cancel Interview Mutation
   const cancelMutation = useMutation({
     mutationFn: (id: string) =>
-      apiFetch(`recruiter/interviews/${id}`, z.any(), {
+      apiFetch(`/api/v1/recruiter/interviews/${id}`, z.any(), {
         method: "DELETE",
       }),
     onSuccess: () => {

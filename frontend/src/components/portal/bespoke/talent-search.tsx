@@ -110,7 +110,7 @@ export function TalentSearchModule({ role: _role }: { role?: Role }) {
     queryKey: ["recruiter-candidates", queryString],
     queryFn: () =>
       apiFetch(
-        `recruiter/candidates${queryString ? `?${queryString}` : ""}`,
+        `/api/v1/recruiter/candidates${queryString ? `?${queryString}` : ""}`,
         TalentSearchOverview
       ),
   });
@@ -118,7 +118,7 @@ export function TalentSearchModule({ role: _role }: { role?: Role }) {
   // Shortlist Mutation
   const shortlistMutation = useMutation({
     mutationFn: (input: CreateShortlistInput) =>
-      apiFetch("recruiter/shortlists", z.any(), {
+      apiFetch("/api/v1/recruiter/shortlists", z.any(), {
         method: "POST",
         body: input,
       }),

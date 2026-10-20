@@ -96,7 +96,7 @@ export function FundingReadinessModule({ role: _role }: { role?: Role }) {
     queryKey: ["funding-readiness", selectedVentureId],
     queryFn: () =>
       apiFetch(
-        `incubation/funding-readiness?ventureId=${encodeURIComponent(selectedVentureId)}`,
+        `/api/v1/incubation/funding-readiness?ventureId=${encodeURIComponent(selectedVentureId)}`,
         FundingReadinessOverview
       ),
   });
@@ -136,7 +136,7 @@ export function FundingReadinessModule({ role: _role }: { role?: Role }) {
   // Save Evaluation Mutation
   const saveMutation = useMutation({
     mutationFn: (input: UpdateReadinessInput) =>
-      apiFetch(`incubation/funding-readiness/${selectedVentureId}`, z.any(), {
+      apiFetch(`/api/v1/incubation/funding-readiness/${selectedVentureId}`, z.any(), {
         method: "PATCH",
         body: input,
       }),

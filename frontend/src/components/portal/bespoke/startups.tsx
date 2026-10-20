@@ -99,13 +99,13 @@ export function StartupsPortfolioModule({ role: _role }: { role?: Role }) {
   // 1. Fetch Startups Overview
   const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ["incubation-startups"],
-    queryFn: () => apiFetch("incubation/startups", StartupPortfolioOverview),
+    queryFn: () => apiFetch("/api/v1/incubation/startups", StartupPortfolioOverview),
   });
 
   // 2. Mutations
   const createMutation = useMutation({
     mutationFn: (input: CreateStartupInput) =>
-      apiFetch("incubation/startups", StartupItem, {
+      apiFetch("/api/v1/incubation/startups", StartupItem, {
         method: "POST",
         body: input,
       }),
@@ -121,7 +121,7 @@ export function StartupsPortfolioModule({ role: _role }: { role?: Role }) {
 
   const updateMutation = useMutation({
     mutationFn: ({ id, input }: { id: string; input: UpdateStartupInput }) =>
-      apiFetch(`incubation/startups/${id}`, StartupItem, {
+      apiFetch(`/api/v1/incubation/startups/${id}`, StartupItem, {
         method: "PATCH",
         body: input,
       }),
@@ -137,7 +137,7 @@ export function StartupsPortfolioModule({ role: _role }: { role?: Role }) {
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) =>
-      apiFetch(`incubation/startups/${id}`, z.object({ ok: z.boolean() }), {
+      apiFetch(`/api/v1/incubation/startups/${id}`, z.object({ ok: z.boolean() }), {
         method: "DELETE",
       }),
     onSuccess: () => {

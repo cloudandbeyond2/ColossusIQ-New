@@ -53,11 +53,15 @@ async function getCsrfToken(): Promise<string> {
 type Method = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
 export async function apiFetch<S extends z.ZodTypeAny>(
-  path: string,
+  rawPath: string,
   schema: S,
   options: { method?: Method; body?: unknown; signal?: AbortSignal; timeoutMs?: number } = {},
 ): Promise<z.infer<S>> {
-  if (!path.startsWith("/api/v1/")) throw new Error("API paths must start with /api/v1/");
+  const path = rawPath.startsWith("/api/v1/")
+    ? rawPath
+    : rawPath.startsWith("api/v1/")
+    ? `/${rawPath}`
+    : `/api/v1/${rawPath.replace(/^\/+/, "")}`;
   const method = options.method ?? "GET";
   const headers: Record<string, string> = { Accept: "application/json" };
   if (options.body !== undefined) headers["Content-Type"] = "application/json";

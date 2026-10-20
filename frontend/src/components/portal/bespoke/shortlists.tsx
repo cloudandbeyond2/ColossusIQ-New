@@ -85,7 +85,7 @@ export function ShortlistsModule({ role: _role }: { role?: Role }) {
     queryKey: ["recruiter-shortlists", roleFilter],
     queryFn: () =>
       apiFetch(
-        `recruiter/shortlists${roleFilter !== "All" ? `?role=${encodeURIComponent(roleFilter)}` : ""}`,
+        `/api/v1/recruiter/shortlists${roleFilter !== "All" ? `?role=${encodeURIComponent(roleFilter)}` : ""}`,
         ShortlistsOverview
       ),
   });
@@ -93,7 +93,7 @@ export function ShortlistsModule({ role: _role }: { role?: Role }) {
   // Stage Mutation
   const updateStageMutation = useMutation({
     mutationFn: ({ id, input }: { id: string; input: UpdateShortlistStageInput }) =>
-      apiFetch(`recruiter/shortlists/${id}`, z.any(), {
+      apiFetch(`/api/v1/recruiter/shortlists/${id}`, z.any(), {
         method: "PATCH",
         body: input,
       }),
@@ -110,7 +110,7 @@ export function ShortlistsModule({ role: _role }: { role?: Role }) {
   // Delete Mutation
   const deleteMutation = useMutation({
     mutationFn: (id: string) =>
-      apiFetch(`recruiter/shortlists/${id}`, z.object({ ok: z.boolean() }), {
+      apiFetch(`/api/v1/recruiter/shortlists/${id}`, z.object({ ok: z.boolean() }), {
         method: "DELETE",
       }),
     onSuccess: () => {
@@ -126,7 +126,7 @@ export function ShortlistsModule({ role: _role }: { role?: Role }) {
   // Schedule Interview Mutation
   const scheduleMutation = useMutation({
     mutationFn: (input: ScheduleInterviewInput) =>
-      apiFetch("recruiter/interviews", z.any(), {
+      apiFetch("/api/v1/recruiter/interviews", z.any(), {
         method: "POST",
         body: input,
       }),
