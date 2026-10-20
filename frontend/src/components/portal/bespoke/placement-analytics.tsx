@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import Link from "next/link";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiFetch, ApiError } from "@/lib/api/client";
 import {
@@ -27,11 +28,19 @@ type TabKey = "overview" | "departments" | "drives" | "gaps" | "students";
 
 export function PlacementAnalyticsModule({ role }: { role: Role }) {
   const qc = useQueryClient();
-  const [activeTab, setActiveTab] = useState<TabKey>("overview");
-  const [selectedDept, setSelectedDept] = useState<string>("all");
+  const isHod = role === "hod";
+  const isPlacement = role === "placement";
+  const isInstitution = role === "institution";
+  const isAdmin = role === "admin";
+
+  // HOD defaults to their own department (Computer Science & Engineering) with easy toggle to All
+  const [selectedDept, setSelectedDept] = useState<string>(isHod ? "Computer Science & Engineering" : "all");
   const [selectedTier, setSelectedTier] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState<string>("");
+  const [studentStatusFilter, setStudentStatusFilter] = useState<string>("all");
+  const [activeTab, setActiveTab] = useState<TabKey>("overview");
   const [showTargetModal, setShowTargetModal] = useState<boolean>(false);
+  const [showRelatedPortals, setShowRelatedPortals] = useState<boolean>(true);
 
   // Target inputs
   const [targetPlacementPct, setTargetPlacementPct] = useState<number>(92);
@@ -61,7 +70,7 @@ export function PlacementAnalyticsModule({ role }: { role: Role }) {
         method: "PATCH",
         body: JSON.stringify(newTargets),
       }),
-    onSuccess: (updated) => {
+    onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["placement-analytics"] });
       setShowTargetModal(false);
       setToastMsg("Institutional placement targets updated successfully.");
@@ -94,6 +103,8 @@ export function PlacementAnalyticsModule({ role }: { role: Role }) {
     const rows: unknown[][] = [
       ["Campus Placement & Industry Analytics Report", data.collegeName],
       ["Academic Cohort", data.academicYear],
+      ["Department Scope", selectedDept === "all" ? "All Departments" : selectedDept],
+      ["Role Perspective", role.toUpperCase()],
       ["Exported At", new Date().toLocaleString("en-IN")],
       [],
       ["Executive Placement Metrics"],
@@ -138,7 +149,7 @@ export function PlacementAnalyticsModule({ role }: { role: Role }) {
       ]),
       [],
       ["Placed Students Ledger"],
-      ["Roll No", "Student Name", "Department", "CGPA", "Readiness", "Company", "Role", "Package LPA", "Tier"],
+      ["Roll No", "Student Name", "Department", "CGPA", "Readiness", "Company", "Role", "Package LPA", "Tier", "Status"],
       ...placedStudents.map((s) => [
         s.roll,
         s.name,
@@ -149,6 +160,7 @@ export function PlacementAnalyticsModule({ role }: { role: Role }) {
         s.role || "Pending",
         s.packageLpa ? `₹${s.packageLpa} LPA` : "–",
         s.tier,
+        s.status,
       ]),
     ];
 
@@ -165,9 +177,13 @@ export function PlacementAnalyticsModule({ role }: { role: Role }) {
 
   const filteredStudents = useMemo(() => {
     if (!data?.placedStudents) return [];
-    if (!searchQuery.trim()) return data.placedStudents;
+    let list = data.placedStudents;
+    if (studentStatusFilter !== "all") {
+      list = list.filter((s) => s.status === studentStatusFilter);
+    }
+    if (!searchQuery.trim()) return list;
     const q = searchQuery.toLowerCase().trim();
-    return data.placedStudents.filter(
+    return list.filter(
       (s) =>
         s.name.toLowerCase().includes(q) ||
         s.roll.toLowerCase().includes(q) ||
@@ -175,7 +191,7 @@ export function PlacementAnalyticsModule({ role }: { role: Role }) {
         s.company.toLowerCase().includes(q) ||
         s.role.toLowerCase().includes(q)
     );
-  }, [data?.placedStudents, searchQuery]);
+  }, [data?.placedStudents, searchQuery, studentStatusFilter]);
 
   const filteredDepts = useMemo(() => {
     if (!data?.departmentBreakdown) return [];
@@ -201,6 +217,9 @@ export function PlacementAnalyticsModule({ role }: { role: Role }) {
   const isTargetMet = ex.placementPercentage >= ex.targetPlacementPercentage;
   const gapToTarget = (ex.targetPlacementPercentage - ex.placementPercentage).toFixed(1);
 
+  // Unplaced students count for current view
+  const unplacedCount = data.placedStudents.filter((s) => s.status === "Seeking Placement" || s.status === "In Process").length;
+
   return (
     <div className="space-y-6">
       {/* Toast Notification */}
@@ -219,14 +238,29 @@ export function PlacementAnalyticsModule({ role }: { role: Role }) {
       {/* Header Bar */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-surface-2 pb-4">
         <div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <h1 className="text-2xl font-bold tracking-tight text-ink">Placement Analytics & Industry Outcomes</h1>
             <Badge tone="brand" className="font-mono text-xs">
               {data.academicYear}
             </Badge>
+            {isHod && (
+              <Badge tone="teal" className="text-xs font-semibold">
+                HOD View: Computer Science & Engineering
+              </Badge>
+            )}
+            {isPlacement && (
+              <Badge tone="gold" className="text-xs font-semibold">
+                Placement Officer Desk
+              </Badge>
+            )}
+            {isInstitution && (
+              <Badge tone="brand" className="text-xs font-semibold">
+                Institutional Leadership
+              </Badge>
+            )}
           </div>
           <p className="text-sm text-ink-3 mt-1">
-            {data.collegeName} · Institutional placement KPIs, salary distributions, hiring funnel, and competency benchmarks.
+            {data.collegeName} · Placement conversion, package tiers, hiring funnels, and department benchmarks.
           </p>
         </div>
 
@@ -239,12 +273,196 @@ export function PlacementAnalyticsModule({ role }: { role: Role }) {
             <Fi name="download" className="size-3.5" /> Export Report (CSV)
           </Button>
 
-          {(role === "institution" || role === "placement" || role === "admin") && (
+          {(isInstitution || isPlacement || isAdmin) && (
             <Button onClick={openTargetModal} className="gap-1.5 text-xs bg-brand text-white hover:bg-brand-hover">
               <Fi name="target" className="size-3.5" /> Set Targets
             </Button>
           )}
+
+          <Button
+            variant="secondary"
+            onClick={() => setShowRelatedPortals(!showRelatedPortals)}
+            className="gap-1.5 text-xs"
+          >
+            <Fi name="link" className="size-3.5 text-brand" />
+            {showRelatedPortals ? "Hide Related Workflows" : "Related Portals"}
+          </Button>
         </div>
+      </div>
+
+      {/* CROSS-PORTAL CONNECTIVITY & ACTION WORKFLOWS BAR */}
+      {showRelatedPortals && (
+        <div className="rounded-xl border border-brand/20 bg-brand/5 dark:bg-brand/10 p-4 space-y-3 transition-all animate-in fade-in">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="flex size-6 items-center justify-center rounded-full bg-brand text-white text-xs font-bold">
+                ↗
+              </span>
+              <h2 className="text-sm font-semibold text-ink">Related Portals & Action Workflows Across Roles</h2>
+            </div>
+            <span className="text-xs text-ink-3">Deep linked to student preparation, drives, and recruiter shortlists</span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+            {/* 1. HOD & Department Skills */}
+            <Link
+              href={`/${role === "placement" ? "institution" : role}/department-skills`}
+              className="flex items-start gap-3 rounded-lg border border-surface-2 bg-surface p-3 hover:border-brand hover:shadow-xs transition-all group"
+            >
+              <div className="rounded-md bg-teal-50 dark:bg-teal-950/50 p-2 text-teal-600">
+                <Fi name="target" className="size-4" />
+              </div>
+              <div className="min-w-0">
+                <span className="text-xs font-semibold text-ink group-hover:text-brand flex items-center gap-1">
+                  Department Skills
+                  <span className="text-[10px] text-ink-3">↗</span>
+                </span>
+                <p className="text-[11px] text-ink-3 line-clamp-2 mt-0.5">
+                  Launch targeted bridge courses to fix System Design & DSA gaps.
+                </p>
+              </div>
+            </Link>
+
+            {/* 2. Placement Readiness Board */}
+            <Link
+              href="/placement/placement-board"
+              className="flex items-start gap-3 rounded-lg border border-surface-2 bg-surface p-3 hover:border-brand hover:shadow-xs transition-all group"
+            >
+              <div className="rounded-md bg-brand-soft/50 p-2 text-brand">
+                <Fi name="users" className="size-4" />
+              </div>
+              <div className="min-w-0">
+                <span className="text-xs font-semibold text-ink group-hover:text-brand flex items-center gap-1">
+                  Placement Readiness Board
+                  <span className="text-[10px] text-ink-3">↗</span>
+                </span>
+                <p className="text-[11px] text-ink-3 line-clamp-2 mt-0.5">
+                  Filter students by verified readiness and shortlist for upcoming drives.
+                </p>
+              </div>
+            </Link>
+
+            {/* 3. Recruiter Talent Pool */}
+            <Link
+              href="/recruiter/talent-search"
+              className="flex items-start gap-3 rounded-lg border border-surface-2 bg-surface p-3 hover:border-brand hover:shadow-xs transition-all group"
+            >
+              <div className="rounded-md bg-gold-soft/50 p-2 text-gold">
+                <Fi name="search" className="size-4" />
+              </div>
+              <div className="min-w-0">
+                <span className="text-xs font-semibold text-ink group-hover:text-brand flex items-center gap-1">
+                  Recruiter Talent Search
+                  <span className="text-[10px] text-ink-3">↗</span>
+                </span>
+                <p className="text-[11px] text-ink-3 line-clamp-2 mt-0.5">
+                  View how external recruiters discover and shortlist candidate profiles.
+                </p>
+              </div>
+            </Link>
+
+            {/* 4. Campus Recruitment Drives */}
+            <Link
+              href="/placement/drives"
+              className="flex items-start gap-3 rounded-lg border border-surface-2 bg-surface p-3 hover:border-brand hover:shadow-xs transition-all group"
+            >
+              <div className="rounded-md bg-sky-50 dark:bg-sky-950/50 p-2 text-sky-600">
+                <Fi name="calendar" className="size-4" />
+              </div>
+              <div className="min-w-0">
+                <span className="text-xs font-semibold text-ink group-hover:text-brand flex items-center gap-1">
+                  Placement Drives
+                  <span className="text-[10px] text-ink-3">↗</span>
+                </span>
+                <p className="text-[11px] text-ink-3 line-clamp-2 mt-0.5">
+                  Schedule campus drives, criteria rules, and registration windows.
+                </p>
+              </div>
+            </Link>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-4 pt-1 text-xs text-ink-3">
+            <span className="font-semibold text-ink">Additional Linked Pages:</span>
+            <Link href={`/${role}/curriculum`} className="hover:text-brand underline decoration-dotted">
+              Curriculum Studio (Electives)
+            </Link>
+            <span>·</span>
+            <Link href={`/${role}/early-warning`} className="hover:text-brand underline decoration-dotted">
+              Early Warning Alerts
+            </Link>
+            <span>·</span>
+            <Link href="/institution/bi-analytics" className="hover:text-brand underline decoration-dotted">
+              Institutional BI
+            </Link>
+            <span>·</span>
+            <Link href="/institution/aicte-compliance" className="hover:text-brand underline decoration-dotted">
+              AICTE Compliance
+            </Link>
+            <span>·</span>
+            <Link href="/recruiter/recruiter-interviews" className="hover:text-brand underline decoration-dotted">
+              Recruiter Panels
+            </Link>
+          </div>
+        </div>
+      )}
+
+      {/* HOD / Department Context Filter Bar */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-surface-1 rounded-xl p-3 border border-surface-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-xs font-semibold text-ink-3 uppercase tracking-wider">Department Scope:</span>
+          {isHod ? (
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={() => setSelectedDept("Computer Science & Engineering")}
+                className={cn(
+                  "px-3 py-1 rounded-full text-xs font-semibold transition-all",
+                  selectedDept === "Computer Science & Engineering"
+                    ? "bg-brand text-white shadow-xs"
+                    : "bg-surface text-ink-2 border border-surface-2 hover:bg-surface-2"
+                )}
+              >
+                ⭐ My Department (CSE)
+              </button>
+              <button
+                onClick={() => setSelectedDept("all")}
+                className={cn(
+                  "px-3 py-1 rounded-full text-xs font-semibold transition-all",
+                  selectedDept === "all"
+                    ? "bg-brand text-white shadow-xs"
+                    : "bg-surface text-ink-2 border border-surface-2 hover:bg-surface-2"
+                )}
+              >
+                🏛️ All Departments (College Benchmark)
+              </button>
+            </div>
+          ) : (
+            <select
+              value={selectedDept}
+              onChange={(e) => setSelectedDept(e.target.value)}
+              className={cn(inputClass, "h-8 text-xs w-64")}
+            >
+              <option value="all">All Departments (Institutional)</option>
+              <option value="Computer Science & Engineering">Computer Science & Engineering (CSE)</option>
+              <option value="Artificial Intelligence & Data Science">Artificial Intelligence & Data Science (AIDS)</option>
+              <option value="Information Technology">Information Technology (IT)</option>
+              <option value="Biomedical Engineering">Biomedical Engineering (BME)</option>
+              <option value="Electrical & Electronics Engineering">Electrical & Electronics Engineering (EEE)</option>
+              <option value="Mechanical Engineering">Mechanical Engineering (MECH)</option>
+            </select>
+          )}
+        </div>
+
+        {selectedDept !== "all" && (
+          <div className="flex items-center gap-2 text-xs">
+            <span className="text-ink-3">Filtered Scope:</span>
+            <Badge tone="teal" className="font-semibold">
+              {selectedDept}
+            </Badge>
+            <button onClick={() => setSelectedDept("all")} className="text-ink-3 hover:text-ink underline text-xs">
+              Clear Filter
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Target Progress Banner */}
@@ -252,7 +470,9 @@ export function PlacementAnalyticsModule({ role }: { role: Role }) {
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="space-y-1">
             <div className="flex items-center gap-2">
-              <span className="text-xs font-semibold uppercase tracking-wider text-ink-3">Institutional Goal Progress</span>
+              <span className="text-xs font-semibold uppercase tracking-wider text-ink-3">
+                {selectedDept === "all" ? "College Placement Goal" : `${selectedDept} Goal`}
+              </span>
               <Badge tone={isTargetMet ? "teal" : "gold"}>
                 {isTargetMet ? "Target Achieved" : `${gapToTarget}% to Target (${ex.targetPlacementPercentage}%)`}
               </Badge>
@@ -267,7 +487,7 @@ export function PlacementAnalyticsModule({ role }: { role: Role }) {
 
           <div className="flex items-center gap-6">
             <div className="text-right">
-              <span className="text-xs text-ink-3 block">Target Placement Rate</span>
+              <span className="text-xs text-ink-3 block">Placement Target</span>
               <span className="text-lg font-bold text-ink">{ex.targetPlacementPercentage}%</span>
             </div>
             <div className="text-right border-l border-surface-2 pl-6">
@@ -333,11 +553,19 @@ export function PlacementAnalyticsModule({ role }: { role: Role }) {
         </Card>
 
         <Card className="p-4">
-          <span className="text-xs font-medium text-ink-3">Recruiting Partners</span>
+          <span className="text-xs font-medium text-ink-3">Seeking Placement</span>
           <div className="mt-1 flex items-baseline gap-1.5">
-            <span className="text-2xl font-bold text-ink">{ex.totalParticipatingRecruiters}</span>
+            <span className="text-2xl font-bold text-rose-600">{unplacedCount}</span>
           </div>
-          <span className="mt-1 text-xs text-teal-600 block">DPIIT & Fortune 500</span>
+          <button
+            onClick={() => {
+              setActiveTab("students");
+              setStudentStatusFilter("Seeking Placement");
+            }}
+            className="mt-1 text-xs text-brand hover:underline block text-left"
+          >
+            Review students ↗
+          </button>
         </Card>
       </div>
 
@@ -400,7 +628,7 @@ export function PlacementAnalyticsModule({ role }: { role: Role }) {
               : "border-transparent text-ink-3 hover:text-ink hover:border-surface-3"
           )}
         >
-          Placed Student Directory ({data.placedStudents.length})
+          Placed Student Directory ({filteredStudents.length})
         </button>
       </div>
 
@@ -450,6 +678,11 @@ export function PlacementAnalyticsModule({ role }: { role: Role }) {
               <CardHeader
                 title="Campus Recruitment Funnel"
                 subtitle="Student progression from registration through final offer"
+                action={
+                  <Link href="/placement/drives" className="text-xs text-brand hover:underline font-semibold">
+                    Manage Drives ↗
+                  </Link>
+                }
               />
               <CardBody className="space-y-3">
                 {data.hiringFunnel.map((step, idx) => (
@@ -477,6 +710,11 @@ export function PlacementAnalyticsModule({ role }: { role: Role }) {
               <CardHeader
                 title="Marquee Placement Drives"
                 subtitle="Recruiting partners with highest compensation and offer releases"
+                action={
+                  <Link href="/recruiter/talent-search" className="text-xs text-brand hover:underline font-semibold">
+                    Recruiter Pool ↗
+                  </Link>
+                }
               />
               <CardBody className="space-y-3">
                 {data.recruiterDrives.slice(0, 4).map((drv) => (
@@ -513,14 +751,20 @@ export function PlacementAnalyticsModule({ role }: { role: Role }) {
             title="Department Placement Matrix"
             subtitle="Comparative placement metrics, average packages, and top recruiters across departments"
             action={
-              <div className="w-full sm:w-64">
+              <div className="flex items-center gap-2">
                 <input
                   type="text"
                   placeholder="Search departments..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className={cn(inputClass, "h-8 text-xs")}
+                  className={cn(inputClass, "h-8 text-xs w-48 sm:w-64")}
                 />
+                <Link
+                  href={`/${role === "placement" ? "institution" : role}/department-skills`}
+                  className="hidden sm:inline-flex items-center gap-1 text-xs text-brand hover:underline font-medium"
+                >
+                  Bridge Courses ↗
+                </Link>
               </div>
             }
           />
@@ -537,6 +781,7 @@ export function PlacementAnalyticsModule({ role }: { role: Role }) {
                     <th className="py-3 px-3">Highest CTC</th>
                     <th className="py-3 px-3">Readiness</th>
                     <th className="py-3 px-4">Top Hiring Partner</th>
+                    <th className="py-3 px-3 text-right">Quick Action</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-surface-2">
@@ -566,6 +811,17 @@ export function PlacementAnalyticsModule({ role }: { role: Role }) {
                         </Badge>
                       </td>
                       <td className="py-3.5 px-4 font-medium text-ink-2">{d.topRecruiter}</td>
+                      <td className="py-3.5 px-3 text-right">
+                        <button
+                          onClick={() => {
+                            setSelectedDept(d.department);
+                            setActiveTab("students");
+                          }}
+                          className="text-xs font-semibold text-brand hover:underline"
+                        >
+                          View Students ↗
+                        </button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -594,6 +850,10 @@ export function PlacementAnalyticsModule({ role }: { role: Role }) {
                   <option value="Core">Core</option>
                   <option value="Mass">Mass</option>
                 </select>
+
+                <Link href="/placement/drives" className="text-xs font-semibold text-brand hover:underline ml-2">
+                  Placement Drives Hub ↗
+                </Link>
               </div>
             }
           />
@@ -610,7 +870,8 @@ export function PlacementAnalyticsModule({ role }: { role: Role }) {
                     <th className="py-3 px-3">Shortlisted</th>
                     <th className="py-3 px-3">Offers</th>
                     <th className="py-3 px-3">Conversion</th>
-                    <th className="py-3 px-4">Status</th>
+                    <th className="py-3 px-3">Status</th>
+                    <th className="py-3 px-4 text-right">Linked Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-surface-2">
@@ -633,10 +894,15 @@ export function PlacementAnalyticsModule({ role }: { role: Role }) {
                         <td className="py-3.5 px-3 text-ink">{drv.shortlistedCount}</td>
                         <td className="py-3.5 px-3 font-bold text-teal-600">{drv.offersCount}</td>
                         <td className="py-3.5 px-3 font-semibold text-ink-2">{convPct}%</td>
-                        <td className="py-3.5 px-4">
+                        <td className="py-3.5 px-3">
                           <Badge tone={drv.status === "Completed" ? "teal" : drv.status === "Active" ? "brand" : "sky"}>
                             {drv.status}
                           </Badge>
+                        </td>
+                        <td className="py-3.5 px-4 text-right">
+                          <Link href="/placement/placement-board" className="text-xs text-brand hover:underline font-medium">
+                            Shortlist Students ↗
+                          </Link>
                         </td>
                       </tr>
                     );
@@ -650,31 +916,61 @@ export function PlacementAnalyticsModule({ role }: { role: Role }) {
 
       {/* TAB 4: READINESS & SKILL GAPS */}
       {activeTab === "gaps" && (
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          {data.readinessGaps.map((gap) => (
-            <Card key={gap.competency} className="p-4 flex flex-col justify-between">
-              <div>
-                <div className="flex items-center justify-between">
-                  <h4 className="font-semibold text-sm text-ink">{gap.competency}</h4>
-                  <Badge tone={gap.status === "Healthy" ? "teal" : gap.status === "Attention" ? "gold" : "rose"}>
-                    {gap.status} ({gap.avgScore}%)
-                  </Badge>
-                </div>
-                <div className="mt-3">
-                  <Progress value={gap.avgScore} className="h-2" />
-                </div>
-                <div className="mt-2 flex items-center justify-between text-xs text-ink-3">
-                  <span>Proficient: {gap.proficientCount} students</span>
-                  <span className="text-rose-600 font-medium">Critical Gaps: {gap.criticalCount} students</span>
-                </div>
-              </div>
+        <div className="space-y-4">
+          <div className="flex items-center justify-between bg-surface-1 p-3 rounded-lg border border-surface-2">
+            <span className="text-xs text-ink-3">
+              Identified critical gaps across departments. Click &quot;Launch Bridge Course&quot; to push interventions directly into Department Skills.
+            </span>
+            <Link
+              href={`/${role === "placement" ? "institution" : role}/department-skills`}
+              className="text-xs font-semibold text-brand hover:underline flex items-center gap-1"
+            >
+              Open Department Skills Desk ↗
+            </Link>
+          </div>
 
-              <div className="mt-4 rounded-md bg-surface-2/60 p-3 text-xs text-ink-2">
-                <span className="font-semibold text-ink block mb-1">Recommended Intervention:</span>
-                {gap.recommendation}
-              </div>
-            </Card>
-          ))}
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            {data.readinessGaps.map((gap) => (
+              <Card key={gap.competency} className="p-4 flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-semibold text-sm text-ink">{gap.competency}</h4>
+                    <Badge tone={gap.status === "Healthy" ? "teal" : gap.status === "Attention" ? "gold" : "rose"}>
+                      {gap.status} ({gap.avgScore}%)
+                    </Badge>
+                  </div>
+                  <div className="mt-3">
+                    <Progress value={gap.avgScore} className="h-2" />
+                  </div>
+                  <div className="mt-2 flex items-center justify-between text-xs text-ink-3">
+                    <span>Proficient: {gap.proficientCount} students</span>
+                    <span className="text-rose-600 font-medium">Critical Gaps: {gap.criticalCount} students</span>
+                  </div>
+                </div>
+
+                <div className="mt-4 rounded-md bg-surface-2/60 p-3 text-xs text-ink-2 space-y-2">
+                  <div>
+                    <span className="font-semibold text-ink block mb-0.5">Recommended Intervention:</span>
+                    {gap.recommendation}
+                  </div>
+                  <div className="pt-2 border-t border-surface-2 flex items-center justify-between">
+                    <Link
+                      href={`/${role === "placement" ? "institution" : role}/department-skills`}
+                      className="text-brand font-semibold hover:underline flex items-center gap-1 text-[11px]"
+                    >
+                      <Fi name="target" className="size-3" /> Launch Bridge Course ↗
+                    </Link>
+                    <Link
+                      href={`/${role}/early-warning`}
+                      className="text-ink-3 hover:text-ink text-[11px]"
+                    >
+                      Check Early Warning ↗
+                    </Link>
+                  </div>
+                </div>
+              </Card>
+            ))}
+          </div>
         </div>
       )}
 
@@ -685,14 +981,32 @@ export function PlacementAnalyticsModule({ role }: { role: Role }) {
             title="Placed & Interviewing Candidate Ledger"
             subtitle="Live record of student placement offers, packages, and recruiter verification"
             action={
-              <div className="w-full sm:w-64">
+              <div className="flex flex-wrap items-center gap-2">
+                <select
+                  value={studentStatusFilter}
+                  onChange={(e) => setStudentStatusFilter(e.target.value)}
+                  className={cn(inputClass, "h-8 text-xs w-40")}
+                >
+                  <option value="all">All Statuses</option>
+                  <option value="Placed">Placed</option>
+                  <option value="Seeking Placement">Seeking Placement</option>
+                  <option value="In Process">In Process</option>
+                </select>
+
                 <input
                   type="text"
                   placeholder="Search candidates, companies..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className={cn(inputClass, "h-8 text-xs")}
+                  className={cn(inputClass, "h-8 text-xs w-48 sm:w-56")}
                 />
+
+                <Link
+                  href="/placement/placement-board"
+                  className="hidden sm:inline-flex items-center gap-1 text-xs text-brand hover:underline font-semibold"
+                >
+                  Placement Board ↗
+                </Link>
               </div>
             }
           />
@@ -708,7 +1022,8 @@ export function PlacementAnalyticsModule({ role }: { role: Role }) {
                     <th className="py-3 px-3">Hired Company</th>
                     <th className="py-3 px-3">Role Designation</th>
                     <th className="py-3 px-3">Package (CTC)</th>
-                    <th className="py-3 px-4">Status</th>
+                    <th className="py-3 px-3">Status</th>
+                    <th className="py-3 px-4 text-right">Student Workflows</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-surface-2">
@@ -728,7 +1043,7 @@ export function PlacementAnalyticsModule({ role }: { role: Role }) {
                       <td className="py-3.5 px-3 font-bold text-teal-600">
                         {st.packageLpa > 0 ? `₹${st.packageLpa} LPA` : "–"}
                       </td>
-                      <td className="py-3.5 px-4">
+                      <td className="py-3.5 px-3">
                         <Badge
                           tone={
                             st.status === "Placed"
@@ -740,6 +1055,14 @@ export function PlacementAnalyticsModule({ role }: { role: Role }) {
                         >
                           {st.status}
                         </Badge>
+                      </td>
+                      <td className="py-3.5 px-4 text-right">
+                        <Link
+                          href="/placement/placement-board"
+                          className="text-xs font-semibold text-brand hover:underline"
+                        >
+                          Readiness Board ↗
+                        </Link>
                       </td>
                     </tr>
                   ))}
