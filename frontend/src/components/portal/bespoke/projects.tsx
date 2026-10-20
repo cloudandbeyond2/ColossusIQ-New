@@ -51,13 +51,16 @@ const STAGES_LIST = [
 ] as const;
 
 const POPULAR_DOMAINS = [
-  "AI/ML · Computer Vision",
+  "AI/ML · Computer Vision & NLP",
   "AI/ML · IoT & Edge Computing",
   "Full Stack · Next.js & Cloud",
-  "AgriTech · Embedded Systems",
+  "Mechanical · Robotics, EV & Thermal",
+  "Civil · Structural & Sustainable Infra",
+  "Electrical · Power Systems & Smart Grid",
+  "Electronics · Embedded Systems & VLSI",
+  "AgriTech · Embedded & Sensor Systems",
   "HealthTech · Biomedical Devices",
   "Cybersecurity & Blockchain",
-  "Clean Energy & Smart Grid",
 ];
 
 const DEFAULT_MENTORS = [
@@ -339,13 +342,13 @@ export function ProjectsModule({ role }: { role: Role }) {
                     <span className="font-medium text-ink">Team:</span>
                     <span className="text-ink-2">{p.team.join(", ")}</span>
                     <LinkButton
-                      href="/student/team-finder"
+                      href={`/${role}/team-finder`}
                       variant="ghost"
                       size="sm"
                       className="h-6 gap-1 px-2 text-[11px] text-teal hover:bg-teal/10"
-                      title="Find more teammates for this project in Team Finder"
+                      title={role === "student" ? "Find more teammates for this project in Team Finder" : "View student talent pool in Team Finder"}
                     >
-                      <Plus className="size-3" /> Find Teammates
+                      <Plus className="size-3" /> {role === "student" ? "Find Teammates" : "Team Pool"}
                     </LinkButton>
                   </div>
 
@@ -445,7 +448,7 @@ export function ProjectsModule({ role }: { role: Role }) {
                       <div key={k}>
                         <div className="mb-1 flex justify-between text-xs">
                           <span className="capitalize text-ink-2">
-                            {k.replace(/([A-Z])/g, " $1")}
+                            {k === "codeQuality" ? "Code / Build Quality" : k.replace(/([A-Z])/g, " $1")}
                           </span>
                           <span className="tabular-nums font-semibold text-ink">{v || "—"}</span>
                         </div>
@@ -657,13 +660,13 @@ function CreateProjectModal({
 
           <div>
             <label className="mb-1 block text-xs font-medium text-ink">
-              GitHub Repository URL (optional)
+              Repository / CAD / Design Files URL (optional)
             </label>
             <input
               type="url"
               value={repoUrl}
               onChange={(e) => setRepoUrl(e.target.value)}
-              placeholder="https://github.com/team/smart-rover"
+              placeholder="https://github.com/... or Google Drive / CAD link"
               className="w-full rounded-xl border border-line bg-surface px-3 py-2 text-sm text-ink focus:border-brand focus:outline-none"
             />
           </div>
@@ -791,36 +794,36 @@ function StageDeliverableModal({
           </div>
 
           <div>
-            <label className="mb-1 block text-xs font-medium text-ink">GitHub Repository URL</label>
+            <label className="mb-1 block text-xs font-medium text-ink">Repository / CAD / Design Files URL</label>
             <input
               type="url"
               value={repoUrl}
               onChange={(e) => setRepoUrl(e.target.value)}
-              placeholder="https://github.com/..."
+              placeholder="https://github.com/... or Google Drive / GrabCAD link"
               className="w-full rounded-xl border border-line bg-surface px-3 py-2 text-sm text-ink focus:border-brand focus:outline-none"
             />
           </div>
 
           <div>
             <label className="mb-1 block text-xs font-medium text-ink">
-              Documentation / Architecture Doc URL
+              Documentation / Spec Sheet / CAD Drawing URL
             </label>
             <input
               type="url"
               value={docUrl}
               onChange={(e) => setDocUrl(e.target.value)}
-              placeholder="https://docs.google.com/... or Figma link"
+              placeholder="https://docs.google.com/... or OneDrive / Figma link"
               className="w-full rounded-xl border border-line bg-surface px-3 py-2 text-sm text-ink focus:border-brand focus:outline-none"
             />
           </div>
 
           <div>
-            <label className="mb-1 block text-xs font-medium text-ink">Live Demo URL</label>
+            <label className="mb-1 block text-xs font-medium text-ink">Live Demo / Prototype Video URL</label>
             <input
               type="url"
               value={demoUrl}
               onChange={(e) => setDemoUrl(e.target.value)}
-              placeholder="https://myproject.vercel.app"
+              placeholder="https://... (Vercel, YouTube, or Drive video link)"
               className="w-full rounded-xl border border-line bg-surface px-3 py-2 text-sm text-ink focus:border-brand focus:outline-none"
             />
           </div>
@@ -906,14 +909,14 @@ function FacultyReviewModal({
             <p className="text-xs font-semibold text-ink">Scorecards (0–100)</p>
 
             {[
-              { label: "Architecture", val: arch, set: setArch },
-              { label: "Documentation", val: doc, set: setDoc },
-              { label: "Code Quality", val: code, set: setCode },
-              { label: "Testing Coverage", val: test, set: setTest },
+              { label: "Architecture / Design", val: arch, set: setArch },
+              { label: "Documentation / Specs", val: doc, set: setDoc },
+              { label: "Code / Build Quality", val: code, set: setCode },
+              { label: "Testing & Validation", val: test, set: setTest },
               { label: "Innovation", val: innov, set: setInnov },
             ].map((f) => (
               <div key={f.label} className="flex items-center justify-between gap-4 text-xs">
-                <span className="w-32 text-ink-2">{f.label}</span>
+                <span className="w-36 text-ink-2">{f.label}</span>
                 <input
                   type="range"
                   min={0}
@@ -936,7 +939,7 @@ function FacultyReviewModal({
               required
               value={feedback}
               onChange={(e) => setFeedback(e.target.value)}
-              placeholder="e.g. Architecture approved. Enhance unit testing on API handlers before final demo."
+              placeholder="e.g. Architecture/Design approved. Complete prototype assembly and stress testing before final demo."
               className="w-full rounded-xl border border-line bg-surface px-3 py-2 text-sm text-ink focus:border-brand focus:outline-none"
             />
           </div>

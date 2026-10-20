@@ -99,7 +99,7 @@ export const MODULES: ModuleDef[] = [
   // ───────────── Clinical & Hospital (medical colleges) ─────────────
   { slug: "clinical-rotations", title: "Clinical Rotations", description: "Schedule clinical postings by phase, department and ward; track attendance and certified competencies.", group: "Clinical & Hospital", roles: ["faculty", "hod", "institution", "admin"], template: "crud", resource: "rotations", icon: "stethoscope", phase: "MVP", streams: ["medical"] },
   { slug: "competency-logbook", title: "Competency Logbook (CBME)", description: "NMC competency-based logbook: K / KH / SH / P levels, faculty certification and pending sign-offs.", group: "Clinical & Hospital", roles: ["student", "faculty", "hod"], template: "list", icon: "notebook", phase: "MVP", streams: ["medical"] },
-  { slug: "osce", title: "OSCE & Skills Lab", description: "Objective structured clinical examination stations, skills-lab bookings and checklist scores.", group: "Clinical & Hospital", roles: ["student", "faculty", "hod"], template: "list", icon: "heart", phase: "Phase 2", streams: ["medical"] },
+  { slug: "osce", title: "OSCE & Skills Lab", description: "Objective structured clinical examination stations, skills-lab bookings and checklist scores.", group: "Clinical & Hospital", roles: ["student", "faculty", "hod", "institution", "admin"], template: "bespoke", icon: "heart", phase: "MVP", streams: ["medical"] },
   { slug: "hospital-dashboard", title: "Teaching Hospital", description: "Bed occupancy, OPD / IPD load and clinical material available for teaching.", group: "Clinical & Hospital", roles: ["institution", "hod", "admin"], template: "dashboard", icon: "hospital", phase: "MVP", streams: ["medical"] },
   { slug: "nmc-compliance", title: "NMC / Council Compliance", description: "Faculty strength, attendance, infrastructure and CBME requirements against council norms.", group: "Clinical & Hospital", roles: ["institution", "admin"], template: "bespoke", icon: "shield", phase: "MVP", streams: ["medical"] },
 
@@ -141,7 +141,7 @@ export const MODULES: ModuleDef[] = [
   // ───────────── Project & Innovation ─────────────
   { slug: "projects", title: "Project Hub", description: "Idea → team → architecture → milestones → AI review → faculty review → demo → portfolio.", group: "Project & Innovation", roles: ["student", "faculty"], template: "bespoke", icon: "lightbulb", phase: "MVP" },
   { slug: "project-ideas", title: "Project Idea Generator", description: "Enter department, skills, interests, budget and team size — get feasible project concepts.", group: "Project & Innovation", roles: ["student"], template: "generator", icon: "wand", phase: "MVP", agent: "project" },
-  { slug: "team-finder", title: "Team Finder", description: "Discover teammates by skills, department, interests and competition goals.", group: "Project & Innovation", roles: ["student"], template: "list", icon: "users", phase: "Phase 3" },
+  { slug: "team-finder", title: "Team Finder", description: "Discover teammates by skills, department, interests and competition goals.", group: "Project & Innovation", roles: ["student", "faculty"], template: "list", icon: "users", phase: "Phase 3" },
   { slug: "startup-hub", title: "Startup Idea Hub", description: "Problem discovery, business model, market analysis, pitch and MVP planning.", group: "Project & Innovation", roles: ["student"], template: "workflow", icon: "rocket", phase: "Phase 2" },
   { slug: "research", title: "Research Assistant", description: "Research questions, literature discovery and comparison, planning and academic writing.", group: "Project & Innovation", roles: ["student", "faculty"], template: "bespoke", icon: "flask", phase: "Phase 2", agent: "research" },
   { slug: "hackathons", title: "Hackathon Hub", description: "Upcoming hackathons, teams, problem statements and results.", group: "Project & Innovation", roles: ["student", "incubation"], template: "bespoke", icon: "code", phase: "Phase 3" },
@@ -181,13 +181,13 @@ export const MODULES: ModuleDef[] = [
   { slug: "drives", title: "Placement Drives", description: "Schedule and manage campus recruitment drives.", group: "Placement", roles: ["placement"], template: "bespoke", icon: "briefcase", phase: "MVP" },
   { slug: "jobs", title: "Job Matching", description: "Open roles matched to verified student profiles and eligibility.", group: "Placement", roles: ["placement", "student"], template: "bespoke", icon: "handshake", phase: "MVP" },
   { slug: "employers", title: "Employers", description: "Recruiter relationships, history and hiring outcomes.", group: "Placement", roles: ["placement"], template: "bespoke", icon: "building", phase: "MVP" },
-  { slug: "placement-analytics", title: "Placement Analytics", description: "Readiness, resume completion, mock-interview participation and offers.", group: "Placement", roles: ["placement", "hod", "institution"], template: "dashboard", icon: "chart", phase: "Phase 2" },
+  { slug: "placement-analytics", title: "Placement Analytics", description: "Readiness, resume completion, mock-interview participation and offers.", group: "Placement", roles: ["placement", "hod", "institution", "admin"], template: "bespoke", icon: "chart", phase: "Phase 2" },
 
   // ───────────── Incubation ─────────────
-  { slug: "incubation-pipeline", title: "Incubation Pipeline", description: "Idea → validation → market → business model → MVP → pitch → incubation review.", group: "Incubation", roles: ["incubation"], template: "workflow", icon: "rocket", phase: "Phase 2" },
-  { slug: "startups", title: "Startups", description: "Student ventures, stage, mentors and funding readiness.", group: "Incubation", roles: ["incubation"], template: "list", icon: "lightbulb", phase: "Phase 2" },
-  { slug: "mentors", title: "Mentor Network", description: "Industry, alumni and startup mentors with assignments.", group: "Incubation", roles: ["incubation"], template: "list", icon: "handshake", phase: "Phase 2" },
-  { slug: "funding-readiness", title: "Funding Readiness", description: "Team, traction, product and pitch readiness per venture.", group: "Incubation", roles: ["incubation"], template: "scorecard", icon: "coins", phase: "Phase 3" },
+  { slug: "incubation-pipeline", title: "Incubation Pipeline", description: "Idea → validation → market → business model → MVP → pitch → incubation review.", group: "Incubation", roles: ["incubation"], template: "bespoke", icon: "rocket", phase: "Phase 2" },
+  { slug: "startups", title: "Startups", description: "Student ventures, stage, mentors and funding readiness.", group: "Incubation", roles: ["incubation"], template: "bespoke", icon: "lightbulb", phase: "Phase 2" },
+  { slug: "mentors", title: "Mentor Network", description: "Industry, alumni and startup mentors with assignments.", group: "Incubation", roles: ["incubation"], template: "bespoke", icon: "handshake", phase: "Phase 2" },
+  { slug: "funding-readiness", title: "Funding Readiness", description: "Team, traction, product and pitch readiness per venture.", group: "Incubation", roles: ["incubation"], template: "bespoke", icon: "coins", phase: "Phase 3" },
 
   // ───────────── Admissions ─────────────
   { slug: "admissions", title: "Student Admissions", description: "Enquiry → application → document verification → shortlist → offer → fee → enrolment.", group: "Admissions", roles: ["institution", "admin"], template: "crud", resource: "admissions", icon: "admission", phase: "MVP" },
@@ -214,9 +214,9 @@ export const MODULES: ModuleDef[] = [
   { slug: "integrations", title: "Integrations & Setup", description: "Connect cloud storage, email, WhatsApp, SMS, online payments, single sign-on, online classes and your ERP. Secrets are stored encrypted and never shown again.", group: "Platform", roles: ["admin", "institution"], template: "bespoke", icon: "plug", phase: "MVP" },
 
   // ───────────── Recruiter ─────────────
-  { slug: "talent-search", title: "Talent Search", description: "Search verified student profiles by skills, projects and readiness.", group: "Recruiter", roles: ["recruiter"], template: "list", icon: "search", phase: "Phase 4" },
-  { slug: "shortlists", title: "Shortlists", description: "Candidates you have shortlisted, with stage and notes.", group: "Recruiter", roles: ["recruiter"], template: "list", icon: "list", phase: "Phase 4" },
-  { slug: "recruiter-interviews", title: "Interview Schedule", description: "Upcoming candidate interviews and panels.", group: "Recruiter", roles: ["recruiter"], template: "calendar", icon: "calendar", phase: "Phase 4" },
+  { slug: "talent-search", title: "Talent Search", description: "Search verified student profiles by skills, projects and readiness.", group: "Recruiter", roles: ["recruiter"], template: "bespoke", icon: "search", phase: "Phase 4" },
+  { slug: "shortlists", title: "Shortlists", description: "Candidates you have shortlisted, with stage and notes.", group: "Recruiter", roles: ["recruiter"], template: "bespoke", icon: "list", phase: "Phase 4" },
+  { slug: "recruiter-interviews", title: "Interview Schedule", description: "Upcoming candidate interviews and panels.", group: "Recruiter", roles: ["recruiter"], template: "bespoke", icon: "calendar", phase: "Phase 4" },
 
   // ───────────── Platform ─────────────
   { slug: "content-desk", title: "University Content Desk", description: "Draft current affairs, question sets and university events with AI or by hand, verify them, and publish to every college or the ones you choose.", group: "University", roles: ["admin"], template: "bespoke", icon: "clipboard", phase: "MVP", notice: "AI drafts are suggestions. Nothing reaches students until you verify and publish it; every publish is audit-logged and can be withdrawn." },

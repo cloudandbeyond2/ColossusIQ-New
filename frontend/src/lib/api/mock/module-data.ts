@@ -56,6 +56,15 @@ import {
 import { getFacultyAllocationProfile } from "./faculty-allocation";
 import { analyticsDashboard, placementSnapshot } from "./placement-stats";
 import { listProjects } from "./projects";
+import { getIncubationPipelineOverview } from "./incubation-store";
+import { getMentorNetworkOverview } from "./mentor-network-store";
+import { getStartupPortfolioOverview } from "./startup-store";
+import { getFundingReadinessOverview } from "./funding-readiness-store";
+import {
+  getInterviewsOverview,
+  getShortlistsOverview,
+  searchCandidates,
+} from "./recruiter-store";
 
 /** Live data a builder may need, fetched once per request. */
 interface ScopeData {
@@ -793,20 +802,48 @@ const DATA: Record<string, (collegeScope: string, live: ScopeData) => ModuleData
       "sector",
       "Add employer",
     ),
-  startups: () =>
-    list(
-      [col("name", "Venture"), col("domain", "Domain", "badge"), col("founders", "Founders"), col("stage", "Stage", "badge"), col("readiness", "Readiness", "progress")],
-      [],
+  startups: async (scope, live) => {
+    const session = live.session ?? { college: scope, sub: "demo-incubation", role: "incubation" as const, name: "Incubation Head", tenant: "TNTU", mfa: true, exp: 0 };
+    const ov = await getStartupPortfolioOverview(session);
+    return list(
+      [
+        col("name", "Venture"),
+        col("domain", "Domain", "badge"),
+        col("founders", "Lead Founder"),
+        col("incorporation", "Incorporation", "badge"),
+        col("stage", "Stage", "badge"),
+        col("readiness", "Readiness", "progress"),
+        col("funding", "Funding Raised"),
+      ],
+      ov.startups.map((s) => ({
+        name: s.name,
+        domain: s.domain,
+        founders: `${s.leadFounder} (${s.department})`,
+        incorporation: s.incorporationStatus,
+        stage: s.stage,
+        readiness: s.readinessScore,
+        funding: s.fundingRaised,
+      })),
       "stage",
-      "Add venture",
-    ),
-  mentors: () =>
-    list(
-      [col("name", "Mentor"), col("type", "Type", "badge"), col("expertise", "Expertise"), col("mentees", "Mentees", "number"), col("availability", "Availability", "badge")],
-      [],
+      "Register Startup",
+    );
+  },
+  mentors: async (scope, live) => {
+    const session = live.session ?? { college: scope, sub: "demo-incubation", role: "incubation" as const, name: "Incubation Head", tenant: "TNTU", mfa: true, exp: 0 };
+    const ov = await getMentorNetworkOverview(session);
+    return list(
+      [col("name", "Mentor"), col("type", "Type", "badge"), col("expertise", "Expertise"), col("mentees", "Active Mentees", "number"), col("availability", "Availability", "badge")],
+      ov.mentors.map((m) => ({
+        name: `${m.name} (${m.company})`,
+        type: m.type,
+        expertise: m.expertise.join(", "),
+        mentees: m.assignedVentures.length,
+        availability: m.availability,
+      })),
       "type",
       "Invite mentor",
-    ),
+    );
+  },
   "knowledge-base": async (collegeScope) => {
     const store = kbStore();
     const docs = await store.list(collegeScope);
@@ -848,18 +885,52 @@ const DATA: Record<string, (collegeScope: string, live: ScopeData) => ModuleData
       undefined,
       "Generate report"
     ),
-  "talent-search": () =>
-    list(
-      [col("candidate", "Candidate"), col("college", "College"), col("dept", "Department"), col("skills", "Verified skills"), col("projects", "Projects", "number"), col("readiness", "Readiness", "progress")],
-      [],
+  "talent-search": async (scope, live) => {
+    const session = live.session ?? { college: scope, sub: "demo-recruiter", role: "recruiter" as const, name: "Talent Recruiter", tenant: "TNTU", mfa: true, exp: 0 };
+    const ov = await searchCandidates(session);
+    return list(
+      [
+        col("candidate", "Candidate"),
+        col("college", "College"),
+        col("dept", "Department"),
+        col("skills", "Verified skills"),
+        col("projects", "Projects", "badge"),
+        col("readiness", "Readiness", "progress"),
+      ],
+      ov.candidates.map((c) => ({
+        candidate: `${c.name} (${c.roll})`,
+        college: c.college,
+        dept: c.department,
+        skills: c.skills.join(", "),
+        projects: c.projectDomain,
+        readiness: c.readiness,
+      })),
       "dept",
-    ),
-  shortlists: () =>
-    list(
-      [col("candidate", "Candidate"), col("role", "Role"), col("stage", "Stage", "badge"), col("assessment", "Assessment", "progress"), col("updated", "Updated")],
-      [],
+      "Shortlist Candidate",
+    );
+  },
+  shortlists: async (scope, live) => {
+    const session = live.session ?? { college: scope, sub: "demo-recruiter", role: "recruiter" as const, name: "Talent Recruiter", tenant: "TNTU", mfa: true, exp: 0 };
+    const ov = await getShortlistsOverview(session);
+    return list(
+      [
+        col("candidate", "Candidate"),
+        col("role", "Role Requisition"),
+        col("stage", "Stage", "badge"),
+        col("assessment", "Assessment", "progress"),
+        col("updated", "Updated"),
+      ],
+      ov.shortlists.map((s) => ({
+        candidate: `${s.candidateName} (${s.roll})`,
+        role: s.roleRequisition,
+        stage: s.stage,
+        assessment: s.assessmentScore,
+        updated: s.updatedAt.slice(0, 10),
+      })),
       "stage",
-    ),
+      "Schedule Interview",
+    );
+  },
   users: async (collegeScope) => {
     if (dataBackend() === "postgres") {
       const t = db();
@@ -932,20 +1003,20 @@ const DATA: Record<string, (collegeScope: string, live: ScopeData) => ModuleData
   "mission-planner": (scope, live) => generateDynamicMissionPlanner(live.session ?? { college: scope, sub: "demo-student" }),
   certifications: (scope, live) => generateDynamicCertifications(live.session ?? { college: scope, sub: "demo-student" }),
   "startup-hub": (scope, live) => generateDynamicStartupHub(live.session ?? { college: scope, sub: "demo-student" }),
-  "incubation-pipeline": () =>
-    stagesOf("Incubation pipeline — 2026 cohort", [
-      ["Idea", "41 submissions", ["Screened by Incubation Agent + panel"]],
-      ["Problem validation", "22 ventures"],
-      ["Market analysis", "15 ventures"],
-      ["Customer persona", "15 ventures"],
-      ["Business model", "11 ventures"],
-      ["MVP", "8 ventures"],
-      ["Mentor", "8 ventures matched"],
-      ["Prototype", "6 ventures"],
-      ["Pitch deck", "5 ventures"],
-      ["Incubation review", "Panel Nov 12"],
-      ["Startup readiness", "Funding track"],
-    ], 6),
+  "incubation-pipeline": async (scope, live) => {
+    const session = live.session ?? { college: scope, sub: "demo-incubation", role: "incubation" as const, name: "Incubation Head", tenant: "TNTU", mfa: true, exp: 0 };
+    const ov = await getIncubationPipelineOverview(session);
+    return {
+      template: "workflow",
+      title: `Incubation Pipeline — ${ov.cohort} (${ov.totalVentures} ventures)`,
+      stages: ov.stages.map((stg, i) => ({
+        title: `${stg.label} (${stg.count} ventures)`,
+        description: stg.description,
+        status: i < 3 ? "done" : i === 3 ? "active" : "todo",
+        items: ov.ventures.filter((v) => v.stage === stg.stage).map((v) => `${v.name} · ${v.leadFounder} (${v.domain})`),
+      })),
+    };
+  },
   "skill-booster": () =>
     stagesOf("Faculty roadmap — AI for Teaching (12 weeks)", [
       ["Current level", "Self + AI assessment", ["Digital skills: 72", "AI literacy: 41", "Assessment design: 66"]],
@@ -1025,8 +1096,18 @@ const DATA: Record<string, (collegeScope: string, live: ScopeData) => ModuleData
       ["Add architecture decision records", "Raise coverage on attendance service", "Rehearse demo with viva questions"]
     );
   },
-  "funding-readiness": () =>
-    score("AgriSoil Sense", [["Team", 72, 75], ["Problem validation", 81, 75], ["Product", 55, 70], ["Traction", 30, 60], ["Business model", 60, 70], ["Pitch", 66, 75]], ["Well-validated problem", "Complementary founding team"], ["No paying pilots yet", "Unit economics unproven"], ["Run paid pilot with one FPO", "Refine cost model", "Mentor pitch rehearsal"]),
+  "funding-readiness": async (scope, live) => {
+    const session = live.session ?? { college: scope, sub: "demo-incubation", role: "incubation" as const, name: "Incubation Head", tenant: "TNTU", mfa: true, exp: 0 };
+    const ov = await getFundingReadinessOverview(session);
+    const curr = ov.currentEvaluation;
+    return score(
+      `${curr.ventureName} — Funding Readiness`,
+      curr.dimensions.map((d) => [d.name, d.score, d.benchmark]),
+      curr.strengths,
+      curr.investorGaps,
+      curr.actionPlan
+    );
+  },
 
   /* ── calendars ── */
   "daily-plan": (scope, live) => generateDynamicDailyPlan(live.session ?? { college: scope, sub: "demo-student" }),
@@ -1093,19 +1174,25 @@ const DATA: Record<string, (collegeScope: string, live: ScopeData) => ModuleData
     ],
     tips: ["Educational guidance only — not medical advice.", "Student Welfare Office: Block C, Room 104 · Counsellor hours 10:00–17:00."],
   }),
-  "recruiter-interviews": () => ({
-    template: "calendar",
-    days: [
-      {
-        day: "Today", items: [
-          { time: "10:00", title: "Divya Raman — SDE-1 technical", tag: "Technical", tone: "brand" },
-          { time: "14:30", title: "Karthik Iyer — Data Analyst", tag: "Technical", tone: "brand" },
-        ]
-      },
-      { day: "Tomorrow", items: [{ time: "11:00", title: "Priya Nair — HR round", tag: "HR", tone: "gold" }] },
-    ],
-    tips: [],
-  }),
+  "recruiter-interviews": async (scope, live) => {
+    const session = live.session ?? { college: scope, sub: "demo-recruiter", role: "recruiter" as const, name: "Talent Recruiter", tenant: "TNTU", mfa: true, exp: 0 };
+    const ov = await getInterviewsOverview(session);
+    return {
+      template: "calendar",
+      days: [
+        {
+          day: "Scheduled Panels",
+          items: ov.interviews.map((it) => ({
+            time: it.dateTime,
+            title: `${it.candidateName} (${it.roleRequisition}) — ${it.round}`,
+            tag: it.status,
+            tone: it.status === "Completed" ? ("teal" as const) : it.status === "Scheduled" ? ("brand" as const) : ("amber" as const),
+          })),
+        },
+      ],
+      tips: ["Placement Cell Interview Rooms: Block C, 2nd Floor · Video conferencing enabled."],
+    };
+  },
 
   /* ── galleries ── */
   passport: (scope, live) => generateDynamicPassport(live.session ?? { college: scope, sub: "demo-student" }),

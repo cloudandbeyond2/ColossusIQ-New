@@ -27,6 +27,71 @@ import { createProject, deleteProject, listProjects, reviewProject, updateProjec
 import { CreateProjectInput, FacultyReviewInput, UpdateProjectStageInput } from "@/lib/api/project-schemas";
 import { applyToTeamRequest, createTeamRequest, getTeamFinderOverview, inviteStudentToProject } from "./team-finder";
 import { AddTeammateInput, CreateTeamRequestInput } from "@/lib/api/team-finder-schemas";
+import {
+  createPipelineVenture,
+  deletePipelineVenture,
+  getIncubationPipelineOverview,
+  reviewPipelineVenture,
+  updatePipelineVentureStage,
+} from "./incubation-store";
+import {
+  CreateVentureInput,
+  ReviewVentureInput,
+  UpdateVentureStageInput,
+} from "@/lib/api/incubation-schemas";
+import {
+  assignMentorToVenture,
+  deleteMentor,
+  getMentorNetworkOverview,
+  inviteMentor,
+  logMentorshipSession,
+  unassignMentorFromVenture,
+  updateMentor,
+} from "./mentor-network-store";
+import {
+  AssignMentorInput,
+  InviteMentorInput,
+  LogSessionInput,
+} from "@/lib/api/mentor-network-schemas";
+import {
+  createStartup,
+  deleteStartup,
+  getStartupPortfolioOverview,
+  updateStartup,
+} from "./startup-store";
+import {
+  CreateStartupInput,
+  UpdateStartupInput,
+} from "@/lib/api/startup-schemas";
+import {
+  getFundingReadinessOverview,
+  updateVentureReadiness,
+} from "./funding-readiness-store";
+import {
+  UpdateReadinessInput,
+} from "@/lib/api/funding-readiness-schemas";
+import {
+  cancelInterview,
+  createShortlist,
+  deleteShortlist,
+  getInterviewsOverview,
+  getShortlistsOverview,
+  scheduleInterview,
+  searchCandidates,
+  updateInterviewFeedback,
+  updateShortlistStage,
+} from "./recruiter-store";
+import {
+  CreateShortlistInput,
+  ScheduleInterviewInput,
+  SubmitInterviewFeedbackInput,
+  UpdateShortlistStageInput,
+} from "@/lib/api/recruiter-schemas";
+import {
+  getPlacementAnalyticsOverview,
+  updatePlacementTargets,
+} from "./placement-analytics-store";
+import { UpdatePlacementTargetsInput } from "@/lib/api/placement-analytics-schemas";
 import { CalendarError, calendarNotifications, createCalendarItem, deleteCalendarItem, getCalendarOverview, syncCampusEvents, updateCalendarItem } from "./academic-calendar";
 import {
   CreateAicteActionInput,
@@ -90,6 +155,22 @@ import {
   EnrollStudentElectiveInput,
   UpdateCbcsWindowInput,
 } from "@/lib/api/cbcs-schemas";
+import {
+  getOsceOverview,
+  createOsceStation,
+  createOsceSession,
+  createSkillsLabBooking,
+  updateBookingStatus,
+  gradeStudentOsce,
+  toggleStationStatus,
+} from "./osce-store";
+import {
+  CreateOsceStationInput,
+  CreateOsceSessionInput,
+  CreateSkillsLabBookingInput,
+  UpdateBookingStatusInput,
+  GradeStudentOsceInput,
+} from "@/lib/api/osce-schemas";
 import { dispatchRecords } from "./records-router";
 import { dispatchLearning } from "./learning";
 import { dispatchCourses } from "./course-builder";
@@ -273,6 +354,13 @@ export const PATTERNS = [
   "POST cbcs-electives/enroll",
   "DELETE cbcs-electives/enrollments/:id",
   "PUT cbcs-electives/window",
+  "GET osce",
+  "POST osce/stations",
+  "POST osce/stations/:id/toggle",
+  "POST osce/sessions",
+  "POST osce/bookings",
+  "PATCH osce/bookings/:id/status",
+  "POST osce/grade",
   "GET notifications",
   "POST notifications/test",
   "GET notifications/delivery-log",
@@ -344,6 +432,35 @@ export const PATTERNS = [
   "POST branding/dns-verify",
   "POST branding/test-email",
   "POST branding/reset",
+  "GET incubation-pipeline",
+  "POST incubation-pipeline/ventures",
+  "PATCH incubation-pipeline/ventures/:id/stage",
+  "POST incubation-pipeline/ventures/:id/review",
+  "DELETE incubation-pipeline/ventures/:id",
+  "GET incubation/mentors",
+  "POST incubation/mentors",
+  "PATCH incubation/mentors/:id",
+  "POST incubation/mentors/:id/assign",
+  "POST incubation/mentors/:id/unassign",
+  "POST incubation/mentors/:id/session",
+  "DELETE incubation/mentors/:id",
+  "GET incubation/startups",
+  "POST incubation/startups",
+  "PATCH incubation/startups/:id",
+  "DELETE incubation/startups/:id",
+  "GET incubation/funding-readiness",
+  "PATCH incubation/funding-readiness/:id",
+  "GET recruiter/candidates",
+  "GET recruiter/shortlists",
+  "POST recruiter/shortlists",
+  "PATCH recruiter/shortlists/:id",
+  "DELETE recruiter/shortlists/:id",
+  "GET recruiter/interviews",
+  "POST recruiter/interviews",
+  "PATCH recruiter/interviews/:id",
+  "DELETE recruiter/interviews/:id",
+  "GET placement-analytics",
+  "PATCH placement-analytics/targets",
 ] as const;
 
 const ID = /^[A-Za-z0-9_-]{1,64}$/;
@@ -647,6 +764,43 @@ export async function dispatch(method: string, segs: string[], rawBody: unknown,
       const parsed = UpdateCbcsWindowInput.safeParse(rawBody);
       if (!parsed.success) return err(400, "invalid_body", parsed.error.issues[0]?.message ?? "Invalid window payload.");
       return ok(await updateCbcsWindow(session, parsed.data));
+    }
+
+    case "GET osce": {
+      return ok(await getOsceOverview(session));
+    }
+    case "POST osce/stations": {
+      if (session.role !== "hod" && session.role !== "faculty" && session.role !== "admin") return forbidden();
+      const parsed = CreateOsceStationInput.safeParse(rawBody);
+      if (!parsed.success) return err(400, "invalid_body", parsed.error.issues[0]?.message ?? "Invalid station payload.");
+      return ok(await createOsceStation(session, parsed.data));
+    }
+    case "POST osce/stations/:id/toggle": {
+      if (session.role !== "hod" && session.role !== "faculty" && session.role !== "admin") return forbidden();
+      return ok(await toggleStationStatus(session, found.id ?? segs[2] ?? ""));
+    }
+    case "POST osce/sessions": {
+      if (session.role !== "hod" && session.role !== "faculty" && session.role !== "admin") return forbidden();
+      const parsed = CreateOsceSessionInput.safeParse(rawBody);
+      if (!parsed.success) return err(400, "invalid_body", parsed.error.issues[0]?.message ?? "Invalid session payload.");
+      return ok(await createOsceSession(session, parsed.data));
+    }
+    case "POST osce/bookings": {
+      const parsed = CreateSkillsLabBookingInput.safeParse(rawBody);
+      if (!parsed.success) return err(400, "invalid_body", parsed.error.issues[0]?.message ?? "Invalid booking payload.");
+      return ok(await createSkillsLabBooking(session, parsed.data));
+    }
+    case "PATCH osce/bookings/:id/status": {
+      if (session.role !== "hod" && session.role !== "faculty" && session.role !== "admin") return forbidden();
+      const parsed = UpdateBookingStatusInput.safeParse(rawBody);
+      if (!parsed.success) return err(400, "invalid_body", parsed.error.issues[0]?.message ?? "Invalid booking status payload.");
+      return ok(await updateBookingStatus(session, found.id ?? segs[2] ?? "", parsed.data));
+    }
+    case "POST osce/grade": {
+      if (session.role !== "hod" && session.role !== "faculty" && session.role !== "admin") return forbidden();
+      const parsed = GradeStudentOsceInput.safeParse(rawBody);
+      if (!parsed.success) return err(400, "invalid_body", parsed.error.issues[0]?.message ?? "Invalid grading payload.");
+      return ok(await gradeStudentOsce(session, parsed.data));
     }
 
     /* ── session & shell ── */
@@ -1105,6 +1259,335 @@ export async function dispatch(method: string, segs: string[], rawBody: unknown,
       const deleted = await deleteProject(session, b);
       if (!deleted) return notFound();
       return ok({ ok: true, deleted: b });
+    }
+
+    /* ── Incubation Pipeline ── */
+    case "GET incubation-pipeline": {
+      if (session.role !== "incubation" && session.role !== "institution" && session.role !== "admin") return forbidden();
+      const qCohort = query.get("cohort") || undefined;
+      return ok(await getIncubationPipelineOverview(session, qCohort));
+    }
+
+    case "POST incubation-pipeline/ventures": {
+      if (session.role !== "incubation" && session.role !== "institution" && session.role !== "admin") return forbidden();
+      let body = rawBody;
+      if (typeof body === "string") {
+        try { body = JSON.parse(body); } catch {}
+      }
+      const data = (body as { data?: unknown })?.data ?? body;
+      const parsed = CreateVentureInput.safeParse(data);
+      if (!parsed.success) return err(400, "invalid_body", parsed.error.issues[0]?.message ?? "Invalid venture payload.");
+      return ok(await createPipelineVenture(session, parsed.data));
+    }
+
+    case "PATCH incubation-pipeline/ventures/:id/stage": {
+      if (session.role !== "incubation" && session.role !== "institution" && session.role !== "admin") return forbidden();
+      if (!b) return notFound();
+      let body = rawBody;
+      if (typeof body === "string") {
+        try { body = JSON.parse(body); } catch {}
+      }
+      const data = (body as { data?: unknown })?.data ?? body;
+      const parsed = UpdateVentureStageInput.safeParse(data);
+      if (!parsed.success) return err(400, "invalid_body", parsed.error.issues[0]?.message ?? "Invalid stage payload.");
+      const updated = await updatePipelineVentureStage(session, b, parsed.data.stage);
+      if (!updated) return notFound();
+      return ok(updated);
+    }
+
+    case "POST incubation-pipeline/ventures/:id/review": {
+      if (session.role !== "incubation" && session.role !== "institution" && session.role !== "admin") return forbidden();
+      if (!b) return notFound();
+      let body = rawBody;
+      if (typeof body === "string") {
+        try { body = JSON.parse(body); } catch {}
+      }
+      const data = (body as { data?: unknown })?.data ?? body;
+      const parsed = ReviewVentureInput.safeParse(data);
+      if (!parsed.success) return err(400, "invalid_body", parsed.error.issues[0]?.message ?? "Invalid review payload.");
+      const updated = await reviewPipelineVenture(session, b, parsed.data);
+      if (!updated) return notFound();
+      return ok(updated);
+    }
+
+    case "DELETE incubation-pipeline/ventures/:id": {
+      if (session.role !== "incubation" && session.role !== "institution" && session.role !== "admin") return forbidden();
+      if (!b) return notFound();
+      const deleted = await deletePipelineVenture(session, b);
+      if (!deleted) return notFound();
+      return ok({ ok: true, deleted: b });
+    }
+
+    /* ── Incubation Mentor Network ── */
+    case "GET incubation/mentors": {
+      if (session.role !== "incubation" && session.role !== "institution" && session.role !== "admin") return forbidden();
+      return ok(await getMentorNetworkOverview(session));
+    }
+
+    case "POST incubation/mentors": {
+      if (session.role !== "incubation" && session.role !== "institution" && session.role !== "admin") return forbidden();
+      let body = rawBody;
+      if (typeof body === "string") {
+        try { body = JSON.parse(body); } catch {}
+      }
+      const data = (body as { data?: unknown })?.data ?? body;
+      const parsed = InviteMentorInput.safeParse(data);
+      if (!parsed.success) return err(400, "invalid_body", parsed.error.issues[0]?.message ?? "Invalid mentor payload.");
+      return ok(await inviteMentor(session, parsed.data));
+    }
+
+    case "PATCH incubation/mentors/:id": {
+      if (session.role !== "incubation" && session.role !== "institution" && session.role !== "admin") return forbidden();
+      if (!b) return notFound();
+      let body = rawBody;
+      if (typeof body === "string") {
+        try { body = JSON.parse(body); } catch {}
+      }
+      const data = (body as { data?: unknown })?.data ?? body;
+      const updated = await updateMentor(session, b, (data as Record<string, unknown>) || {});
+      if (!updated) return notFound();
+      return ok(updated);
+    }
+
+    case "POST incubation/mentors/:id/assign": {
+      if (session.role !== "incubation" && session.role !== "institution" && session.role !== "admin") return forbidden();
+      if (!b) return notFound();
+      let body = rawBody;
+      if (typeof body === "string") {
+        try { body = JSON.parse(body); } catch {}
+      }
+      const data = (body as { data?: unknown })?.data ?? body;
+      const parsed = AssignMentorInput.safeParse(data);
+      if (!parsed.success) return err(400, "invalid_body", parsed.error.issues[0]?.message ?? "Invalid assignment payload.");
+      const updated = await assignMentorToVenture(session, b, parsed.data);
+      if (!updated) return notFound();
+      return ok(updated);
+    }
+
+    case "POST incubation/mentors/:id/unassign": {
+      if (session.role !== "incubation" && session.role !== "institution" && session.role !== "admin") return forbidden();
+      if (!b) return notFound();
+      let body = rawBody;
+      if (typeof body === "string") {
+        try { body = JSON.parse(body); } catch {}
+      }
+      const data = (body as { ventureId?: string }) ?? {};
+      const ventureId = data.ventureId || "";
+      const updated = await unassignMentorFromVenture(session, b, ventureId);
+      if (!updated) return notFound();
+      return ok(updated);
+    }
+
+    case "POST incubation/mentors/:id/session": {
+      if (session.role !== "incubation" && session.role !== "institution" && session.role !== "admin") return forbidden();
+      if (!b) return notFound();
+      let body = rawBody;
+      if (typeof body === "string") {
+        try { body = JSON.parse(body); } catch {}
+      }
+      const data = (body as { data?: unknown })?.data ?? body;
+      const parsed = LogSessionInput.safeParse(data);
+      if (!parsed.success) return err(400, "invalid_body", parsed.error.issues[0]?.message ?? "Invalid session payload.");
+      const updated = await logMentorshipSession(session, b, parsed.data);
+      if (!updated) return notFound();
+      return ok(updated);
+    }
+
+    case "DELETE incubation/mentors/:id": {
+      if (session.role !== "incubation" && session.role !== "institution" && session.role !== "admin") return forbidden();
+      if (!b) return notFound();
+      const deleted = await deleteMentor(session, b);
+      if (!deleted) return notFound();
+      return ok({ ok: true, deleted: b });
+    }
+
+    /* ── Incubation Startups ── */
+    case "GET incubation/startups": {
+      if (session.role !== "incubation" && session.role !== "institution" && session.role !== "admin") return forbidden();
+      return ok(await getStartupPortfolioOverview(session));
+    }
+
+    case "POST incubation/startups": {
+      if (session.role !== "incubation" && session.role !== "institution" && session.role !== "admin") return forbidden();
+      let body = rawBody;
+      if (typeof body === "string") {
+        try { body = JSON.parse(body); } catch {}
+      }
+      const data = (body as { data?: unknown })?.data ?? body;
+      const parsed = CreateStartupInput.safeParse(data);
+      if (!parsed.success) return err(400, "invalid_body", parsed.error.issues[0]?.message ?? "Invalid startup payload.");
+      const created = await createStartup(session, parsed.data);
+      return ok(created);
+    }
+
+    case "PATCH incubation/startups/:id": {
+      if (session.role !== "incubation" && session.role !== "institution" && session.role !== "admin") return forbidden();
+      if (!b) return notFound();
+      let body = rawBody;
+      if (typeof body === "string") {
+        try { body = JSON.parse(body); } catch {}
+      }
+      const data = (body as { data?: unknown })?.data ?? body;
+      const parsed = UpdateStartupInput.safeParse(data);
+      if (!parsed.success) return err(400, "invalid_body", parsed.error.issues[0]?.message ?? "Invalid startup payload.");
+      const updated = await updateStartup(session, b, parsed.data);
+      if (!updated) return notFound();
+      return ok(updated);
+    }
+
+    case "DELETE incubation/startups/:id": {
+      if (session.role !== "incubation" && session.role !== "institution" && session.role !== "admin") return forbidden();
+      if (!b) return notFound();
+      const deleted = await deleteStartup(session, b);
+      if (!deleted) return notFound();
+      return ok({ ok: true, deleted: b });
+    }
+
+    /* ── Incubation Funding Readiness ── */
+    case "GET incubation/funding-readiness": {
+      if (session.role !== "incubation" && session.role !== "institution" && session.role !== "admin") return forbidden();
+      const qVenture = query.get("ventureId") || undefined;
+      return ok(await getFundingReadinessOverview(session, qVenture));
+    }
+
+    case "PATCH incubation/funding-readiness/:id": {
+      if (session.role !== "incubation" && session.role !== "institution" && session.role !== "admin") return forbidden();
+      if (!b) return notFound();
+      let body = rawBody;
+      if (typeof body === "string") {
+        try { body = JSON.parse(body); } catch {}
+      }
+      const data = (body as { data?: unknown })?.data ?? body;
+      const parsed = UpdateReadinessInput.safeParse(data);
+      if (!parsed.success) return err(400, "invalid_body", parsed.error.issues[0]?.message ?? "Invalid readiness payload.");
+      const updated = await updateVentureReadiness(session, b, parsed.data);
+      if (!updated) return notFound();
+      return ok(updated);
+    }
+
+    /* ── Recruiter Talent Workspace ── */
+    case "GET recruiter/candidates": {
+      if (session.role !== "recruiter" && session.role !== "placement" && session.role !== "institution" && session.role !== "admin") return forbidden();
+      const q = query.get("q") || undefined;
+      const dept = query.get("department") || undefined;
+      const skill = query.get("skill") || undefined;
+      const minReadiness = query.get("minReadiness") ? Number(query.get("minReadiness")) : undefined;
+      const minCgpa = query.get("minCgpa") ? Number(query.get("minCgpa")) : undefined;
+      return ok(await searchCandidates(session, { q, department: dept, skill, minReadiness, minCgpa }));
+    }
+
+    case "GET recruiter/shortlists": {
+      if (session.role !== "recruiter" && session.role !== "placement" && session.role !== "institution" && session.role !== "admin") return forbidden();
+      const roleFilter = query.get("role") || undefined;
+      return ok(await getShortlistsOverview(session, roleFilter));
+    }
+
+    case "POST recruiter/shortlists": {
+      if (session.role !== "recruiter" && session.role !== "placement" && session.role !== "institution" && session.role !== "admin") return forbidden();
+      let body = rawBody;
+      if (typeof body === "string") {
+        try { body = JSON.parse(body); } catch {}
+      }
+      const data = (body as { data?: unknown })?.data ?? body;
+      const parsed = CreateShortlistInput.safeParse(data);
+      if (!parsed.success) return err(400, "invalid_body", parsed.error.issues[0]?.message ?? "Invalid shortlist input.");
+      try {
+        const created = await createShortlist(session, parsed.data);
+        return ok(created);
+      } catch (e) {
+        return err(400, "bad_request", (e as Error).message);
+      }
+    }
+
+    case "PATCH recruiter/shortlists/:id": {
+      if (session.role !== "recruiter" && session.role !== "placement" && session.role !== "institution" && session.role !== "admin") return forbidden();
+      if (!b) return notFound();
+      let body = rawBody;
+      if (typeof body === "string") {
+        try { body = JSON.parse(body); } catch {}
+      }
+      const data = (body as { data?: unknown })?.data ?? body;
+      const parsed = UpdateShortlistStageInput.safeParse(data);
+      if (!parsed.success) return err(400, "invalid_body", parsed.error.issues[0]?.message ?? "Invalid stage update.");
+      const updated = await updateShortlistStage(session, b, parsed.data);
+      if (!updated) return notFound();
+      return ok(updated);
+    }
+
+    case "DELETE recruiter/shortlists/:id": {
+      if (session.role !== "recruiter" && session.role !== "placement" && session.role !== "institution" && session.role !== "admin") return forbidden();
+      if (!b) return notFound();
+      const deleted = await deleteShortlist(session, b);
+      if (!deleted) return notFound();
+      return ok({ ok: true, deleted: b });
+    }
+
+    case "GET recruiter/interviews": {
+      if (session.role !== "recruiter" && session.role !== "placement" && session.role !== "institution" && session.role !== "admin") return forbidden();
+      const status = query.get("status") || undefined;
+      const round = query.get("round") || undefined;
+      return ok(await getInterviewsOverview(session, { status, round }));
+    }
+
+    case "POST recruiter/interviews": {
+      if (session.role !== "recruiter" && session.role !== "placement" && session.role !== "institution" && session.role !== "admin") return forbidden();
+      let body = rawBody;
+      if (typeof body === "string") {
+        try { body = JSON.parse(body); } catch {}
+      }
+      const data = (body as { data?: unknown })?.data ?? body;
+      const parsed = ScheduleInterviewInput.safeParse(data);
+      if (!parsed.success) return err(400, "invalid_body", parsed.error.issues[0]?.message ?? "Invalid schedule input.");
+      try {
+        const created = await scheduleInterview(session, parsed.data);
+        return ok(created);
+      } catch (e) {
+        return err(400, "bad_request", (e as Error).message);
+      }
+    }
+
+    case "PATCH recruiter/interviews/:id": {
+      if (session.role !== "recruiter" && session.role !== "placement" && session.role !== "institution" && session.role !== "admin") return forbidden();
+      if (!b) return notFound();
+      let body = rawBody;
+      if (typeof body === "string") {
+        try { body = JSON.parse(body); } catch {}
+      }
+      const data = (body as { data?: unknown })?.data ?? body;
+      const parsed = SubmitInterviewFeedbackInput.safeParse(data);
+      if (!parsed.success) return err(400, "invalid_body", parsed.error.issues[0]?.message ?? "Invalid feedback input.");
+      const updated = await updateInterviewFeedback(session, b, parsed.data);
+      if (!updated) return notFound();
+      return ok(updated);
+    }
+
+    case "DELETE recruiter/interviews/:id": {
+      if (session.role !== "recruiter" && session.role !== "placement" && session.role !== "institution" && session.role !== "admin") return forbidden();
+      if (!b) return notFound();
+      const cancelled = await cancelInterview(session, b);
+      if (!cancelled) return notFound();
+      return ok({ ok: true, cancelled: b });
+    }
+
+    /* ── Placement Analytics ── */
+    case "GET placement-analytics": {
+      if (session.role !== "institution" && session.role !== "placement" && session.role !== "hod" && session.role !== "admin") return forbidden();
+      const dept = query.get("department") || undefined;
+      const tier = query.get("tier") || undefined;
+      return ok(await getPlacementAnalyticsOverview(session, { department: dept, tier }));
+    }
+
+    case "PATCH placement-analytics/targets": {
+      if (session.role !== "institution" && session.role !== "placement" && session.role !== "admin") return forbidden();
+      let body = rawBody;
+      if (typeof body === "string") {
+        try { body = JSON.parse(body); } catch {}
+      }
+      const data = (body as { data?: unknown })?.data ?? body;
+      const parsed = UpdatePlacementTargetsInput.safeParse(data);
+      if (!parsed.success) return err(400, "invalid_body", parsed.error.issues[0]?.message ?? "Invalid placement targets payload.");
+      const updated = await updatePlacementTargets(session, parsed.data);
+      return ok(updated);
     }
 
     /* ── Team Finder ── */

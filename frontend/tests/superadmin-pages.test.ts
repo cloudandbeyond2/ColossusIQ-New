@@ -58,9 +58,18 @@ const BESPOKE_API: Record<string, string[]> = {
   "course-roadmap": ["course-roadmap"],
   integrations: ["integrations"],
   hackathons: ["hackathons"],
+  "incubation-pipeline": ["incubation-pipeline"],
   "cbcs-electives": ["cbcs-electives"],
   "nmc-compliance": ["nmc-compliance"],
   "question-generator": ["faculty/question-papers"],
+  mentors: ["incubation/mentors"],
+  startups: ["incubation/startups"],
+  "funding-readiness": ["incubation/funding-readiness"],
+  "talent-search": ["recruiter/candidates"],
+  shortlists: ["recruiter/shortlists"],
+  "recruiter-interviews": ["recruiter/interviews"],
+  "placement-analytics": ["placement-analytics"],
+  osce: ["osce"],
 };
 /** Pages without a dispatcher GET (static, or served by the route handler itself, like the college website). */
 const UNIVERSITY_ONLY = new Set(["content-desk"]);

@@ -76,8 +76,22 @@ import { HospitalDashboardModule } from "./bespoke/hospital-dashboard";
 import { NmcComplianceModule } from "./bespoke/nmc-compliance";
 import { CbcsElectivesModule } from "./bespoke/cbcs-electives";
 import { QuestionGeneratorModule } from "./bespoke/question-generator";
+import { IncubationPipelineModule } from "./bespoke/incubation-pipeline";
+import { MentorNetworkModule } from "./bespoke/mentors";
+import { StartupsPortfolioModule } from "./bespoke/startups";
+import { FundingReadinessModule } from "./bespoke/funding-readiness";
+import { TalentSearchModule } from "./bespoke/talent-search";
+import { ShortlistsModule } from "./bespoke/shortlists";
+import { RecruiterInterviewsModule } from "./bespoke/recruiter-interviews";
+import { PlacementAnalyticsModule } from "./bespoke/placement-analytics";
+import { OsceModule } from "./bespoke/osce";
 
 const BESPOKE: Record<string, (props: { role: Role }) => React.ReactNode> = {
+  osce: ({ role }) => <OsceModule role={role} />,
+  "placement-analytics": ({ role }) => <PlacementAnalyticsModule role={role} />,
+  "talent-search": ({ role }) => <TalentSearchModule role={role} />,
+  shortlists: ({ role }) => <ShortlistsModule role={role} />,
+  "recruiter-interviews": ({ role }) => <RecruiterInterviewsModule role={role} />,
   "cbcs-electives": ({ role }) => <CbcsElectivesModule role={role} />,
   "nmc-compliance": ({ role }) => <NmcComplianceModule role={role} />,
   "hospital-dashboard": ({ role }) => <HospitalDashboardModule role={role} />,
@@ -152,6 +166,10 @@ const BESPOKE: Record<string, (props: { role: Role }) => React.ReactNode> = {
   "student-fees": () => <StudentFeesModule />,
   hackathons: ({ role }) => <HackathonsModule role={role} />,
   "question-generator": ({ role }) => <QuestionGeneratorModule role={role} />,
+  "incubation-pipeline": ({ role }) => <IncubationPipelineModule role={role} />,
+  mentors: ({ role }) => <MentorNetworkModule role={role} />,
+  startups: ({ role }) => <StartupsPortfolioModule role={role} />,
+  "funding-readiness": ({ role }) => <FundingReadinessModule role={role} />,
 };
 
 
