@@ -619,7 +619,16 @@ function SummaryTab({ pack, illustration, departments }: { pack: TeachingPack; i
           homework: form.homework,
           nextClass: form.nextClass,
           resources,
-          infographic: form.attach ? posterFrom(pack, illustration) : null,
+          infographic: form.attach
+            ? {
+                what: pack.basics.what,
+                keyPoints: pack.keyPoints.slice(0, 5),
+                terms: pack.terms.slice(0, 4),
+                mistakes: pack.mistakes.slice(0, 3),
+                illustration,
+                question: pack.practice[0] ?? null,
+              }
+            : null,
         },
       }),
     onSuccess: () => {
