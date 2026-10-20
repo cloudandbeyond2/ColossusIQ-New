@@ -59,6 +59,7 @@ import { listProjects } from "./projects";
 import { getIncubationPipelineOverview } from "./incubation-store";
 import { getMentorNetworkOverview } from "./mentor-network-store";
 import { getStartupPortfolioOverview } from "./startup-store";
+import { getFundingReadinessOverview } from "./funding-readiness-store";
 
 /** Live data a builder may need, fetched once per request. */
 interface ScopeData {
@@ -1056,8 +1057,18 @@ const DATA: Record<string, (collegeScope: string, live: ScopeData) => ModuleData
       ["Add architecture decision records", "Raise coverage on attendance service", "Rehearse demo with viva questions"]
     );
   },
-  "funding-readiness": () =>
-    score("AgriSoil Sense", [["Team", 72, 75], ["Problem validation", 81, 75], ["Product", 55, 70], ["Traction", 30, 60], ["Business model", 60, 70], ["Pitch", 66, 75]], ["Well-validated problem", "Complementary founding team"], ["No paying pilots yet", "Unit economics unproven"], ["Run paid pilot with one FPO", "Refine cost model", "Mentor pitch rehearsal"]),
+  "funding-readiness": async (scope, live) => {
+    const session = live.session ?? { college: scope, sub: "demo-incubation", role: "incubation" as const, name: "Incubation Head", tenant: "TNTU", mfa: true, exp: 0 };
+    const ov = await getFundingReadinessOverview(session);
+    const curr = ov.currentEvaluation;
+    return score(
+      `${curr.ventureName} — Funding Readiness`,
+      curr.dimensions.map((d) => [d.name, d.score, d.benchmark]),
+      curr.strengths,
+      curr.investorGaps,
+      curr.actionPlan
+    );
+  },
 
   /* ── calendars ── */
   "daily-plan": (scope, live) => generateDynamicDailyPlan(live.session ?? { college: scope, sub: "demo-student" }),

@@ -63,6 +63,13 @@ import {
   CreateStartupInput,
   UpdateStartupInput,
 } from "@/lib/api/startup-schemas";
+import {
+  getFundingReadinessOverview,
+  updateVentureReadiness,
+} from "./funding-readiness-store";
+import {
+  UpdateReadinessInput,
+} from "@/lib/api/funding-readiness-schemas";
 import { CalendarError, calendarNotifications, createCalendarItem, deleteCalendarItem, getCalendarOverview, syncCampusEvents, updateCalendarItem } from "./academic-calendar";
 import {
   CreateAicteActionInput,
@@ -396,6 +403,8 @@ export const PATTERNS = [
   "POST incubation/startups",
   "PATCH incubation/startups/:id",
   "DELETE incubation/startups/:id",
+  "GET incubation/funding-readiness",
+  "PATCH incubation/funding-readiness/:id",
 ] as const;
 
 const ID = /^[A-Za-z0-9_-]{1,64}$/;
@@ -1339,6 +1348,28 @@ export async function dispatch(method: string, segs: string[], rawBody: unknown,
       const deleted = await deleteStartup(session, b);
       if (!deleted) return notFound();
       return ok({ ok: true, deleted: b });
+    }
+
+    /* ── Incubation Funding Readiness ── */
+    case "GET incubation/funding-readiness": {
+      if (session.role !== "incubation" && session.role !== "institution" && session.role !== "admin") return forbidden();
+      const qVenture = query.get("ventureId") || undefined;
+      return ok(await getFundingReadinessOverview(session, qVenture));
+    }
+
+    case "PATCH incubation/funding-readiness/:id": {
+      if (session.role !== "incubation" && session.role !== "institution" && session.role !== "admin") return forbidden();
+      if (!b) return notFound();
+      let body = rawBody;
+      if (typeof body === "string") {
+        try { body = JSON.parse(body); } catch {}
+      }
+      const data = (body as { data?: unknown })?.data ?? body;
+      const parsed = UpdateReadinessInput.safeParse(data);
+      if (!parsed.success) return err(400, "invalid_body", parsed.error.issues[0]?.message ?? "Invalid readiness payload.");
+      const updated = await updateVentureReadiness(session, b, parsed.data);
+      if (!updated) return notFound();
+      return ok(updated);
     }
 
     /* ── Team Finder ── */

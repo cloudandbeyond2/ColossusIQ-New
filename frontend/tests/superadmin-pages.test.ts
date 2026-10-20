@@ -64,6 +64,7 @@ const BESPOKE_API: Record<string, string[]> = {
   "question-generator": ["faculty/question-papers"],
   mentors: ["incubation/mentors"],
   startups: ["incubation/startups"],
+  "funding-readiness": ["incubation/funding-readiness"],
 };
 /** Pages without a dispatcher GET (static, or served by the route handler itself, like the college website). */
 const UNIVERSITY_ONLY = new Set(["content-desk"]);
