@@ -116,7 +116,7 @@ function SetsPanel({ d, say }: { d: StudioOverview; say: (m: string | null) => v
     },
     onError: (e) => say(errorText(e, "Could not delete.")),
   });
-  const examName = (id: string) => d.exams.find((e) => e.id === id)?.name ?? id;
+  const examName = (id?: string) => (id ? d.exams.find((e) => e.id === id)?.name ?? id : "");
 
   if (draft) return <SetEditor d={d} draft={draft} setDraft={setDraft} errors={errors} busy={save.isPending} onSave={() => save.mutate(draft)} onCancel={() => setDraft(null)} say={say} />;
   return (
@@ -199,6 +199,63 @@ function TopicSelect({ d, value, onChange, id, allowNew }: { d: StudioOverview; 
 function SetEditor({ d, draft, setDraft, errors, busy, onSave, onCancel, say }: { d: StudioOverview; draft: SetDraft; setDraft: (x: SetDraft) => void; errors: Record<string, string>; busy: boolean; onSave: () => void; onCancel: () => void; say: (m: string | null) => void }) {
   const gen = useGenerate();
   const [count, setCount] = useState(10);
+  const [isTitleManual, setIsTitleManual] = useState(Boolean(draft.id && draft.title));
+  const examName = (id?: string) => (id ? d.exams.find((e) => e.id === id)?.name ?? id : "");
+
+  const currentTopicTitle = useMemo(() => {
+    if (draft.topicId === NEW) return draft.newTopic.trim();
+    return d.topics.find((t) => t.id === draft.topicId)?.title ?? "";
+  }, [d.topics, draft.topicId, draft.newTopic]);
+
+  const suggestedTitles = useMemo(() => {
+    if (!currentTopicTitle) return [];
+    const list = [
+      `${currentTopicTitle} — Practice Set`,
+      `${currentTopicTitle} — Mock Test & Solutions`,
+      `${currentTopicTitle} — Previous Year Questions`,
+    ];
+    if (draft.examIds.length > 0) {
+      const firstExam = examName(draft.examIds[0]);
+      list.unshift(`${firstExam} · ${currentTopicTitle} Practice`);
+    }
+    return list;
+  }, [currentTopicTitle, draft.examIds, d.exams]);
+
+  const handleTopicChange = (newTopicId: string) => {
+    const topicObj = d.topics.find((t) => t.id === newTopicId);
+    const topicTitle = topicObj?.title ?? (newTopicId === NEW ? draft.newTopic : "");
+
+    if (topicTitle && (!draft.title || !isTitleManual)) {
+      const defaultTitle = draft.examIds.length > 0
+        ? `${examName(draft.examIds[0])} · ${topicTitle} Practice`
+        : `${topicTitle} — Practice Set`;
+      setDraft({
+        ...draft,
+        topicId: newTopicId,
+        title: defaultTitle,
+      });
+    } else {
+      set("topicId", newTopicId);
+    }
+  };
+
+  const handleNewTopicChange = (val: string) => {
+    if (!isTitleManual || !draft.title) {
+      const clean = val.trim();
+      const defaultTitle = clean
+        ? (draft.examIds.length > 0
+            ? `${examName(draft.examIds[0])} · ${clean} Practice`
+            : `${clean} — Practice Set`)
+        : draft.title;
+      setDraft({
+        ...draft,
+        newTopic: val,
+        title: defaultTitle,
+      });
+    } else {
+      set("newTopic", val);
+    }
+  };
   const set = <K extends keyof SetDraft>(k: K, v: SetDraft[K]) => setDraft({ ...draft, [k]: v });
   const sections = [...new Set(d.exams.filter((e) => draft.examIds.includes(e.id)).flatMap((e) => e.sections))];
   const setQ = (i: number, q: Q) => set("questions", draft.questions.map((x, j) => (j === i ? q : x)));
@@ -231,15 +288,49 @@ function SetEditor({ d, draft, setDraft, errors, busy, onSave, onCancel, say }: 
           }}
         >
           <div className="grid gap-4 md:grid-cols-2">
-            <Field label="Set title" htmlFor="set-title" error={errors.title}>
-              <input id="set-title" className={inputClass} maxLength={120} placeholder="e.g. SSC CGL 2025 GA practice, set 1" value={draft.title} onChange={(e) => set("title", e.target.value)} required />
+            <Field label="Topic *" htmlFor="set-topic" error={errors.topicId} hint="Choose a syllabus topic or add a custom one">
+              <TopicSelect d={d} id="set-topic" value={draft.topicId} onChange={handleTopicChange} allowNew />
             </Field>
-            <Field label="Topic" htmlFor="set-topic" error={errors.topicId}>
-              <TopicSelect d={d} id="set-topic" value={draft.topicId} onChange={(v) => set("topicId", v)} allowNew />
+            <Field label="Set title *" htmlFor="set-title" error={errors.title} hint="Title displayed to students in their Prep Hub">
+              <input
+                id="set-title"
+                className={inputClass}
+                maxLength={120}
+                placeholder="e.g. Indian Polity & Constitution — Practice Set"
+                value={draft.title}
+                onChange={(e) => {
+                  set("title", e.target.value);
+                  setIsTitleManual(true);
+                }}
+                required
+              />
+              {suggestedTitles.length > 0 && (
+                <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                  <span className="text-[11px] font-medium text-ink-3">Title suggestions:</span>
+                  {suggestedTitles.map((st) => (
+                    <button
+                      key={st}
+                      type="button"
+                      onClick={() => {
+                        set("title", st);
+                        setIsTitleManual(true);
+                      }}
+                      className={cn(
+                        "rounded-md border px-2 py-0.5 text-xs transition-colors",
+                        draft.title === st
+                          ? "border-brand bg-brand/10 font-medium text-brand"
+                          : "border-line bg-surface-2 text-ink-2 hover:border-brand/40 hover:text-ink"
+                      )}
+                    >
+                      {st}
+                    </button>
+                  ))}
+                </div>
+              )}
             </Field>
             {isNew ? (
               <Field label="New topic name" htmlFor="set-new" error={errors.newTopic} hint="It is added to the syllabus of the exam section you choose below.">
-                <input id="set-new" className={inputClass} maxLength={80} placeholder="e.g. Government schemes 2026" value={draft.newTopic} onChange={(e) => set("newTopic", e.target.value)} />
+                <input id="set-new" className={inputClass} maxLength={80} placeholder="e.g. Government schemes 2026" value={draft.newTopic} onChange={(e) => handleNewTopicChange(e.target.value)} />
               </Field>
             ) : null}
             <Field label={isCustom ? "Exam section (required for new & custom topics)" : "Exam section (optional)"} htmlFor="set-section" error={errors.section}>
@@ -496,12 +587,18 @@ function NotesPanel({ d, say }: { d: StudioOverview; say: (m: string | null) => 
 
 function NewNote({ d, busy, onStart }: { d: StudioOverview; busy: boolean; onStart: (topicId: string) => void }) {
   const [topic, setTopic] = useState("");
+  const selectedTopic = d.topics.find((t) => t.id === topic);
   return (
-    <Card className="flex flex-wrap items-end gap-3 p-4">
+    <Card className="flex flex-col gap-3 p-4 sm:flex-row sm:items-end">
       <div className="min-w-[240px] flex-1">
         <Field label="Write notes for a topic" htmlFor="note-topic">
           <TopicSelect d={d} id="note-topic" value={topic} onChange={setTopic} allowNew={false} />
         </Field>
+        {selectedTopic ? (
+          <p className="mt-1.5 text-xs text-ink-3">
+            Note title will be: <span className="font-semibold text-brand">Study notes: {selectedTopic.title}</span> ({selectedTopic.family})
+          </p>
+        ) : null}
       </div>
       <Button onClick={() => onStart(topic)} disabled={!topic || busy}>
         {busy ? <Spinner /> : d.aiAvailable ? <Sparkles className="h-4 w-4" aria-hidden="true" /> : <Plus className="h-4 w-4" aria-hidden="true" />} {d.aiAvailable ? "Start from an AI draft" : "Start from the built-in notes"}
