@@ -77,6 +77,19 @@ function reachOf(audience: AcademicCalendarItem["audience"], department: string)
   return department && department !== "All Departments" && (audience === "All" || audience === "Students") ? `${who} in ${department}` : who;
 }
 
+function getVisiblePageNumbers(current: number, total: number): (number | "...")[] {
+  if (total <= 7) {
+    return Array.from({ length: total }, (_, i) => i + 1);
+  }
+  if (current <= 4) {
+    return [1, 2, 3, 4, 5, "...", total];
+  }
+  if (current >= total - 3) {
+    return [1, "...", total - 4, total - 3, total - 2, total - 1, total];
+  }
+  return [1, "...", current - 1, current, current + 1, "...", total];
+}
+
 const fmtLong = (iso: string) => new Date(`${iso}T00:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 
 export function AcademicCalendarModule({ role }: { role: Role }) {
@@ -90,6 +103,8 @@ export function AcademicCalendarModule({ role }: { role: Role }) {
   const [search, setSearch] = useState("");
   const [selectedTag, setSelectedTag] = useState<string>("All");
   const [selectedDept, setSelectedDept] = useState<string>("All");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   const [viewMode, setViewMode] = useState<"timeline" | "month">("timeline");
   const [monthAnchor, setMonthAnchor] = useState<Date | null>(null); // null: the month of today
   const [selectedDayEvents, setSelectedDayEvents] = useState<AcademicCalendarItem[] | null>(null);
@@ -292,21 +307,28 @@ export function AcademicCalendarModule({ role }: { role: Role }) {
     return items;
   }, [data?.items, search, selectedTag, selectedDept]);
 
+  const totalPages = Math.max(1, Math.ceil(filteredItems.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+
+  const paginatedItems = useMemo(() => {
+    const startIndex = (currentPage - 1) * pageSize;
+    return filteredItems.slice(startIndex, startIndex + pageSize);
+  }, [filteredItems, currentPage, pageSize]);
+
   // Group items into Timeline sections: All Confirmed Events, Upcoming, Completed
   const timelineGroups = useMemo(() => {
-    const activeList = filteredItems;
-    if (activeList.length === 0) return [];
+    if (filteredItems.length === 0) return [];
 
     return [
       {
         key: "all_events",
         title: "Official Academic Schedule & Events",
-        subtitle: `${activeList.length} scheduled ${activeList.length === 1 ? "entry" : "entries"}`,
-        items: activeList,
+        subtitle: `Showing ${paginatedItems.length} of ${filteredItems.length} scheduled ${filteredItems.length === 1 ? "entry" : "entries"}`,
+        items: paginatedItems,
         active: true,
       },
     ];
-  }, [filteredItems, data?.items]);
+  }, [filteredItems.length, paginatedItems]);
 
   // Export iCal .ics file
   const handleExportICS = () => {
@@ -511,12 +533,12 @@ export function AcademicCalendarModule({ role }: { role: Role }) {
               type="text"
               placeholder="Search schedule, exams, venues..."
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => { setSearch(e.target.value); setPage(1); }}
               className={cn(inputClass, "pl-9 text-xs")}
             />
             {search && (
               <button
-                onClick={() => setSearch("")}
+                onClick={() => { setSearch(""); setPage(1); }}
                 className="absolute right-2.5 top-1/2 -translate-y-1/2 text-ink-3 hover:text-ink"
               >
                 <X className="size-3.5" />
@@ -527,7 +549,7 @@ export function AcademicCalendarModule({ role }: { role: Role }) {
           {/* Department selector */}
           <select
             value={selectedDept}
-            onChange={(e) => setSelectedDept(e.target.value)}
+            onChange={(e) => { setSelectedDept(e.target.value); setPage(1); }}
             className={cn(inputClass, "w-auto text-xs py-1.5")}
           >
             {departments.map((dept) => (
@@ -577,7 +599,7 @@ export function AcademicCalendarModule({ role }: { role: Role }) {
           return (
             <button
               key={tag}
-              onClick={() => setSelectedTag(tag)}
+              onClick={() => { setSelectedTag(tag); setPage(1); }}
               className={cn(
                 "inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium transition-colors",
                 selectedTag === tag
@@ -632,7 +654,7 @@ export function AcademicCalendarModule({ role }: { role: Role }) {
                       <p className="text-xs text-ink-3">{group.subtitle}</p>
                     </div>
                     <Badge tone="brand" className="text-xs">
-                      {group.items.length} {group.items.length === 1 ? "entry" : "entries"}
+                      {filteredItems.length} {filteredItems.length === 1 ? "event" : "events"}
                     </Badge>
                   </div>
                   <CardBody className="p-0">
@@ -741,6 +763,89 @@ export function AcademicCalendarModule({ role }: { role: Role }) {
                       })}
                     </div>
                   </CardBody>
+
+                  {filteredItems.length > 0 && (
+                    <div className="flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-line px-5 py-3.5 text-xs text-ink-3">
+                      <div className="flex flex-wrap items-center gap-3">
+                        <span>
+                          Showing <strong className="text-ink">{(currentPage - 1) * pageSize + 1}</strong> to{" "}
+                          <strong className="text-ink">{Math.min(currentPage * pageSize, filteredItems.length)}</strong> of{" "}
+                          <strong className="text-ink">{filteredItems.length}</strong> events
+                        </span>
+                        <div className="flex items-center gap-1.5 sm:border-l sm:border-line sm:pl-3">
+                          <span>Per page:</span>
+                          <select
+                            value={pageSize}
+                            onChange={(e) => {
+                              setPageSize(Number(e.target.value));
+                              setPage(1);
+                            }}
+                            className="rounded-lg border border-line bg-surface px-2 py-1 text-xs text-ink focus:border-brand focus:outline-none"
+                            aria-label="Events per page"
+                          >
+                            <option value={5}>5</option>
+                            <option value={10}>10</option>
+                            <option value={20}>20</option>
+                            <option value={50}>50</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-1.5">
+                        <span className="mr-2 text-ink-3">
+                          Page {currentPage} of {totalPages}
+                        </span>
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          disabled={currentPage <= 1}
+                          onClick={() => setPage((p) => Math.max(1, p - 1))}
+                          aria-label="Previous page"
+                          className="gap-1 px-2.5 h-8 text-xs"
+                        >
+                          <ChevronLeft className="size-3.5" /> Prev
+                        </Button>
+
+                        {/* Numbered Page Buttons */}
+                        <div className="hidden sm:flex items-center gap-1">
+                          {getVisiblePageNumbers(currentPage, totalPages).map((pNum, idx) =>
+                            pNum === "..." ? (
+                              <span key={`dots-${idx}`} className="px-1 text-ink-3">
+                                ...
+                              </span>
+                            ) : (
+                              <button
+                                key={pNum}
+                                type="button"
+                                onClick={() => setPage(pNum)}
+                                className={cn(
+                                  "size-8 rounded-lg text-xs font-medium transition-colors",
+                                  pNum === currentPage
+                                    ? "bg-brand text-white shadow-sm font-semibold"
+                                    : "text-ink-2 hover:bg-surface-2 hover:text-ink border border-line"
+                                )}
+                                aria-label={`Go to page ${pNum}`}
+                                aria-current={pNum === currentPage ? "page" : undefined}
+                              >
+                                {pNum}
+                              </button>
+                            )
+                          )}
+                        </div>
+
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          disabled={currentPage >= totalPages}
+                          onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                          aria-label="Next page"
+                          className="gap-1 px-2.5 h-8 text-xs"
+                        >
+                          Next <ChevronRight className="size-3.5" />
+                        </Button>
+                      </div>
+                    </div>
+                  )}
                 </Card>
               );
             })
