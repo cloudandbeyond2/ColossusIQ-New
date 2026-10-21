@@ -86,8 +86,8 @@ export function RolesPermissionsModule() {
 
       {data.flags.length ? (
         <div className="grid gap-3 lg:grid-cols-2">
-          {data.flags.map((f) => (
-            <Notice key={f.title} tone={f.tone === "amber" || f.tone === "rose" ? "amber" : f.tone === "teal" ? "teal" : "sky"}>
+          {data.flags.map((f, i) => (
+            <Notice key={`${f.title}-${i}`} tone={f.tone === "amber" || f.tone === "rose" ? "amber" : f.tone === "teal" ? "teal" : "sky"}>
               <b className="text-ink">{f.title}.</b> {f.body}
             </Notice>
           ))}
@@ -265,8 +265,8 @@ function RoleDetail({ role, canManageUsers }: { role: RoleRow; canManageUsers: b
           </p>
           {role.members.length ? (
             <ul className="mt-3 space-y-2">
-              {role.members.map((m) => (
-                <li key={`${m.name}-${m.department}`} className="flex items-center justify-between gap-2 text-sm">
+              {role.members.map((m, idx) => (
+                <li key={`${m.name}-${m.department}-${idx}`} className="flex items-center justify-between gap-2 text-sm">
                   <span className="min-w-0">
                     <span className="block truncate text-ink">{m.name}</span>
                     {m.department ? <span className="block truncate text-xs text-ink-3">{m.department}</span> : null}
