@@ -30,11 +30,12 @@ export default async function ModulePage({ params }: { params: Promise<{ role: s
   if (!isModuleEnabled(mod, ctx)) notFound();
 
   const def = { ...mod, roles: [...mod.roles] };
+  if (hasBespoke(mod.slug) || mod.template === "bespoke") return <BespokeModule mod={def} role={role} />;
   if (mod.template === "crud") {
     const resource = findResource(mod.resource);
     if (!resource) notFound();
     return <CrudList mod={def} role={role} resource={resource} canManage={can(role, resource.managePermission)} allColleges={ctx.isAllColleges} />;
   }
-  if (mod.template === "bespoke" || hasBespoke(mod.slug)) return <BespokeModule mod={def} role={role} />;
+
   return <ModuleView mod={def} role={role} />;
 }

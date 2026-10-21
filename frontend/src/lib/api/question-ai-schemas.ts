@@ -34,3 +34,48 @@ export const GeneratedQuestionSchema = z.object({
 });
 export type GeneratedQuestion = z.infer<typeof GeneratedQuestionSchema>;
 export const QuestionGenResult = z.object({ questions: z.array(GeneratedQuestionSchema) });
+
+export const QuestionBankItemSchema = z.object({
+  id: z.string(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+  version: z.number().optional().default(1),
+  collegeId: z.string().nullable().optional(),
+  collegeName: z.string().nullable().optional(),
+  question: z.string(),
+  topic: z.string(),
+  difficulty: z.string(),
+  bloom: z.string(),
+  co: z.string(),
+  marks: z.number(),
+  explanation: z.string().optional().default(""),
+  status: z.string(),
+});
+export type QuestionBankItem = z.infer<typeof QuestionBankItemSchema>;
+
+export const QuestionFolderSchema = z.object({
+  topic: z.string(),
+  count: z.number(),
+  activeCount: z.number(),
+  draftCount: z.number(),
+  archivedCount: z.number().optional().default(0),
+  totalMarks: z.number(),
+  difficulties: z.record(z.string(), z.number()),
+  bloomLevels: z.record(z.string(), z.number()),
+  coCounts: z.record(z.string(), z.number()).optional().default({}),
+  questions: z.array(QuestionBankItemSchema),
+});
+export type QuestionFolder = z.infer<typeof QuestionFolderSchema>;
+
+export const QuestionBankOverviewSchema = z.object({
+  folders: z.array(QuestionFolderSchema),
+  totalQuestions: z.number(),
+  totalFolders: z.number(),
+  activeCount: z.number(),
+  draftCount: z.number(),
+  totalMarks: z.number(),
+  avgMarks: z.string(),
+  canManage: z.boolean(),
+});
+export type QuestionBankOverview = z.infer<typeof QuestionBankOverviewSchema>;
+

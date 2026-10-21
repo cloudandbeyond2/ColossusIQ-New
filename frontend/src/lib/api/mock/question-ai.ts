@@ -2,6 +2,7 @@ import "server-only";
 import { createHash } from "node:crypto";
 import { z } from "zod";
 import { RESOURCES, BLOOM_LEVELS, DIFFICULTY_OPTIONS } from "@/config/resources";
+import { getStore } from "@/lib/data";
 import { geminiEnabled, geminiJson } from "@/lib/ai/gemini";
 import { can } from "@/lib/auth/roles";
 import type { SessionPayload } from "@/lib/auth/session";
@@ -172,3 +173,89 @@ export async function dispatchQuestionAi(method: string, segs: string[], rawBody
   if (!prepared.questions) return err(502, "ai_failed", "The AI could not draft usable questions this time. Try again, or narrow the topics.");
   return ok({ questions: prepared.questions });
 }
+
+export async function dispatchQuestionBankFolders(session: SessionPayload): Promise<MockResult> {
+  const allowed = ["faculty", "hod", "institution", "admin"].includes(session.role);
+  if (!allowed) return err(403, "forbidden", "You don't have access to the Question Bank.");
+  const denied = await accessCheck(RESOURCES.questions!, session);
+  if (denied) return denied;
+
+  const questions = await getStore().records.all(RESOURCES.questions!, session.college);
+
+  const map = new Map<string, typeof questions>();
+  for (const q of questions) {
+    const rawTopic = typeof q.topic === "string" ? q.topic.trim() : "";
+    const topic = rawTopic || "General";
+    if (!map.has(topic)) map.set(topic, []);
+    map.get(topic)!.push(q);
+  }
+
+  const folders = Array.from(map.entries()).map(([topic, items]) => {
+    const activeCount = items.filter((i) => i.status === "Active").length;
+    const draftCount = items.filter((i) => i.status === "Draft").length;
+    const archivedCount = items.filter((i) => i.status === "Archived").length;
+    const totalMarks = items.reduce((acc, i) => acc + (Number(i.marks) || 0), 0);
+
+    const difficulties: Record<string, number> = { Easy: 0, Medium: 0, Hard: 0 };
+    const bloomLevels: Record<string, number> = {};
+    const coCounts: Record<string, number> = {};
+
+    for (const item of items) {
+      const diff = String(item.difficulty || "Medium");
+      difficulties[diff] = (difficulties[diff] || 0) + 1;
+      const bloom = String(item.bloom || "Understand");
+      bloomLevels[bloom] = (bloomLevels[bloom] || 0) + 1;
+      const co = String(item.co || "CO1");
+      coCounts[co] = (coCounts[co] || 0) + 1;
+    }
+
+    return {
+      topic,
+      count: items.length,
+      activeCount,
+      draftCount,
+      archivedCount,
+      totalMarks,
+      difficulties,
+      bloomLevels,
+      coCounts,
+      questions: items.map((i) => ({
+        id: String(i.id),
+        createdAt: String(i.createdAt || new Date().toISOString()),
+        updatedAt: String(i.updatedAt || new Date().toISOString()),
+        version: typeof i.version === "number" ? i.version : 1,
+        collegeId: i.collegeId ? String(i.collegeId) : null,
+        collegeName: i.collegeName ? String(i.collegeName) : null,
+        question: String(i.question || ""),
+        topic: String(i.topic || topic),
+        difficulty: String(i.difficulty || "Medium"),
+        bloom: String(i.bloom || "Understand"),
+        co: String(i.co || "CO1"),
+        marks: Number(i.marks) || 2,
+        explanation: String(i.explanation || ""),
+        status: String(i.status || "Active"),
+      })),
+    };
+  });
+
+  // Sort folders alphabetically by topic name
+  folders.sort((a, b) => a.topic.localeCompare(b.topic));
+
+  const totalQuestions = questions.length;
+  const activeCount = questions.filter((q) => q.status === "Active").length;
+  const draftCount = questions.filter((q) => q.status === "Draft").length;
+  const totalMarks = questions.reduce((acc, q) => acc + (Number(q.marks) || 0), 0);
+  const avgMarks = totalQuestions > 0 ? (totalMarks / totalQuestions).toFixed(1) : "0";
+
+  return ok({
+    folders,
+    totalQuestions,
+    totalFolders: folders.length,
+    activeCount,
+    draftCount,
+    totalMarks,
+    avgMarks,
+    canManage: can(session.role, "assessment:create"),
+  });
+}
+

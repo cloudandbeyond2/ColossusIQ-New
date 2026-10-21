@@ -178,7 +178,7 @@ import { dispatchTeaching } from "./teaching";
 import { assignmentNotifications, dispatchAssignments } from "./assignments";
 import { dispatchKnowledge } from "./knowledge-base";
 import { dispatchPolicy } from "./policy-assistant";
-import { dispatchQuestionAi } from "./question-ai";
+import { dispatchQuestionAi, dispatchQuestionBankFolders } from "./question-ai";
 import { dispatchMentor, mentorChat } from "./mentor";
 import { dispatchStudyPlanner } from "./study-planner";
 import { dispatchLanguages, languageChat } from "./languages";
@@ -507,6 +507,7 @@ export async function dispatch(method: string, segs: string[], rawBody: unknown,
   }
   if (segs[0] === "records") return dispatchRecords(method, segs, rawBody, session, query);
   if (segs[0] === "question-bank" && segs[1] === "generate") return dispatchQuestionAi(method, segs, rawBody, session);
+  if (segs[0] === "question-bank" && (segs[1] === "folders" || segs[1] === "overview")) return dispatchQuestionBankFolders(session);
   if (segs[0] === "questions" || segs[0] === "question-bank") return dispatchRecords(method, ["records", "questions", ...segs.slice(1)], rawBody, session, query);
   if (segs[0] === "learning-courses") return dispatchCourses(method, segs, rawBody, session, query);
   if (segs[0] === "teaching") return dispatchTeaching(method, segs, rawBody, session);
