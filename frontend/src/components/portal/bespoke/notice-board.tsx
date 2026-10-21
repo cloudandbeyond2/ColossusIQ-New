@@ -50,7 +50,7 @@ function renderTextWithFlaticons(text: string) {
   const parts = text.split(regex);
   return parts.map((part, index) => {
     if (!part) return null;
-    if (/\p{Extended_Pictographic}/u.test(part) || /[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/u.test(part)) {
+    if (/\p{Extended_Pictographic}/u.test(part)) {
       const matched = EMOJI_MAP[part] ?? { icon: "sparkles", color: "text-brand" };
       return (
         <span key={index} className="inline-flex items-center mx-1 align-baseline">
@@ -126,14 +126,10 @@ function Inbox({ notices }: { notices: NoticeView[] }) {
   const [filter, setFilter] = useState<Filter>("all");
   const [category, setCategory] = useState("");
   const [search, setSearch] = useState("");
-  const [targetId, setTargetId] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      const id = new URLSearchParams(window.location.search).get("id");
-      if (id) setTargetId(id);
-    }
-  }, []);
+  const [targetId] = useState<string | null>(() => {
+    if (typeof window === "undefined") return null;
+    return new URLSearchParams(window.location.search).get("id");
+  });
 
   const needle = search.trim().toLowerCase();
   const list = notices.filter(
