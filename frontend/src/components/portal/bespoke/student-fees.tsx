@@ -8,12 +8,26 @@ import { LoadError } from "@/components/ui/load-error";
 import { Badge, Button, Card, CardHeader, Field, inputClass, Skeleton, Spinner } from "@/components/ui/primitives";
 import { ApiError, apiFetch } from "@/lib/api/client";
 import { CollegeFees, type CollegeStudentFee } from "@/lib/api/billing-schemas";
+import { cn } from "@/lib/utils";
 import { money } from "./fee-payment";
 
 const KEY = ["fees", "college"] as const;
 const day = (iso: string | null) => (iso ? new Date(iso.length === 10 ? `${iso}T00:00:00` : iso).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "—");
 const Sent = z.object({ sent: z.number(), view: CollegeFees });
 type Filter = "all" | "Due" | "Paid" | "Waived" | "pending";
+
+function getVisiblePageNumbers(current: number, total: number): (number | "...")[] {
+  if (total <= 7) {
+    return Array.from({ length: total }, (_, i) => i + 1);
+  }
+  if (current <= 4) {
+    return [1, 2, 3, 4, 5, "...", total];
+  }
+  if (current >= total - 3) {
+    return [1, "...", total - 4, total - 3, total - 2, total - 1, total];
+  }
+  return [1, "...", current - 1, current, current + 1, "...", total];
+}
 
 const statusOf = (s: CollegeStudentFee) => (s.status === "Due" && s.pendingOffline ? { label: "Awaiting verification", tone: "sky" as const } : s.status === "Due" ? { label: "Due", tone: "amber" as const } : { label: s.status, tone: "teal" as const });
 
@@ -27,6 +41,8 @@ export function StudentFeesModule() {
   const [search, setSearch] = useState("");
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [compose, setCompose] = useState<"selected" | "all" | null>(null);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   if (q.isPending) return <Skeleton className="h-[560px]" />;
   if (q.isError) return <LoadError error={q.error} onRetry={() => void q.refetch()} />;
   const d = q.data;
@@ -47,6 +63,10 @@ export function StudentFeesModule() {
   const due = count((s) => s.status === "Due");
   const rows = d.students.filter((s) => (filter === "all" ? true : filter === "pending" ? s.status === "Due" && s.pendingOffline : s.status === filter) && (!search || `${s.name} ${s.email}`.toLowerCase().includes(search.toLowerCase())));
   const dueRows = rows.filter((s) => s.status === "Due");
+  const totalPages = Math.max(1, Math.ceil(rows.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const start = (currentPage - 1) * pageSize;
+  const paginatedRows = rows.slice(start, start + pageSize);
   const allPicked = dueRows.length > 0 && dueRows.every((s) => picked.has(s.userSub));
   const toggle = (sub: string) => setPicked((p) => {
     const n = new Set(p);
@@ -115,11 +135,11 @@ export function StudentFeesModule() {
       </Card>
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-        <Stat label="Students" value={d.students.length} onClick={() => setFilter("all")} active={filter === "all"} />
-        <Stat label="Paid" value={paid} tone="teal" onClick={() => setFilter("Paid")} active={filter === "Paid"} />
-        <Stat label="Waived" value={waived} onClick={() => setFilter("Waived")} active={filter === "Waived"} />
-        <Stat label="Awaiting verification" value={pending} tone="sky" onClick={() => setFilter("pending")} active={filter === "pending"} />
-        <Stat label="Due" value={due} tone="rose" onClick={() => setFilter("Due")} active={filter === "Due"} />
+        <Stat label="Students" value={d.students.length} onClick={() => { setFilter("all"); setPage(1); }} active={filter === "all"} />
+        <Stat label="Paid" value={paid} tone="teal" onClick={() => { setFilter("Paid"); setPage(1); }} active={filter === "Paid"} />
+        <Stat label="Waived" value={waived} onClick={() => { setFilter("Waived"); setPage(1); }} active={filter === "Waived"} />
+        <Stat label="Awaiting verification" value={pending} tone="sky" onClick={() => { setFilter("pending"); setPage(1); }} active={filter === "pending"} />
+        <Stat label="Due" value={due} tone="rose" onClick={() => { setFilter("Due"); setPage(1); }} active={filter === "Due"} />
       </div>
 
       <Card>
@@ -145,7 +165,7 @@ export function StudentFeesModule() {
           }
         />
         <div className="px-5 pb-4">
-          <input aria-label="Search students" placeholder="Search by name or email" className={`${inputClass} max-w-xs`} value={search} onChange={(e) => setSearch(e.target.value)} />
+          <input aria-label="Search students" placeholder="Search by name or email" className={`${inputClass} max-w-xs`} value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} />
         </div>
         {rows.length ? (
           <div className="overflow-x-auto">
@@ -165,7 +185,7 @@ export function StudentFeesModule() {
                 </tr>
               </thead>
               <tbody>
-                {rows.map((s) => {
+                {paginatedRows.map((s) => {
                   const st = statusOf(s);
                   return (
                     <tr key={s.userSub} className="border-t border-line">
@@ -197,6 +217,89 @@ export function StudentFeesModule() {
           </div>
         ) : (
           <p className="px-5 pb-5 text-sm text-ink-3">No students match.</p>
+        )}
+
+        {rows.length > 0 && (
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-line px-5 py-3.5 text-xs text-ink-3">
+            <div className="flex flex-wrap items-center gap-3">
+              <span>
+                Showing <strong className="text-ink">{(currentPage - 1) * pageSize + 1}</strong> to{" "}
+                <strong className="text-ink">{Math.min(currentPage * pageSize, rows.length)}</strong> of{" "}
+                <strong className="text-ink">{rows.length}</strong> students
+              </span>
+              <div className="flex items-center gap-1.5 sm:border-l sm:border-line sm:pl-3">
+                <span>Per page:</span>
+                <select
+                  value={pageSize}
+                  onChange={(e) => {
+                    setPageSize(Number(e.target.value));
+                    setPage(1);
+                  }}
+                  className="rounded-lg border border-line bg-surface px-2 py-1 text-xs text-ink focus:border-brand focus:outline-none"
+                  aria-label="Students per page"
+                >
+                  <option value={5}>5</option>
+                  <option value={10}>10</option>
+                  <option value={20}>20</option>
+                  <option value={50}>50</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-1.5">
+              <span className="mr-2 text-ink-3">
+                Page {currentPage} of {totalPages}
+              </span>
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={currentPage <= 1}
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                aria-label="Previous page"
+                className="gap-1 px-2.5 h-8 text-xs"
+              >
+                <Fi name="angle-left" /> Prev
+              </Button>
+
+              {/* Numbered Page Buttons */}
+              <div className="hidden sm:flex items-center gap-1">
+                {getVisiblePageNumbers(currentPage, totalPages).map((pNum, idx) =>
+                  pNum === "..." ? (
+                    <span key={`dots-${idx}`} className="px-1 text-ink-3">
+                      ...
+                    </span>
+                  ) : (
+                    <button
+                      key={pNum}
+                      type="button"
+                      onClick={() => setPage(pNum)}
+                      className={cn(
+                        "size-8 rounded-lg text-xs font-medium transition-colors",
+                        pNum === currentPage
+                          ? "bg-brand text-white shadow-sm font-semibold"
+                          : "text-ink-2 hover:bg-surface-2 hover:text-ink border border-line"
+                      )}
+                      aria-label={`Go to page ${pNum}`}
+                      aria-current={pNum === currentPage ? "page" : undefined}
+                    >
+                      {pNum}
+                    </button>
+                  )
+                )}
+              </div>
+
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={currentPage >= totalPages}
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                aria-label="Next page"
+                className="gap-1 px-2.5 h-8 text-xs"
+              >
+                Next <Fi name="angle-right" />
+              </Button>
+            </div>
+          </div>
         )}
       </Card>
 
