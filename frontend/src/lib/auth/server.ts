@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import type { ModuleDef } from "@/config/modules";
 import { ALL_COLLEGES, TOGGLEABLE_GROUPS } from "@/config/tenancy";
 import { collegeName, collegeStream, enabledGroups, isCollegeActive } from "@/lib/api/mock/records";
+import { brandStyle, resolveBrand, type Brand } from "@/lib/api/mock/branding";
 import { withRequestContext } from "@/lib/data";
 import type { Stream } from "@/config/streams";
 import { SESSION_COOKIE, verifySession, type SessionPayload } from "./session";
@@ -74,4 +75,12 @@ export function isModuleEnabled(mod: ModuleDef, ctx: CollegeContext): boolean {
   if (mod.streams && ctx.stream && !mod.streams.includes(ctx.stream)) return false;
   if (!(TOGGLEABLE_GROUPS as readonly string[]).includes(mod.group)) return true;
   return ctx.enabledGroups === "all" || ctx.enabledGroups.includes(mod.group);
+}
+
+/** The institution's saved branding (colours, name, logo) for the portal layout, and the stylesheet that applies it. */
+export async function collegeBrand(session: SessionPayload): Promise<{ brand: Brand; css: string | null }> {
+  return withRequestContext({ scope: session.college, sub: session.sub, readOnly: true }, async () => {
+    const brand = await resolveBrand(session.college);
+    return { brand, css: brandStyle(brand) };
+  });
 }

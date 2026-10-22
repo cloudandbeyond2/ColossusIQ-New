@@ -15,7 +15,7 @@ function buildCsp(nonce: string): string {
     `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${isDev ? " 'unsafe-eval'" : ""}`,
     // Inline style *attributes* are required by charting/progress components; scripts stay nonce-locked.
     `style-src 'self' 'unsafe-inline'`,
-    `img-src 'self' blob: data:`,
+    `img-src 'self' blob: data: https:`, // https: lets an institution's own https logo (Branding page) show
     `font-src 'self'`,
     `connect-src 'self'${apiOrigin ? ` ${apiOrigin}` : ""}${isDev ? " ws:" : ""}`,
     `media-src 'self' blob:`,

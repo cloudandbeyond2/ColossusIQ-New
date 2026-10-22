@@ -1,6 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useRouter } from "next/navigation";
 import {
   AlertCircle,
   Award,
@@ -147,11 +148,31 @@ const CREST_PRESETS: Record<string, { label: string; icon: React.ReactNode }> = 
   },
 };
 
+/** What the server found when it looked up the domain's DNS and certificate. */
+const DomainCheckSchema = z.object({
+  ok: z.boolean(),
+  domain: z.string(),
+  cname: z.string(),
+  status: z.enum(["verified", "pending", "failed"]),
+  message: z.string(),
+  ssl: z.string(),
+  latency: z.string(),
+  address: z.string(),
+  verifiedAt: z.string(),
+});
+type DomainCheck = z.infer<typeof DomainCheckSchema>;
+
+const TestEmailSchema = z.object({ ok: z.boolean(), recipient: z.string(), subject: z.string(), message: z.string() });
+
+/** "Dr. Lakshmi Sundaram, Principal" -> "Lakshmi Sundaram" (the name written under a certificate signature). */
+const sigName = (v: unknown) => String(v ?? "").split(",")[0]?.replace(/^(dr|prof|mr|ms|mrs)\.?\s+/i, "").trim() ?? "";
+
 type ActiveTab = "visual" | "domain" | "academic" | "notifications" | "certificates" | "languages";
 type PreviewMode = "portal" | "login" | "certificate" | "email";
 
 export function BrandingModule() {
   const qc = useQueryClient();
+  const router = useRouter();
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ["module", "branding"],
     queryFn: () => apiFetch("/api/v1/modules/branding", SettingsData),
@@ -160,7 +181,10 @@ export function BrandingModule() {
   if (isLoading) return <TemplateSkeleton />;
   if (error || !data) return <LoadError error={error} onRetry={() => void refetch()} />;
 
-  return <BrandingEditor key={JSON.stringify(data.sections)} data={data} onSaveSuccess={() => void qc.invalidateQueries({ queryKey: ["module", "branding"] })} />;
+  return <BrandingEditor key={JSON.stringify(data.sections)} data={data} onSaveSuccess={() => {
+    void qc.invalidateQueries({ queryKey: ["module", "branding"] });
+    router.refresh(); // the portal layout applies the saved colours, name and logo
+  }} />;
 }
 
 function BrandingEditor({ data, onSaveSuccess }: { data: SettingsData; onSaveSuccess: () => void }) {
@@ -174,7 +198,7 @@ function BrandingEditor({ data, onSaveSuccess }: { data: SettingsData; onSaveSuc
   const [previewDevice, setPreviewDevice] = useState<"desktop" | "mobile">("desktop");
   const [previewDark, setPreviewDark] = useState<boolean>(false);
   const [notification, setNotification] = useState<{ tone: "teal" | "rose" | "brand"; message: string } | null>(null);
-  const [dnsCheckResult, setDnsCheckResult] = useState<{ verified: boolean; domain: string; latency?: string; ssl?: string; edgeNode?: string } | null>(null);
+  const [dnsCheckResult, setDnsCheckResult] = useState<DomainCheck | null>(null);
   const [isVerifyingDns, setIsVerifyingDns] = useState(false);
   const [isSendingEmail, setIsSendingEmail] = useState(false);
   const [copiedTokens, setCopiedTokens] = useState(false);
@@ -206,51 +230,37 @@ function BrandingEditor({ data, onSaveSuccess }: { data: SettingsData; onSaveSuc
   });
 
   const handleVerifyDns = async () => {
+    const domain = String(values["customDomain"] ?? "").trim();
+    if (!domain) {
+      setNotification({ tone: "rose", message: "Enter a custom domain first." });
+      return;
+    }
     setIsVerifyingDns(true);
     try {
-      const res = await apiFetch("/api/v1/branding/dns-verify", z.object({
-        ok: z.boolean(),
-        domain: z.string(),
-        cname: z.string(),
-        status: z.string(),
-        ssl: z.string(),
-        latency: z.string(),
-        edgeNode: z.string(),
-      }), {
-        method: "POST",
-        body: { domain: String(values["customDomain"] || "portal.ait.edu.in") },
-      });
-      setDnsCheckResult({
-        verified: res.ok,
-        domain: res.domain,
-        latency: res.latency,
-        ssl: res.ssl,
-        edgeNode: res.edgeNode,
-      });
-      setField("dnsStatus", "Verified & Propagated (Active)");
+      const res = await apiFetch("/api/v1/branding/dns-verify", DomainCheckSchema, { method: "POST", body: { domain } });
+      setDnsCheckResult(res);
+      setField("dnsStatus", res.ok ? `Verified (${res.latency})` : res.status === "pending" ? "Waiting for DNS" : "Not pointing to the platform");
       setField("sslStatus", res.ssl);
-      setNotification({ tone: "teal", message: `DNS and SSL verified for ${res.domain}. Response time: ${res.latency} via ${res.edgeNode}.` });
-    } catch {
-      setNotification({ tone: "rose", message: "DNS verification failed. Ensure CNAME points to cname.colossusiq.ai" });
+      setNotification({ tone: res.ok ? "teal" : "rose", message: res.ok ? `${res.domain} points to the platform. SSL: ${res.ssl}` : res.message });
+    } catch (err) {
+      setNotification({ tone: "rose", message: err instanceof ApiError ? err.message : "Could not check the domain." });
     } finally {
       setIsVerifyingDns(false);
     }
   };
 
   const handleSendTestEmail = async () => {
+    const to = String(values["emailReplyTo"] || values["emailSenderAddress"] || "").trim();
+    if (!to) {
+      setNotification({ tone: "rose", message: "Set a Reply-To or From address to send the preview to." });
+      return;
+    }
     setIsSendingEmail(true);
     try {
-      const res = await apiFetch("/api/v1/branding/test-email", z.object({
-        ok: z.boolean(),
-        recipient: z.string(),
-        subject: z.string(),
-      }), {
-        method: "POST",
-        body: { to: String(values["emailSenderAddress"] || "office@ait.edu.in") },
-      });
-      setNotification({ tone: "brand", message: `Test white-label notification delivered to ${res.recipient}!` });
-    } catch {
-      setNotification({ tone: "rose", message: "Could not send test email." });
+      const res = await apiFetch("/api/v1/branding/test-email", TestEmailSchema, { method: "POST", body: { to } });
+      setNotification({ tone: res.ok ? "brand" : "rose", message: res.message });
+    } catch (err) {
+      setNotification({ tone: "rose", message: err instanceof ApiError ? err.message : "Could not send the preview email." });
     } finally {
       setIsSendingEmail(false);
     }
@@ -286,10 +296,10 @@ function BrandingEditor({ data, onSaveSuccess }: { data: SettingsData; onSaveSuc
   --brand-primary: ${values["primary"] || "#1e2a5a"};
   --brand-accent: ${values["accent"] || "#c9962b"};
   --brand-secondary: ${values["secondary"] || "#0f766e"};
-  --brand-subdomain: "${values["subdomain"] || "ait.colossusiq.ai"}";
-  --brand-domain: "${values["customDomain"] || "portal.ait.edu.in"}";
-  --brand-institution: "${values["name"] || "Anna Institute of Technology"}";
-  --brand-acronym: "${values["shortName"] || "AIT"}";
+  --brand-subdomain: "${values["subdomain"] || "yourcollege.colossusiq.ai"}";
+  --brand-domain: "${values["customDomain"] || "portal.example.edu.in"}";
+  --brand-institution: "${values["name"] || "Your Institution"}";
+  --brand-acronym: "${values["shortName"] || ""}";
 }`;
     navigator.clipboard.writeText(cssVars);
     setCopiedTokens(true);
@@ -308,8 +318,8 @@ function BrandingEditor({ data, onSaveSuccess }: { data: SettingsData; onSaveSuc
     return Math.min(100, score);
   }, [values]);
 
-  const institutionName = String(values["name"] || "Anna Institute of Technology");
-  const acronym = String(values["shortName"] || "AIT");
+  const institutionName = String(values["name"] || "Your Institution");
+  const acronym = String(values["shortName"] || "");
   const primaryColor = String(values["primary"] || "#1e2a5a");
   const accentColor = String(values["accent"] || "#c9962b");
   const secondaryColor = String(values["secondary"] || "#0f766e");
@@ -318,8 +328,8 @@ function BrandingEditor({ data, onSaveSuccess }: { data: SettingsData; onSaveSuc
   const selectedCrest = CREST_PRESETS[activePresetLogo] ?? fallbackCrest;
   const termStudentId = String(values["termStudentId"] || "Roll Number");
   const termPeriod = String(values["termPeriod"] || "Semester");
-  const customDomain = String(values["customDomain"] || "portal.ait.edu.in");
-  const subdomain = String(values["subdomain"] || "ait.colossusiq.ai");
+  const customDomain = String(values["customDomain"] || "portal.example.edu.in");
+  const subdomain = String(values["subdomain"] || "yourcollege.colossusiq.ai");
 
   return (
     <div className="space-y-6">
@@ -353,7 +363,7 @@ function BrandingEditor({ data, onSaveSuccess }: { data: SettingsData; onSaveSuc
                     <Globe className="size-3.5 text-teal" /> {customDomain}
                   </span>
                   <span>•</span>
-                  <span>SSL: TLS 1.3 Active</span>
+                  <span>SSL: {String(values["sslStatus"] || "Not checked")}</span>
                   <span>•</span>
                   <span>Subdomain: {subdomain}</span>
                 </p>
@@ -768,25 +778,27 @@ function BrandingEditor({ data, onSaveSuccess }: { data: SettingsData; onSaveSuc
                       </div>
                       <div className="rounded-lg bg-surface p-2 border border-line/60">
                         <span className="text-[10px] text-ink-3 block uppercase">Host</span>
-                        <span className="font-bold text-ink">portal</span>
+                        <span className="font-bold text-ink">{customDomain.split(".")[0] || "portal"}</span>
                       </div>
                       <div className="rounded-lg bg-surface p-2 border border-line/60">
                         <span className="text-[10px] text-ink-3 block uppercase">Target Value</span>
-                        <span className="font-bold text-teal truncate block">cname.colossusiq.ai</span>
+                        <span className="font-bold text-teal truncate block">{String(values["dnsCnameTarget"] || "cname.colossusiq.ai")}</span>
                       </div>
                       <div className="rounded-lg bg-surface p-2 border border-line/60">
                         <span className="text-[10px] text-ink-3 block uppercase">Status</span>
-                        <span className="font-bold text-teal flex items-center gap-1">
-                          <Check className="size-3" /> Active
+                        <span className={cn("flex items-center gap-1 font-bold", String(values["dnsStatus"]).startsWith("Verified") ? "text-teal" : "text-amber")}>
+                          {String(values["dnsStatus"]).startsWith("Verified") ? <Check className="size-3" /> : null} {String(values["dnsStatus"] || "Not verified yet")}
                         </span>
                       </div>
                     </div>
 
                     {dnsCheckResult && (
-                      <div className="mt-3 rounded-xl border border-teal/30 bg-teal-soft/30 p-3 text-xs text-teal">
-                        <p className="font-semibold">✓ DNS Propagated Globally</p>
+                      <div className={cn("mt-3 rounded-xl border p-3 text-xs", dnsCheckResult.ok ? "border-teal/30 bg-teal-soft/30 text-teal" : "border-amber/30 bg-amber-soft/40 text-amber")}>
+                        <p className="font-semibold">{dnsCheckResult.ok ? "DNS points to the platform" : dnsCheckResult.status === "pending" ? "DNS not found yet" : "DNS does not point to the platform"}</p>
                         <p className="mt-0.5 text-[11px] text-ink-2">
-                          Edge Node: {dnsCheckResult.edgeNode} • SSL: {dnsCheckResult.ssl} • Ping: {dnsCheckResult.latency}
+                          {dnsCheckResult.ok
+                            ? `${dnsCheckResult.address ? `Address: ${dnsCheckResult.address} Â· ` : ""}SSL: ${dnsCheckResult.ssl} Â· Lookup: ${dnsCheckResult.latency}`
+                            : dnsCheckResult.message}
                         </p>
                       </div>
                     )}
@@ -1019,7 +1031,7 @@ function BrandingEditor({ data, onSaveSuccess }: { data: SettingsData; onSaveSuc
                       <input
                         type="email"
                         id="emailSenderAddress"
-                        value={String(values["emailSenderAddress"] || "notifications@ait.edu.in")}
+                        value={String(values["emailSenderAddress"] || "")}
                         onChange={(e) => setField("emailSenderAddress", e.target.value)}
                         className={inputClass}
                       />
@@ -1031,7 +1043,7 @@ function BrandingEditor({ data, onSaveSuccess }: { data: SettingsData; onSaveSuc
                       <input
                         type="email"
                         id="emailReplyTo"
-                        value={String(values["emailReplyTo"] || "support@ait.edu.in")}
+                        value={String(values["emailReplyTo"] || "")}
                         onChange={(e) => setField("emailReplyTo", e.target.value)}
                         className={inputClass}
                       />
@@ -1160,7 +1172,7 @@ function BrandingEditor({ data, onSaveSuccess }: { data: SettingsData; onSaveSuc
                       <input
                         type="text"
                         id="certPrimarySignatory"
-                        value={String(values["certPrimarySignatory"] || "Dr. Lakshmi Sundaram, Principal")}
+                        value={String(values["certPrimarySignatory"] || "")}
                         onChange={(e) => setField("certPrimarySignatory", e.target.value)}
                         className={inputClass}
                       />
@@ -1170,7 +1182,7 @@ function BrandingEditor({ data, onSaveSuccess }: { data: SettingsData; onSaveSuc
                       <input
                         type="text"
                         id="certSecondarySignatory"
-                        value={String(values["certSecondarySignatory"] || "Prof. K. Venkatesh, Controller of Examinations")}
+                        value={String(values["certSecondarySignatory"] || "")}
                         onChange={(e) => setField("certSecondarySignatory", e.target.value)}
                         className={inputClass}
                       />
@@ -1551,9 +1563,9 @@ function BrandingEditor({ data, onSaveSuccess }: { data: SettingsData; onSaveSuc
                       {/* Signatories & QR Code */}
                       <div className="mt-4 flex items-end justify-between px-2 pt-2 border-t border-line/40 text-[8px]">
                         <div className="text-left">
-                          <p className="font-serif italic text-[9px] font-bold text-ink-2">Lakshmi S.</p>
+                          <p className="font-serif italic text-[9px] font-bold text-ink-2">{sigName(values["certPrimarySignatory"])}</p>
                           <p className="text-[7px] text-ink-3 font-sans">
-                            {String(values["certPrimarySignatory"] || "Dr. Lakshmi Sundaram, Principal")}
+                            {String(values["certPrimarySignatory"] || "")}
                           </p>
                         </div>
 
@@ -1565,9 +1577,9 @@ function BrandingEditor({ data, onSaveSuccess }: { data: SettingsData; onSaveSuc
                         )}
 
                         <div className="text-right">
-                          <p className="font-serif italic text-[9px] font-bold text-ink-2">K. Venkatesh</p>
+                          <p className="font-serif italic text-[9px] font-bold text-ink-2">{sigName(values["certSecondarySignatory"])}</p>
                           <p className="text-[7px] text-ink-3 font-sans">
-                            {String(values["certSecondarySignatory"] || "Controller of Exams")}
+                            {String(values["certSecondarySignatory"] || "")}
                           </p>
                         </div>
                       </div>
@@ -1603,7 +1615,7 @@ function BrandingEditor({ data, onSaveSuccess }: { data: SettingsData; onSaveSuc
                       {/* Email Body */}
                       <div className="p-3 space-y-2 text-xs">
                         <p className="text-[10px] text-ink-3">
-                          From: <span className="font-mono text-ink-2">{String(values["emailSenderAddress"] || "notifications@ait.edu.in")}</span>
+                          From: <span className="font-mono text-ink-2">{String(values["emailSenderAddress"] || "")}</span>
                         </p>
                         <p className="font-semibold text-ink">
                           Dear Saravanan K,

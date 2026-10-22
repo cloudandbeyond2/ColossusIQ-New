@@ -92,6 +92,7 @@ import {
   updatePlacementTargets,
 } from "./placement-analytics-store";
 import { UpdatePlacementTargetsInput } from "@/lib/api/placement-analytics-schemas";
+import { sendTestEmail, validateBranding, verifyDomain, withDomainStatus } from "./branding";
 import { CalendarError, calendarNotifications, createCalendarItem, deleteCalendarItem, getCalendarOverview, syncCampusEvents, updateCalendarItem } from "./academic-calendar";
 import {
   CreateAicteActionInput,
@@ -884,7 +885,13 @@ export async function dispatch(method: string, segs: string[], rawBody: unknown,
       const parsed = UpdateSettingsBody.safeParse(rawBody);
       if (!parsed.success) return err(400, "invalid_body", "Invalid settings payload.");
 
-      const { values } = parsed.data;
+      let { values } = parsed.data;
+      if (mod.slug === "branding") {
+        const bad = validateBranding(values);
+        const first = Object.entries(bad)[0];
+        if (first) return err(422, "validation", `${first[0].replace(/([A-Z])/g, " $1").replace(/^./, (c) => c.toUpperCase())}: ${first[1]}`);
+        values = await withDomainStatus(session.college, values);
+      }
       await getStore().settings.save(session.college, mod.slug, values);
       await getStore().audit.add({
         actor: session.name,
@@ -901,35 +908,12 @@ export async function dispatch(method: string, segs: string[], rawBody: unknown,
     case "POST branding/dns-verify": {
       if (session.role !== "institution" && session.role !== "admin") return forbidden();
       const bObj = rawBody && typeof rawBody === "object" ? (rawBody as Record<string, unknown>) : {};
-      const domain = String(bObj.domain || "portal.ait.edu.in");
-      return ok({
-        ok: true,
-        domain,
-        cname: "cname.colossusiq.ai",
-        status: "verified",
-        ssl: "Active (TLS 1.3 - Let's Encrypt auto-provisioned)",
-        latency: "24ms",
-        edgeNode: "BOM-1 (Mumbai Edge)",
-        verifiedAt: new Date().toISOString(),
-      });
+      return ok(await verifyDomain(session, String(bObj.domain ?? "")));
     }
     case "POST branding/test-email": {
       if (session.role !== "institution" && session.role !== "admin") return forbidden();
       const bObj = rawBody && typeof rawBody === "object" ? (rawBody as Record<string, unknown>) : {};
-      const targetEmail = String(bObj.to || session.name);
-      await getStore().audit.add({
-        actor: session.name,
-        action: `Sent white-label test email preview`,
-        target: targetEmail,
-        collegeId: session.college === "all" ? null : session.college,
-        actorSub: session.sub,
-      });
-      return ok({
-        ok: true,
-        recipient: targetEmail,
-        subject: "Verification & Branded Portal Preview",
-        deliveredAt: new Date().toISOString(),
-      });
+      return ok(await sendTestEmail(session, String(bObj.to ?? "")));
     }
     case "POST branding/reset": {
       if (session.role !== "institution" && session.role !== "admin") return forbidden();

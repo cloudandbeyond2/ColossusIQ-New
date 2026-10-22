@@ -1936,6 +1936,16 @@ model CalendarEntry {
   @@index([collegeId, date], map: "calendar_entries_college_date_idx")
   @@map("calendar_entries")
 }
+model ModuleSetting {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  collegeId String?  @map("college_id") @db.Uuid
+  slug      String
+  settings  Json     @default("{}")
+  updatedBy String   @default("") @map("updated_by")
+  updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@map("module_settings")
+}
 model PlatformIntegration {
   id         String   @id
   provider   String

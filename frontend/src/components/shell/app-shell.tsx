@@ -27,6 +27,7 @@ export function AppShell({
   universityName,
   collegeName,
   collegeScope,
+  logoUrl = "",
   isSuperAdmin,
   nav,
   canChat,
@@ -38,6 +39,8 @@ export function AppShell({
   universityName: string;
   collegeName: string;
   collegeScope: string;
+  /** The institution's own logo (https), shown beside its name in the sidebar. */
+  logoUrl?: string;
   isSuperAdmin: boolean;
   nav: NavGroup[];
   canChat: boolean;
@@ -60,7 +63,7 @@ export function AppShell({
     <div className="flex min-h-dvh">
       {/* Desktop sidebar */}
       <aside className="bg-sidebar sticky top-0 hidden h-dvh w-[280px] shrink-0 flex-col text-white lg:flex" aria-label="Primary">
-        <SidebarContent role={role} roleLabel={roleLabel} universityName={universityName} collegeName={collegeName} nav={nav} pathname={pathname} />
+        <SidebarContent role={role} roleLabel={roleLabel} universityName={universityName} collegeName={collegeName} logoUrl={logoUrl} nav={nav} pathname={pathname} />
       </aside>
 
       {/* Mobile drawer */}
@@ -75,7 +78,7 @@ export function AppShell({
             >
               <Fi name="cross-small" className="text-lg" />
             </button>
-            <SidebarContent role={role} roleLabel={roleLabel} universityName={universityName} collegeName={collegeName} nav={nav} pathname={pathname} />
+            <SidebarContent role={role} roleLabel={roleLabel} universityName={universityName} collegeName={collegeName} logoUrl={logoUrl} nav={nav} pathname={pathname} />
           </aside>
         </div>
       ) : null}
@@ -99,7 +102,7 @@ export function AppShell({
           {children}
         </main>
         <footer className="border-t border-line px-4 py-4 text-center text-xs text-ink-3 sm:px-6">
-          {universityName} · {collegeName} · Powered by CollossusIQ.ai · AI suggestions are reviewed by people for high-impact decisions
+          {universityName} Â· {collegeName} Â· Powered by CollossusIQ.ai Â· AI suggestions are reviewed by people for high-impact decisions
         </footer>
       </div>
 
@@ -114,6 +117,7 @@ function SidebarContent({
   roleLabel,
   universityName,
   collegeName,
+  logoUrl,
   nav,
   pathname,
 }: {
@@ -121,6 +125,7 @@ function SidebarContent({
   roleLabel: string;
   universityName: string;
   collegeName: string;
+  logoUrl: string;
   nav: NavGroup[];
   pathname: string;
 }) {
@@ -135,9 +140,17 @@ function SidebarContent({
           <Logo light />
         </Link>
         <div className="mt-5 flex items-center gap-3 rounded-2xl bg-white/[0.07] p-3 ring-1 ring-white/10">
-          <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-gold/90 text-[#1b2233]">
-            <Fi name={collegeName === "All colleges" ? "building" : "school"} />
-          </span>
+          {logoUrl ? (
+            <span className="flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-white">
+              {/* The institution's own logo: an external https image chosen on the Branding page. */}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={logoUrl} alt="" className="size-full object-contain" referrerPolicy="no-referrer" />
+            </span>
+          ) : (
+            <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-gold/90 text-[#1b2233]">
+              <Fi name={collegeName === "All colleges" ? "building" : "school"} />
+            </span>
+          )}
           <div className="min-w-0">
             <p className="truncate text-xs font-semibold text-white" title={collegeName}>
               {collegeName}

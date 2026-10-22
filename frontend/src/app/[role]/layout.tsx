@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { AppShell } from "@/components/shell/app-shell";
 import { groupedModules, inNav } from "@/config/modules";
 import { UNIVERSITY } from "@/config/tenancy";
-import { collegeContext, feeLock, isModuleEnabled, lockedPaths, requireRole } from "@/lib/auth/server";
+import { collegeBrand, collegeContext, feeLock, isModuleEnabled, lockedPaths, requireRole } from "@/lib/auth/server";
 import { can, isRole, ROLE_META } from "@/lib/auth/roles";
 import { FeeReminder } from "@/components/portal/fee-reminder";
 
@@ -11,6 +11,7 @@ export default async function PortalLayout({ children, params }: { children: Rea
   if (!isRole(role)) notFound();
   const session = await requireRole(role);
   const ctx = await collegeContext(session);
+  const { brand, css } = await collegeBrand(session);
   // While the account is locked for fees, the menu offers only the pages it can still open.
   const lock = await feeLock(session);
   const open = lock.locked ? new Set(lockedPaths(role).map((p) => p.split("/")[2])) : null;
@@ -25,12 +26,15 @@ export default async function PortalLayout({ children, params }: { children: Rea
     .filter((g) => g.items.length > 0);
 
   return (
-    <AppShell
+    <>
+      {css ? <style id="tenant-brand" dangerouslySetInnerHTML={{ __html: css }} /> : null}
+      <AppShell
       role={role}
       roleLabel={ROLE_META[role].label}
       name={session.name}
       universityName={UNIVERSITY.name}
-      collegeName={ctx.collegeName}
+      collegeName={brand.customised && brand.name ? brand.name : ctx.collegeName}
+      logoUrl={brand.logoUrl}
       collegeScope={ctx.scope}
       isSuperAdmin={role === "admin"}
       nav={nav}
@@ -38,6 +42,7 @@ export default async function PortalLayout({ children, params }: { children: Rea
     >
       {role === "student" ? <FeeReminder /> : null}
       {children}
-    </AppShell>
+      </AppShell>
+    </>
   );
 }
