@@ -12,7 +12,7 @@ import { CollegeOptions, RecordList } from "@/lib/api/schemas";
 import { cleanText, mask } from "@/lib/security/sanitize";
 import { ModuleHeader } from "@/components/modules/module-header";
 import { Fi } from "@/components/ui/icon";
-import { Badge, Button, Card, EmptyState, inputClass, LinkButton, Progress, Skeleton, toneForStatus } from "@/components/ui/primitives";
+import { Badge, Button, Card, EmptyState, inputClass, LinkButton, Progress, RoleBadge, Skeleton, toneForStatus } from "@/components/ui/primitives";
 import { cn } from "@/lib/utils";
 import { ConfirmDelete } from "./confirm-delete";
 import { formatDate, ValueView } from "./fields";
@@ -101,11 +101,20 @@ export function CrudList({
     if (c.name === primaryColName) {
       return "min-w-[240px] md:min-w-[280px] lg:min-w-[320px]";
     }
+    if (c.name === "role") {
+      return "min-w-[130px] xl:min-w-[170px] whitespace-nowrap";
+    }
     if (c.name === "department") {
       return "min-w-[220px] lg:min-w-[260px] whitespace-nowrap";
     }
     if (c.name === "code") {
       return "min-w-[110px] whitespace-nowrap";
+    }
+    if (c.column === "badge" || c.name === "status") {
+      return "min-w-[100px] whitespace-nowrap";
+    }
+    if (c.column === "masked" || c.name === "email") {
+      return "min-w-[160px] whitespace-nowrap";
     }
     if (c.column === "number" || c.name === "credits" || c.name === "semester") {
       return "whitespace-nowrap text-center";
@@ -117,11 +126,20 @@ export function CrudList({
     if (c.name === primaryColName) {
       return "min-w-[240px] md:min-w-[280px] lg:min-w-[320px] font-medium text-ink";
     }
+    if (c.name === "role") {
+      return "min-w-[130px] xl:min-w-[170px] whitespace-nowrap";
+    }
     if (c.name === "department") {
       return "min-w-[220px] lg:min-w-[260px] whitespace-normal break-words text-ink-2";
     }
     if (c.name === "code") {
       return "min-w-[110px] whitespace-nowrap font-mono text-ink";
+    }
+    if (c.column === "badge" || c.name === "status") {
+      return "min-w-[100px] whitespace-nowrap";
+    }
+    if (c.column === "masked" || c.name === "email") {
+      return "min-w-[160px] whitespace-nowrap";
     }
     if (c.column === "number" || c.name === "credits" || c.name === "semester") {
       return "whitespace-nowrap text-center tabular-nums text-ink-2";
@@ -406,7 +424,24 @@ export function CrudList({
                     </Link>
                     {resource.statusField ? <Badge tone={toneForStatus(String(r[resource.statusField]))}>{String(r[resource.statusField])}</Badge> : null}
                   </div>
-                  <p className="mt-1.5 text-xs text-ink-2 break-words leading-relaxed">{[showCollege ? r.collegeName : null, ...resource.subtitleFields.map((f) => r[f])].filter(Boolean).join(" · ")}</p>
+                  <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                    {r.role ? <RoleBadge role={String(r.role)} size="sm" /> : null}
+                    {showCollege && r.collegeName ? (
+                      <span className="inline-flex items-center gap-1 rounded-md bg-violet-soft px-1.5 py-0.5 text-[11px] font-medium text-violet">
+                        <Fi name="school" className="text-[9px]" />
+                        {String(r.collegeName)}
+                      </span>
+                    ) : null}
+                    {resource.subtitleFields
+                      .filter((f) => f !== "role")
+                      .map((f) => r[f])
+                      .filter(Boolean)
+                      .map((val) => (
+                        <span key={String(val)} className="text-xs text-ink-3">
+                          · {String(val)}
+                        </span>
+                      ))}
+                  </div>
                   <div className="mt-3">
                     <RowActions base={base} record={r} canManage={canManage} onDelete={() => { del.reset(); setToDelete(r); }} />
                   </div>

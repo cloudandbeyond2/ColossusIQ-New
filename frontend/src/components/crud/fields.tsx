@@ -5,7 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { fieldLabel, type FieldDef, type RecordValue } from "@/config/resources";
 import { streamOptions, type Stream } from "@/config/streams";
 import { Fi } from "@/components/ui/icon";
-import { Badge, inputClass, toneForStatus } from "@/components/ui/primitives";
+import { Badge, inputClass, RoleBadge, toneForStatus } from "@/components/ui/primitives";
 import { cn } from "@/lib/utils";
 import { mediaUrl } from "@/lib/media";
 import { apiFetch } from "@/lib/api/client";
@@ -217,6 +217,7 @@ export function ValueView({
       </span>
     );
   if (field.type === "date" && typeof value === "string") return <span>{formatDate(value)}</span>;
+  if (field.name === "role" || field.name === "userRole") return <RoleBadge role={String(value)} size={inTable ? "sm" : "md"} />;
   if (field.column === "badge" || field.name === "status") return <Badge tone={toneForStatus(String(value))}>{String(value)}</Badge>;
   if (field.type === "textarea") {
     return inTable ? (
