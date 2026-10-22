@@ -33,4 +33,13 @@ export const postgresStudentState: StudentStateStore = {
     const r = await db().studentState.deleteMany({ where: { userId: me(), key } });
     return r.count > 0;
   },
+  async listByCollege(collegeId, key) {
+    const cid = await collegeUuid(collegeId);
+    if (!cid) return [];
+    const rows = await db().studentState.findMany({
+      where: { collegeId: cid, key },
+      select: { data: true },
+    });
+    return rows.map((r: { data: unknown }) => r.data);
+  },
 };

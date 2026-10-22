@@ -1,6 +1,7 @@
 import "server-only";
 import { createHash } from "node:crypto";
 import { z } from "zod";
+import { streamMatchesCurriculum, type Stream } from "@/config/streams";
 import { ALL_COLLEGES } from "@/config/tenancy";
 import { geminiEnabled, geminiJson } from "@/lib/ai/gemini";
 import type { SessionPayload } from "@/lib/auth/session";
@@ -22,6 +23,7 @@ import { cleanText } from "@/lib/security/sanitize";
 import { stillActive } from "./ai-guard";
 import { audit } from "./audit";
 import { curriculumStore, type CurriculumRow } from "./curriculum-store";
+import { collegeStream } from "./records";
 import { rateLimit } from "./rate-limit";
 import type { MockResult } from "./router";
 
@@ -162,8 +164,10 @@ const canEdit = (s: SessionPayload) => s.role === "admin" && s.mfa && s.college 
 const doc = (r: CurriculumRow, s: SessionPayload) => CurriculumDoc.parse({ ...summary(r), data: r.data, warnings: curriculumWarnings(r.data), canEdit: canEdit(s) && r.status !== "Archived", aiReady: geminiEnabled() });
 
 /** Published curricula, for the Course Roadmap's "plan from the curriculum". */
-export async function publishedCurricula(): Promise<CurriculumRow[]> {
-  return (await curriculumStore().list()).filter((r) => r.status === "Published");
+export async function publishedCurricula(stream?: Stream | null): Promise<CurriculumRow[]> {
+  const all = (await curriculumStore().list()).filter((r) => r.status === "Published");
+  if (!stream) return all;
+  return all.filter((r) => streamMatchesCurriculum(stream, r.programme, r.data?.degree));
 }
 
 export async function dispatchCurriculum(method: string, segs: string[], rawBody: unknown, s: SessionPayload): Promise<MockResult> {
@@ -173,12 +177,20 @@ export async function dispatchCurriculum(method: string, segs: string[], rawBody
   const [, id, action] = segs;
 
   if (method === "GET" && segs.length === 1) {
-    const rows = (await store.list()).filter((r) => admin || r.status === "Published");
+    const stream = s.college !== ALL_COLLEGES ? await collegeStream(s.college) : null;
+    let rows = (await store.list()).filter((r) => admin || r.status === "Published");
+    if (stream) {
+      rows = rows.filter((r) => streamMatchesCurriculum(stream, r.programme, r.data?.degree));
+    }
     return ok(CurriculumList.parse({ curricula: rows.map(summary), canEdit: canEdit(s), aiReady: geminiEnabled() }));
   }
   if (method === "GET" && id && segs.length === 2) {
     const r = await store.get(id);
     if (!r || (!admin && r.status !== "Published")) return err(404, "not_found", "That curriculum is not available.");
+    const stream = s.college !== ALL_COLLEGES ? await collegeStream(s.college) : null;
+    if (stream && !streamMatchesCurriculum(stream, r.programme, r.data?.degree)) {
+      return err(404, "not_found", "That curriculum is not available for your college stream.");
+    }
     return ok(doc(r, s));
   }
 

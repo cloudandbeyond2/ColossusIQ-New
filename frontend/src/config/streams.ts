@@ -21,7 +21,24 @@ export type CollegeType = keyof typeof COLLEGE_TYPE_STREAM;
 export const COLLEGE_TYPES = Object.keys(COLLEGE_TYPE_STREAM) as CollegeType[];
 
 export function streamOfType(type: unknown): Stream {
-  return (COLLEGE_TYPE_STREAM as Record<string, Stream>)[String(type)] ?? "engineering";
+  const raw = String(type ?? "").trim();
+  if (raw in COLLEGE_TYPE_STREAM) {
+    return (COLLEGE_TYPE_STREAM as Record<string, Stream>)[raw];
+  }
+  const lower = raw.toLowerCase();
+  if (lower.includes("art") || (lower.includes("science") && !lower.includes("tech") && !lower.includes("engineer"))) {
+    return "artsScience";
+  }
+  if (lower.includes("medic") || lower.includes("dental") || lower.includes("nurs") || lower.includes("health") || lower.includes("pharm")) {
+    return "medical";
+  }
+  if (lower.includes("manage") || lower.includes("business") || lower.includes("mba")) {
+    return "management";
+  }
+  if (lower.includes("polytechnic") || lower.includes("diploma")) {
+    return "polytechnic";
+  }
+  return "engineering";
 }
 
 export interface StreamDef {
@@ -200,3 +217,65 @@ export function streamOptions(field: "department" | "program" | "semester" | "de
       return [...d.designations, ...COMMON_DESIGNATIONS];
   }
 }
+
+/** Map of degree designations to their associated academic streams. */
+export const DEGREE_STREAM: Record<string, Stream[]> = {
+  "B.E.": ["engineering"],
+  "B.TECH.": ["engineering"],
+  "B.TECH": ["engineering"],
+  "M.E.": ["engineering"],
+  "M.TECH.": ["engineering"],
+  "M.TECH": ["engineering"],
+
+  "B.SC.": ["artsScience"],
+  "B.SC": ["artsScience"],
+  "M.SC.": ["artsScience"],
+  "M.SC": ["artsScience"],
+  "B.COM.": ["artsScience"],
+  "B.COM": ["artsScience"],
+  "M.COM.": ["artsScience"],
+  "M.COM": ["artsScience"],
+  "B.A.": ["artsScience"],
+  "B.A": ["artsScience"],
+  "M.A.": ["artsScience"],
+  "M.A": ["artsScience"],
+  "BCA": ["artsScience"],
+  "MCA": ["artsScience"],
+  "BBA": ["artsScience", "management"],
+
+  "MBA": ["management"],
+  "PGDM": ["management"],
+
+  "MBBS": ["medical"],
+  "BDS": ["medical"],
+  "B.SC. NURSING": ["medical"],
+  "B.SC NURSING": ["medical"],
+  "B.PHARM.": ["medical"],
+  "B.PHARM": ["medical"],
+  "BPT": ["medical"],
+  "MD": ["medical"],
+  "MS": ["medical"],
+
+  "DIPLOMA": ["polytechnic"],
+};
+
+/** Whether a programme or degree matches the college's academic stream. */
+export function streamMatchesCurriculum(stream: Stream, programme: string, degree?: string): boolean {
+  const norm = (s: string) => s.trim().toUpperCase();
+  const d = degree ? norm(degree) : "";
+  if (d && DEGREE_STREAM[d]) {
+    return DEGREE_STREAM[d].includes(stream);
+  }
+  const progUpper = norm(programme);
+  for (const [degKey, streams] of Object.entries(DEGREE_STREAM)) {
+    if (progUpper.startsWith(degKey) || progUpper.startsWith(degKey.replace(/\./g, ""))) {
+      return streams.includes(stream);
+    }
+  }
+  const def = STREAM_DEFS[stream];
+  if (def && def.programs.some((p) => norm(p) === progUpper || progUpper.includes(norm(p)))) {
+    return true;
+  }
+  return false;
+}
+

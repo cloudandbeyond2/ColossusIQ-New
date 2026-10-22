@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Fi } from "@/components/ui/icon";
 import { LoadError } from "@/components/ui/load-error";
 import { Badge, Button, Card, CardBody, CardHeader, EmptyState, Field, inputClass, Skeleton, Spinner } from "@/components/ui/primitives";
@@ -10,6 +10,7 @@ import { Segmented } from "@/components/ui/tabs";
 import { ApiError, apiFetch } from "@/lib/api/client";
 import type { Unit } from "@/lib/api/curriculum-schemas";
 import { METHODS, Roadmap, RoadmapBoard, type CreateRoadmap, type Session } from "@/lib/api/roadmap-schemas";
+import type { Role } from "@/lib/auth/roles";
 import { cn } from "@/lib/utils";
 
 const KEY = ["course-roadmap"] as const;
@@ -19,26 +20,41 @@ const fmt = (d: string, o: Intl.DateTimeFormatOptions = { weekday: "short", day:
 const METHOD_ICON: Record<string, string> = { Lecture: "chalkboard-user", Tutorial: "users-alt", Lab: "flask", Activity: "puzzle-alt", Assessment: "edit", Revision: "refresh" };
 
 /** Course Roadmap: plan a course session by session from its syllabus, and track what has been taught. */
-export function CourseRoadmapModule() {
+export function CourseRoadmapModule({ role }: { role?: Role }) {
+  const isPrincipal = role === "institution";
   const params = useSearchParams();
   const q = useQuery({ queryKey: KEY, queryFn: () => apiFetch("/api/v1/course-roadmap", RoadmapBoard) });
   const [openId, setOpenId] = useState<string | null>(null);
-  const [creating, setCreating] = useState(() => !!params.get("course"));
+  const [creating, setCreating] = useState(() => !isPrincipal && !!params.get("course"));
+
+  const targetCourse = params.get("course");
+  const d = q.data;
+
+  useEffect(() => {
+    if (targetCourse && d?.roadmaps?.length && !openId) {
+      const match = d.roadmaps.find((r) => r.courseCode?.toUpperCase() === targetCourse.toUpperCase());
+      if (match) setOpenId(match.id);
+    }
+  }, [targetCourse, d?.roadmaps, openId]);
+
   if (q.isPending) return <Skeleton className="h-96" />;
   if (q.isError) return <LoadError error={q.error} onRetry={() => void q.refetch()} />;
   if (openId) return <RoadmapView id={openId} onBack={() => setOpenId(null)} />;
-  const d = q.data;
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="max-w-2xl text-sm text-ink-2">Pick a course and the days you teach it; the roadmap spreads the syllabus over dated sessions with tutorials, internal assessments and revision. Tick sessions off as you teach.</p>
-        {d.roadmaps.length < d.max ? (
+        <p className="max-w-2xl text-sm text-ink-2">
+          {isPrincipal
+            ? "Review teaching plans created by your college's faculty and HODs. Monitor session progress and syllabus coverage."
+            : "Pick a course and the days you teach it; the roadmap spreads the syllabus over dated sessions with tutorials, internal assessments and revision. Tick sessions off as you teach."}
+        </p>
+        {!isPrincipal && d.roadmaps.length < d.max ? (
           <Button onClick={() => setCreating((c) => !c)}>
             <Fi name={creating ? "cross-small" : "plus"} /> {creating ? "Close" : "New roadmap"}
           </Button>
         ) : null}
       </div>
-      {creating ? <NewRoadmap board={d} preset={{ curriculumId: params.get("curriculum"), course: params.get("course") }} onCreated={(id) => setOpenId(id)} /> : null}
+      {creating && !isPrincipal ? <NewRoadmap board={d} preset={{ curriculumId: params.get("curriculum"), course: params.get("course") }} onCreated={(id) => setOpenId(id)} /> : null}
       {d.roadmaps.length ? (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {d.roadmaps.map((r) => {
@@ -72,7 +88,10 @@ export function CourseRoadmapModule() {
           })}
         </div>
       ) : !creating ? (
-        <EmptyState title="No roadmaps yet" body="Create one for each course and section you teach this semester." />
+        <EmptyState
+          title={isPrincipal ? "No teaching plans yet" : "No roadmaps yet"}
+          body={isPrincipal ? "No teaching plans have been created by your faculty yet. Once a faculty member plans their course teaching, it will appear here." : "Create one for each course and section you teach this semester."}
+        />
       ) : null}
     </div>
   );

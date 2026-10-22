@@ -26,7 +26,8 @@ export async function isCollegeActive(id: string): Promise<boolean> {
 /** The academic stream of a college (null for the university-wide "all" scope). */
 export async function collegeStream(id: string | null | undefined): Promise<Stream | null> {
   const c = await getCollege(id);
-  return c ? streamOfType(c.type) : null;
+  if (!c) return null;
+  return streamOfType(c.type || c.name);
 }
 /** Module groups enabled for a college (all groups for the "all" scope). */
 export async function enabledGroups(collegeId: string): Promise<string[] | "all"> {
