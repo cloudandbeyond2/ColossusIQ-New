@@ -1,13 +1,15 @@
 import "server-only";
 import type { SessionPayload } from "@/lib/auth/session";
 import { getStore } from "@/lib/data";
-import { sharedState } from "./global-state";
+import { RESOURCES } from "@/config/resources";
 import {
   CbcsCategory,
+  CbcsCategoryRule,
   CbcsCategorySummary,
   CbcsCourse,
   CbcsKpis,
   CbcsOverview,
+  CbcsPermissions,
   CbcsStudentChoice,
   CreateCbcsCourseInput,
   EnrollStudentElectiveInput,
@@ -15,555 +17,385 @@ import {
   UpdateCbcsWindowInput,
 } from "@/lib/api/cbcs-schemas";
 import type { ListData } from "@/lib/api/schemas";
-import { collegeStream, getCollege } from "./records";
+import { cbcsStore, type CbcsCourseRow, type CbcsRegistrationRow } from "./cbcs-store";
+import { collegeStream, getCollege, listColleges } from "./records";
+import { getStudentAcademicProfile } from "./student-profile";
 
-const ARTS_SCIENCE_COURSES: CbcsCourse[] = [
-  {
-    id: "cbcs-as-1",
-    code: "SEC201",
-    title: "Data Analytics with Excel & PowerBI",
-    offeringDepartment: "Computer Science",
-    semester: 4,
-    category: "Skill Enhancement Course (SEC)",
-    credits: 2,
-    seatsTotal: 60,
-    seatsFilled: 60,
-    instructor: "Dr. K. Anand, M.Sc., Ph.D.",
-    schedule: "Tue & Thu, 02:00 PM – 03:30 PM (CS Lab 2)",
-    syllabusSummary: "Advanced data models, DAX formulas, interactive KPI dashboards, pivot tables, and statistical forecasting.",
-    status: "Full",
-  },
-  {
-    id: "cbcs-as-2",
-    code: "GE202",
-    title: "Digital Marketing & Content Strategy",
-    offeringDepartment: "Commerce",
-    semester: 4,
-    category: "Generic Elective (GE)",
-    credits: 3,
-    seatsTotal: 60,
-    seatsFilled: 58,
-    instructor: "Prof. S. Divya, MBA, M.Phil.",
-    schedule: "Mon & Wed, 10:00 AM – 11:30 AM (Room 204)",
-    syllabusSummary: "Search engine optimization (SEO), social media branding, Google Ads campaign metrics, and content calendars.",
-    status: "Open",
-  },
-  {
-    id: "cbcs-as-3",
-    code: "AECC101",
-    title: "Environmental Studies & Sustainable Green Audit",
-    offeringDepartment: "Chemistry & Environmental Science",
-    semester: 2,
-    category: "Ability Enhancement (AECC)",
-    credits: 2,
-    seatsTotal: 400,
-    seatsFilled: 400,
-    instructor: "Dr. M. Sangeetha, Ph.D.",
-    schedule: "Friday, 09:00 AM – 11:00 AM (Main Auditorium)",
-    syllabusSummary: "Ecosystem dynamics, biodiversity conservation, pollution control, e-waste guidelines, and campus climate footprints.",
-    status: "Full",
-  },
-  {
-    id: "cbcs-as-4",
-    code: "DSE301",
-    title: "Tamil Folklore, Ethno-arts & Heritage",
-    offeringDepartment: "Tamil Literature",
-    semester: 6,
-    category: "Discipline-Specific Elective (DSE)",
-    credits: 3,
-    seatsTotal: 40,
-    seatsFilled: 12,
-    instructor: "Dr. R. Selvamani, Ph.D.",
-    schedule: "Mon, Wed & Fri, 01:00 PM – 02:00 PM (Language Block)",
-    syllabusSummary: "Oral traditions, folk ballads, performative temple arts, archaeological artifacts, and ethno-musicology.",
-    status: "Open",
-  },
-  {
-    id: "cbcs-as-5",
-    code: "DSE302",
-    title: "Green Chemistry & Sustainable Organic Synthesis",
-    offeringDepartment: "Chemistry",
-    semester: 6,
-    category: "Discipline-Specific Elective (DSE)",
-    credits: 3,
-    seatsTotal: 40,
-    seatsFilled: 34,
-    instructor: "Dr. V. Ramanathan, Ph.D.",
-    schedule: "Tue & Thu, 11:30 AM – 01:00 PM (Science Block)",
-    syllabusSummary: "12 Principles of Green Chemistry, atom economy, supercritical solvents, microwave-assisted reactions, and biocatalysts.",
-    status: "Open",
-  },
-  {
-    id: "cbcs-as-6",
-    code: "VAC103",
-    title: "Yoga, Ergonomics & Mental Well-being",
-    offeringDepartment: "Physical Education & Wellness",
-    semester: 2,
-    category: "Value-Added Course (VAC)",
-    credits: 2,
-    seatsTotal: 120,
-    seatsFilled: 98,
-    instructor: "Mr. P. Murugesan, M.P.Ed., NIS",
-    schedule: "Tue & Thu, 06:30 AM – 07:30 AM (Indoor Gymnasium)",
-    syllabusSummary: "Asanas, pranayama, stress relaxation mechanisms, workplace posture ergonomics, and mindful lifestyle habits.",
-    status: "Open",
-  },
-  {
-    id: "cbcs-as-7",
-    code: "SEC203",
-    title: "Python for Exploratory Data Science",
-    offeringDepartment: "Mathematics & Statistics",
-    semester: 4,
-    category: "Skill Enhancement Course (SEC)",
-    credits: 3,
-    seatsTotal: 60,
-    seatsFilled: 60,
-    instructor: "Dr. N. Rajesh, Ph.D.",
-    schedule: "Wed & Fri, 02:00 PM – 03:30 PM (Lab 4)",
-    syllabusSummary: "NumPy matrix computation, Pandas dataframes, Seaborn visualizations, and statistical hypothesis testing.",
-    status: "Full",
-  },
-  {
-    id: "cbcs-as-8",
-    code: "GE204",
-    title: "Journalism, Podcasting & Media Ethics",
-    offeringDepartment: "English & Communication",
-    semester: 4,
-    category: "Generic Elective (GE)",
-    credits: 3,
-    seatsTotal: 50,
-    seatsFilled: 46,
-    instructor: "Prof. Ananya Roy, M.A., NET",
-    schedule: "Mon & Thu, 03:00 PM – 04:30 PM (Media Studio)",
-    syllabusSummary: "News gathering, podcast audio editing in Audacity, investigative interview techniques, and broadcast defamation laws.",
-    status: "Open",
-  },
-];
+/*
+ * CBCS & Electives. Courses and registrations are the college's own records (cbcs-store.ts); seats filled is the
+ * number of registrations. The registration window and the enrolment policy are the college's settings. The UGC
+ * category table below is the regulation itself, not college data.
+ */
 
-const MANAGEMENT_COURSES: CbcsCourse[] = [
-  {
-    id: "cbcs-mgmt-1",
-    code: "DSE401",
-    title: "FinTech Fundamentals & Blockchain Applications",
-    offeringDepartment: "Finance",
-    semester: 4,
-    category: "Discipline-Specific Elective (DSE)",
-    credits: 3,
-    seatsTotal: 60,
-    seatsFilled: 44,
-    instructor: "Prof. S. Harini, Ph.D.",
-    schedule: "Mon & Wed, 09:30 AM – 11:00 AM (Seminar Hall 1)",
-    syllabusSummary: "Digital payment gateways, UPI architecture, decentralized ledgers, smart contracts, and algorithmic risk management.",
-    status: "Open",
-  },
-  {
-    id: "cbcs-mgmt-2",
-    code: "DSE402",
-    title: "Digital Marketing, SEO & Growth Hacking",
-    offeringDepartment: "Marketing",
-    semester: 4,
-    category: "Discipline-Specific Elective (DSE)",
-    credits: 3,
-    seatsTotal: 60,
-    seatsFilled: 60,
-    instructor: "Prof. K. Arvind, MBA",
-    schedule: "Tue & Thu, 10:00 AM – 11:30 AM (Room 302)",
-    syllabusSummary: "CAC and LTV funnel optimization, viral loops, influencer partnerships, and attribution modelling.",
-    status: "Full",
-  },
-  {
-    id: "cbcs-mgmt-3",
-    code: "SEC301",
-    title: "Advanced Negotiation & Conflict Resolution",
-    offeringDepartment: "Human Resources",
-    semester: 3,
-    category: "Skill Enhancement Course (SEC)",
-    credits: 2,
-    seatsTotal: 40,
-    seatsFilled: 26,
-    instructor: "Dr. P. Nandhini, Ph.D.",
-    schedule: "Friday, 02:00 PM – 04:00 PM (Executive Boardroom)",
-    syllabusSummary: "Harvard principled negotiation framework, BATNA analysis, psychological anchoring, and collective bargaining simulations.",
-    status: "Open",
-  },
-  {
-    id: "cbcs-mgmt-4",
-    code: "SEC302",
-    title: "Business Analytics with Tableau & Python",
-    offeringDepartment: "Operations & Analytics",
-    semester: 3,
-    category: "Skill Enhancement Course (SEC)",
-    credits: 3,
-    seatsTotal: 60,
-    seatsFilled: 55,
-    instructor: "Dr. R. Vignesh, Ph.D.",
-    schedule: "Mon & Thu, 02:00 PM – 03:30 PM (Analytics Lab)",
-    syllabusSummary: "Executive dashboarding, customer churn predictive models, inventory EOQ sensitivity, and cluster segmentation.",
-    status: "Open",
-  },
-  {
-    id: "cbcs-mgmt-5",
-    code: "GE201",
-    title: "Supply Chain Logistics & Global E-Commerce",
-    offeringDepartment: "Supply Chain",
-    semester: 2,
-    category: "Generic Elective (GE)",
-    credits: 3,
-    seatsTotal: 50,
-    seatsFilled: 38,
-    instructor: "Prof. M. Karthikeyan, MBA",
-    schedule: "Tue & Fri, 11:30 AM – 01:00 PM (Room 105)",
-    syllabusSummary: "Cross-docking, reverse logistics, Amazon FBA fulfillment, container shipping economics, and customs compliance.",
-    status: "Open",
-  },
-  {
-    id: "cbcs-mgmt-6",
-    code: "AECC102",
-    title: "Corporate Governance, Business Ethics & CSR",
-    offeringDepartment: "General Management",
-    semester: 2,
-    category: "Ability Enhancement (AECC)",
-    credits: 2,
-    seatsTotal: 120,
-    seatsFilled: 110,
-    instructor: "Dr. S. Meenakshisundaram, Ph.D.",
-    schedule: "Wednesday, 01:30 PM – 03:30 PM (Auditorium)",
-    syllabusSummary: "Companies Act 2013 §135 mandates, board independence, insider trading prohibitions, and ESG sustainability reporting.",
-    status: "Open",
-  },
-  {
-    id: "cbcs-mgmt-7",
-    code: "VAC201",
-    title: "Executive Presence & Mindful Leadership",
-    offeringDepartment: "Organizational Behaviour",
-    semester: 4,
-    category: "Value-Added Course (VAC)",
-    credits: 2,
-    seatsTotal: 40,
-    seatsFilled: 40,
-    instructor: "Dr. Jayashree Raman, Ph.D.",
-    schedule: "Saturday, 10:00 AM – 12:00 PM (Conference Hall)",
-    syllabusSummary: "Emotional intelligence in high-stakes decisions, active listening, executive vocal modulation, and burnout resilience.",
-    status: "Full",
-  },
-];
-
-const SEED_STUDENT_CHOICES: CbcsStudentChoice[] = [
-  {
-    id: "reg-1",
-    studentName: "Kavitha Sundaram",
-    regNo: "22CS1042",
-    department: "Computer Science",
-    semester: 4,
-    courseId: "cbcs-as-1",
-    courseCode: "SEC201",
-    courseTitle: "Data Analytics with Excel & PowerBI",
-    category: "Skill Enhancement Course (SEC)",
-    credits: 2,
-    registeredAt: "2026-10-10 10:15",
-    status: "Confirmed",
-  },
-  {
-    id: "reg-2",
-    studentName: "Dinesh Kumar",
-    regNo: "22CO1019",
-    department: "Commerce",
-    semester: 4,
-    courseId: "cbcs-as-2",
-    courseCode: "GE202",
-    courseTitle: "Digital Marketing & Content Strategy",
-    category: "Generic Elective (GE)",
-    credits: 3,
-    registeredAt: "2026-10-10 11:30",
-    status: "Confirmed",
-  },
-  {
-    id: "reg-3",
-    studentName: "Sanjay Narayanan",
-    regNo: "22EN1008",
-    department: "English",
-    semester: 4,
-    courseId: "cbcs-as-8",
-    courseCode: "GE204",
-    courseTitle: "Journalism, Podcasting & Media Ethics",
-    category: "Generic Elective (GE)",
-    credits: 3,
-    registeredAt: "2026-10-11 09:20",
-    status: "Confirmed",
-  },
-  {
-    id: "reg-4",
-    studentName: "Priyanka Balaji",
-    regNo: "22CH1027",
-    department: "Chemistry",
-    semester: 6,
-    courseId: "cbcs-as-5",
-    courseCode: "DSE302",
-    courseTitle: "Green Chemistry & Sustainable Organic Synthesis",
-    category: "Discipline-Specific Elective (DSE)",
-    credits: 3,
-    registeredAt: "2026-10-11 14:05",
-    status: "Confirmed",
-  },
-  {
-    id: "reg-5",
-    studentName: "Gokul Prasad",
-    regNo: "22MA1014",
-    department: "Mathematics",
-    semester: 4,
-    courseId: "cbcs-as-7",
-    courseCode: "SEC203",
-    courseTitle: "Python for Exploratory Data Science",
-    category: "Skill Enhancement Course (SEC)",
-    credits: 3,
-    registeredAt: "2026-10-12 08:45",
-    status: "Confirmed",
-  },
-];
-
-interface CbcsStoreState {
-  courses: CbcsCourse[];
-  registrations: CbcsStudentChoice[];
-  windowOpen: boolean;
-  deadline: string;
+export class CbcsError extends Error {
+  constructor(
+    message: string,
+    readonly status: 400 | 403 | 404 | 409 = 400,
+  ) {
+    super(message);
+  }
 }
 
-function getCbcsStore(collegeScope: string, stream: string): CbcsStoreState {
-  const isMgmt = stream === "management" || collegeScope === "COL-1004";
-  const initialCourses = isMgmt ? MANAGEMENT_COURSES : ARTS_SCIENCE_COURSES;
+const SETTINGS_SLUG = "cbcs-electives";
 
-  const courses = sharedState(`cbcs.courses.${collegeScope}`, () => initialCourses.map((c) => ({ ...c })));
-  const registrations = sharedState(`cbcs.registrations.${collegeScope}`, () => [...SEED_STUDENT_CHOICES]);
-  const windowState = sharedState(`cbcs.window.${collegeScope}`, () => ({
-    open: true,
-    deadline: "2026-10-24 17:00 IST",
-  }));
+export const CBCS_CATEGORIES: CbcsCategory[] = [
+  "Discipline-Specific Elective (DSE)",
+  "Generic Elective (GE)",
+  "Skill Enhancement Course (SEC)",
+  "Ability Enhancement (AECC)",
+  "Value-Added Course (VAC)",
+];
 
+/** UGC CBCS credit structure per course category (regulation text shown on the "NEP Credit Distribution" tab). */
+const CATEGORY_RULES: CbcsCategoryRule[] = [
+  { category: "Discipline-Specific Elective (DSE)", credits: "3 – 4 Credits", objective: "Advanced specialization in primary major", requirement: "Mandatory (Min 4)", mandatory: true },
+  { category: "Generic Elective (GE)", credits: "3 Credits", objective: "Interdisciplinary studies from other departments", requirement: "Mandatory (Min 2)", mandatory: true },
+  { category: "Skill Enhancement Course (SEC)", credits: "2 – 3 Credits", objective: "Practical, lab-based digital and analytical tools", requirement: "Mandatory (Min 3)", mandatory: true },
+  { category: "Ability Enhancement (AECC)", credits: "2 Credits", objective: "Environmental Studies and Professional Communication", requirement: "Mandatory (Min 2)", mandatory: true },
+  { category: "Value-Added Course (VAC)", credits: "1 – 2 Credits", objective: "Ethics, mental wellness, cyber hygiene, and yoga", requirement: "Recommended", mandatory: false },
+];
+
+/** Shown until the institution writes its own policy lines. */
+const DEFAULT_POLICIES = [
+  "Students register for electives through the portal while the registration window is open.",
+  "Seats are allotted in the order registrations are received, until a course reaches its capacity.",
+];
+
+const ALLOCATION_RULE = "First-Come-First-Served (FCFS)";
+
+const canManageCourses = (role: string) => role === "institution" || role === "hod" || role === "admin";
+const canManageWindow = (role: string) => role === "institution" || role === "admin";
+const canEnrollOthers = (role: string) => role === "institution" || role === "hod" || role === "admin" || role === "faculty";
+
+function permissionsOf(role: string): CbcsPermissions {
+  return { manageCourses: canManageCourses(role), manageWindow: canManageWindow(role), enrollOthers: canEnrollOthers(role), selfEnroll: role === "student" };
+}
+
+/** The college a request works on. The university-wide admin scope has none, so it works on the first college. */
+async function collegeOf(session: SessionPayload): Promise<string> {
+  if (session.college && session.college !== "all") return session.college;
+  const first = (await listColleges())[0];
+  if (!first) throw new CbcsError("There is no college to manage electives for yet.", 404);
+  return first.id;
+}
+
+/* ── window & policy settings ─────────────────────────────────────────────────────────────────────────────── */
+
+interface WindowSettings {
+  open: boolean;
+  deadline: string;
+  policies: string[];
+}
+
+async function readWindow(college: string): Promise<WindowSettings> {
+  const saved = await getStore().settings.get(college, SETTINGS_SLUG);
+  const lines = typeof saved?.policies === "string" ? saved.policies.split("\n").map((l) => l.trim()).filter(Boolean) : [];
   return {
-    courses,
-    registrations,
-    get windowOpen() {
-      return windowState.open;
-    },
-    set windowOpen(v: boolean) {
-      windowState.open = v;
-    },
-    get deadline() {
-      return windowState.deadline;
-    },
-    set deadline(v: string) {
-      windowState.deadline = v;
-    },
+    open: typeof saved?.open === "boolean" ? saved.open : true,
+    deadline: typeof saved?.deadline === "string" ? saved.deadline : "",
+    policies: lines.length ? lines : DEFAULT_POLICIES,
   };
+}
+
+/** "2026-10-24 17:00 IST" (or "2026-10-24T17:00") as an instant; undefined when there is no usable deadline. */
+function deadlineInstant(deadline: string): number | undefined {
+  const text = deadline.trim();
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(text);
+  if (!m) return undefined;
+  const t = /^[ T](\d{2}):(\d{2})/.exec(text.slice(10));
+  const [, y, mo, d] = m;
+  // a date without a time runs to the end of that day
+  return Date.UTC(Number(y), Number(mo) - 1, Number(d), Number(t?.[1] ?? 23), Number(t?.[2] ?? 59)) - 5.5 * 3_600_000;
+}
+
+function windowState(w: WindowSettings, now = Date.now()): { open: boolean; reason: string } {
+  if (!w.open) return { open: false, reason: "The registration window is closed." };
+  const at = deadlineInstant(w.deadline);
+  if (at !== undefined && now > at) return { open: false, reason: `The registration deadline (${w.deadline}) has passed.` };
+  return { open: true, reason: "" };
+}
+
+/* ── reading the basket ──────────────────────────────────────────────────────────────────────────────────── */
+
+const istStamp = (iso: string) => {
+  const d = new Date(Date.parse(iso) + 5.5 * 3_600_000);
+  return Number.isNaN(d.getTime()) ? iso : `${d.toISOString().slice(0, 10)} ${d.toISOString().slice(11, 16)}`;
+};
+
+function toCourse(row: CbcsCourseRow, filled: number): CbcsCourse {
+  return {
+    id: row.id,
+    code: row.code,
+    title: row.title,
+    offeringDepartment: row.offeringDepartment,
+    semester: row.semester,
+    category: row.category,
+    credits: row.credits,
+    seatsTotal: row.seatsTotal,
+    seatsFilled: filled,
+    instructor: row.instructor,
+    schedule: row.schedule,
+    syllabusSummary: row.syllabusSummary,
+    status: filled >= row.seatsTotal ? "Full" : "Open",
+  };
+}
+
+function toChoice(r: CbcsRegistrationRow, course: CbcsCourseRow): CbcsStudentChoice {
+  return {
+    id: r.id,
+    studentName: r.studentName,
+    regNo: r.regNo,
+    department: r.department,
+    semester: r.semester,
+    courseId: course.id,
+    courseCode: course.code,
+    courseTitle: course.title,
+    category: course.category,
+    credits: course.credits,
+    registeredAt: istStamp(r.registeredAt),
+    status: r.status,
+  };
+}
+
+async function loadBasket(college: string, stream: string) {
+  const store = cbcsStore();
+  await store.prepare(college, stream);
+  const [rows, regs] = await Promise.all([store.courses(college), store.registrations(college)]);
+  const filled = new Map<string, number>();
+  for (const r of regs) if (r.status === "Confirmed") filled.set(r.courseId, (filled.get(r.courseId) ?? 0) + 1);
+  const courses = rows.map((c) => toCourse(c, filled.get(c.id) ?? 0));
+  const byId = new Map(rows.map((c) => [c.id, c]));
+  const choices = regs.flatMap((r) => {
+    const c = byId.get(r.courseId);
+    return c ? [{ reg: r, choice: toChoice(r, c) }] : [];
+  });
+  return { courses, regs, choices };
+}
+
+async function departmentsOf(college: string, courses: CbcsCourse[]): Promise<string[]> {
+  const names = new Set<string>();
+  try {
+    for (const r of await getStore().records.all(RESOURCES.departments!, college)) {
+      const n = String(r.department ?? "").trim();
+      if (n) names.add(n);
+    }
+  } catch {
+    // fall back to the departments the courses already use
+  }
+  for (const c of courses) names.add(c.offeringDepartment);
+  return [...names].sort();
+}
+
+async function streamOf(college: string): Promise<string> {
+  const c = await getCollege(college);
+  return (await collegeStream(college)) || (c?.type === "Management" ? "management" : "artsScience");
 }
 
 export async function getCbcsOverview(session: SessionPayload): Promise<CbcsOverview> {
-  const collegeId = session.college && session.college !== "all" ? session.college : "COL-1002";
+  const collegeId = await collegeOf(session);
   const college = await getCollege(collegeId);
-  const stream = (await collegeStream(collegeId)) || (college?.type === "Management" ? "management" : "artsScience");
+  const stream = await streamOf(collegeId);
+  const [{ courses, choices }, win] = await Promise.all([loadBasket(collegeId, stream), readWindow(collegeId)]);
+  const state = windowState(win);
 
-  const store = getCbcsStore(collegeId, stream);
-
-  const totalCourses = store.courses.length;
-  const totalCapacity = store.courses.reduce((sum, c) => sum + c.seatsTotal, 0);
-  const totalEnrolled = store.courses.reduce((sum, c) => sum + c.seatsFilled, 0);
-  const seatUtilizationPercent = totalCapacity > 0 ? Math.round((totalEnrolled / totalCapacity) * 1000) / 10 : 0;
-  const fullCoursesCount = store.courses.filter((c) => c.status === "Full" || c.seatsFilled >= c.seatsTotal).length;
-  const totalCreditsOffered = store.courses.reduce((sum, c) => sum + c.credits, 0);
-
+  const totalCapacity = courses.reduce((sum, c) => sum + c.seatsTotal, 0);
+  const totalEnrolled = courses.reduce((sum, c) => sum + c.seatsFilled, 0);
   const kpis: CbcsKpis = {
-    totalCourses,
+    totalCourses: courses.length,
     totalCapacity,
     totalEnrolled,
-    seatUtilizationPercent,
-    fullCoursesCount,
-    registrationWindowOpen: store.windowOpen,
-    registrationDeadline: store.deadline,
-    totalCreditsOffered,
+    seatUtilizationPercent: totalCapacity > 0 ? Math.round((totalEnrolled / totalCapacity) * 1000) / 10 : 0,
+    fullCoursesCount: courses.filter((c) => c.status === "Full").length,
+    registrationWindowOpen: state.open,
+    registrationDeadline: win.deadline,
+    totalCreditsOffered: courses.reduce((sum, c) => sum + c.credits, 0),
   };
 
-  const categories: CbcsCategory[] = [
-    "Discipline-Specific Elective (DSE)",
-    "Generic Elective (GE)",
-    "Skill Enhancement Course (SEC)",
-    "Ability Enhancement (AECC)",
-    "Value-Added Course (VAC)",
-  ];
-
-  const categorySummaries: CbcsCategorySummary[] = categories.map((cat) => {
-    const list = store.courses.filter((c) => c.category === cat);
-    const count = list.length;
+  const categorySummaries: CbcsCategorySummary[] = CBCS_CATEGORIES.map((category) => {
+    const list = courses.filter((c) => c.category === category);
     const capacity = list.reduce((s, c) => s + c.seatsTotal, 0);
     const enrolled = list.reduce((s, c) => s + c.seatsFilled, 0);
-    const utilization = capacity > 0 ? Math.round((enrolled / capacity) * 100) : 0;
-    return {
-      category: cat,
-      count,
-      capacity,
-      enrolled,
-      utilization,
-    };
+    return { category, count: list.length, capacity, enrolled, utilization: capacity > 0 ? Math.round((enrolled / capacity) * 100) : 0 };
   });
+
+  // A student sees only their own registrations; staff see the whole college.
+  const isStudent = session.role === "student";
+  const visible = isStudent ? choices.filter((c) => c.reg.studentSub === session.sub) : choices;
+  const viewer = isStudent
+    ? await getStudentAcademicProfile(session).then(
+        (p) => ({ name: p.name, regNo: p.rollNo, department: p.department, semester: p.semester }),
+        () => null,
+      )
+    : null;
 
   return {
     collegeId,
-    collegeName: college ? String(college.name) : "Kaveri College of Arts & Science",
+    collegeName: college ? String(college.name) : collegeId,
     stream,
     kpis,
-    courses: store.courses,
-    studentRegistrations: store.registrations,
+    courses,
+    studentRegistrations: visible.map((c) => c.choice),
     categorySummaries,
+    departments: await departmentsOf(collegeId, courses),
+    categoryRules: CATEGORY_RULES,
+    policies: win.policies,
+    allocationRule: ALLOCATION_RULE,
+    registrationOpenNow: state.open,
+    registrationClosedReason: state.reason,
+    permissions: permissionsOf(session.role),
+    myCourseIds: isStudent ? visible.map((c) => c.reg.courseId) : [],
+    viewer,
   };
 }
 
-export async function createCbcsCourse(
-  session: SessionPayload,
-  input: CreateCbcsCourseInput,
-): Promise<CbcsCourse> {
-  const collegeId = session.college && session.college !== "all" ? session.college : "COL-1002";
-  const stream = (await collegeStream(collegeId)) || "artsScience";
-  const store = getCbcsStore(collegeId, stream);
+/* ── writes ──────────────────────────────────────────────────────────────────────────────────────────────── */
 
-  const newCourse: CbcsCourse = {
-    id: `cbcs-new-${Date.now()}`,
-    code: input.code.toUpperCase(),
-    title: input.title,
-    offeringDepartment: input.offeringDepartment,
+const auditCollege = (session: SessionPayload) => (session.college === "all" ? null : session.college);
+
+async function ownCourse(college: string, id: string): Promise<CbcsCourseRow> {
+  const c = await cbcsStore().course(id);
+  if (!c || c.college !== college) throw new CbcsError("CBCS course not found.", 404);
+  return c;
+}
+
+async function filledOf(college: string, courseId: string): Promise<number> {
+  return (await cbcsStore().registrations(college)).filter((r) => r.courseId === courseId && r.status === "Confirmed").length;
+}
+
+export async function createCbcsCourse(session: SessionPayload, input: CreateCbcsCourseInput): Promise<CbcsCourse> {
+  const collegeId = await collegeOf(session);
+  const created = await cbcsStore().createCourse({
+    college: collegeId,
+    code: input.code.trim().toUpperCase(),
+    title: input.title.trim(),
+    offeringDepartment: input.offeringDepartment.trim(),
     semester: input.semester,
     category: input.category,
     credits: input.credits,
     seatsTotal: input.seatsTotal,
-    seatsFilled: 0,
-    instructor: input.instructor,
-    schedule: input.schedule,
-    syllabusSummary: input.syllabusSummary,
-    status: "Open",
-  };
-
-  store.courses.unshift(newCourse);
+    instructor: input.instructor.trim(),
+    schedule: input.schedule.trim(),
+    syllabusSummary: input.syllabusSummary.trim(),
+    createdBySub: session.sub,
+  });
+  if (!created) throw new CbcsError(`A course with code ${input.code.trim().toUpperCase()} already exists.`, 409);
 
   await getStore().audit.add({
     actor: session.name,
-    action: `Added CBCS Elective Course: ${newCourse.code} - ${newCourse.title}`,
+    action: `Added CBCS Elective Course: ${created.code} - ${created.title}`,
     target: "cbcs-electives",
-    collegeId: session.college === "all" ? null : session.college,
+    collegeId: auditCollege(session),
     actorSub: session.sub,
   });
-
-  return newCourse;
+  return toCourse(created, 0);
 }
 
 export async function updateCbcsSeats(
   session: SessionPayload,
   input: UpdateCbcsSeatsInput,
 ): Promise<{ ok: boolean; course: CbcsCourse }> {
-  const collegeId = session.college && session.college !== "all" ? session.college : "COL-1002";
-  const stream = (await collegeStream(collegeId)) || "artsScience";
-  const store = getCbcsStore(collegeId, stream);
-
-  const found = store.courses.find((c) => c.id === input.courseId);
-  if (!found) throw new Error("CBCS course not found.");
-
-  found.seatsTotal = input.seatsTotal;
-  if (found.seatsFilled >= found.seatsTotal) {
-    found.status = "Full";
-  } else if (found.status === "Full") {
-    found.status = "Open";
+  const collegeId = await collegeOf(session);
+  await ownCourse(collegeId, input.courseId);
+  const filled = await filledOf(collegeId, input.courseId);
+  if (input.seatsTotal < filled) {
+    throw new CbcsError(`Cannot set capacity below the ${filled} students already registered.`);
   }
+  const updated = await cbcsStore().setSeats(input.courseId, input.seatsTotal);
+  if (!updated) throw new CbcsError("CBCS course not found.", 404);
 
   await getStore().audit.add({
     actor: session.name,
-    action: `Updated Seat Capacity for ${found.code} to ${found.seatsTotal}`,
+    action: `Updated Seat Capacity for ${updated.code} to ${updated.seatsTotal}`,
     target: "cbcs-electives",
-    collegeId: session.college === "all" ? null : session.college,
+    collegeId: auditCollege(session),
     actorSub: session.sub,
   });
-
-  return { ok: true, course: found };
+  return { ok: true, course: toCourse(updated, filled) };
 }
 
 export async function enrollStudentElective(
   session: SessionPayload,
   input: EnrollStudentElectiveInput,
 ): Promise<{ ok: boolean; registration: CbcsStudentChoice }> {
-  const collegeId = session.college && session.college !== "all" ? session.college : "COL-1002";
-  const stream = (await collegeStream(collegeId)) || "artsScience";
-  const store = getCbcsStore(collegeId, stream);
+  const collegeId = await collegeOf(session);
+  const course = await ownCourse(collegeId, input.courseId);
+  const isStudent = session.role === "student";
+  if (!isStudent && !canEnrollOthers(session.role)) throw new CbcsError("You cannot register students for electives.", 403);
 
-  const course = store.courses.find((c) => c.id === input.courseId);
-  if (!course) throw new Error("CBCS course not found.");
-
-  if (course.seatsFilled >= course.seatsTotal) {
-    throw new Error("This elective course has reached maximum seat capacity.");
+  // Students can register only while the window is open; staff can register on a student's behalf at any time.
+  if (isStudent) {
+    const state = windowState(await readWindow(collegeId));
+    if (!state.open) throw new CbcsError(state.reason, 403);
   }
 
-  course.seatsFilled += 1;
-  if (course.seatsFilled >= course.seatsTotal) {
-    course.status = "Full";
+  let studentName: string;
+  let regNo: string;
+  let department: string;
+  let semester: number;
+  if (isStudent) {
+    const p = await getStudentAcademicProfile(session);
+    studentName = p.name;
+    regNo = p.rollNo;
+    department = p.department;
+    semester = p.semester;
+  } else {
+    studentName = (input.studentName ?? "").trim();
+    regNo = (input.regNo ?? "").trim();
+    if (!studentName || !regNo) throw new CbcsError("Enter the student's name and register number.");
+    department = (input.department ?? "").trim();
+    semester = input.semester ?? course.semester;
   }
 
-  const studentName = input.studentName || session.name || "Student";
-  const regNo = input.regNo || "22UG" + Math.floor(1000 + Math.random() * 9000);
-  const dept = input.department || "Undergraduate";
-  const sem = input.semester || course.semester;
-
-  const now = new Date();
-  const regItem: CbcsStudentChoice = {
-    id: `reg-${Date.now()}`,
+  const result = await cbcsStore().enroll({
+    college: collegeId,
+    courseId: course.id,
+    studentSub: isStudent ? session.sub : "",
     studentName,
     regNo,
-    department: dept,
-    semester: sem,
-    courseId: course.id,
-    courseCode: course.code,
-    courseTitle: course.title,
-    category: course.category,
-    credits: course.credits,
-    registeredAt: `${now.toISOString().slice(0, 10)} ${now.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}`,
-    status: "Confirmed",
-  };
-
-  store.registrations.unshift(regItem);
+    department,
+    semester,
+    registeredBy: session.sub,
+  });
+  if ("error" in result) {
+    if (result.error === "full") throw new CbcsError("This elective course has reached maximum seat capacity.", 409);
+    if (result.error === "duplicate") throw new CbcsError(`${studentName} (${regNo}) is already registered in ${course.code}.`, 409);
+    throw new CbcsError("CBCS course not found.", 404);
+  }
 
   await getStore().audit.add({
     actor: session.name,
     action: `Enrolled student ${studentName} in ${course.code}`,
     target: "cbcs-electives",
-    collegeId: session.college === "all" ? null : session.college,
+    collegeId: auditCollege(session),
     actorSub: session.sub,
   });
-
-  return { ok: true, registration: regItem };
+  return { ok: true, registration: toChoice(result.ok, course) };
 }
 
-export async function dropStudentElective(
-  session: SessionPayload,
-  registrationId: string,
-): Promise<{ ok: boolean }> {
-  const collegeId = session.college && session.college !== "all" ? session.college : "COL-1002";
-  const stream = (await collegeStream(collegeId)) || "artsScience";
-  const store = getCbcsStore(collegeId, stream);
+export async function dropStudentElective(session: SessionPayload, registrationId: string): Promise<{ ok: boolean }> {
+  const collegeId = await collegeOf(session);
+  const reg = await cbcsStore().registration(registrationId);
+  if (!reg || reg.college !== collegeId) throw new CbcsError("Registration record not found.", 404);
 
-  const idx = store.registrations.findIndex((r) => r.id === registrationId);
-  if (idx === -1) throw new Error("Registration record not found.");
-
-  const removed = store.registrations.splice(idx, 1)[0];
-  if (removed) {
-    const course = store.courses.find((c) => c.id === removed.courseId);
-    if (course && course.seatsFilled > 0) {
-      course.seatsFilled -= 1;
-      if (course.status === "Full") course.status = "Open";
-    }
+  if (session.role === "student") {
+    if (reg.studentSub !== session.sub) throw new CbcsError("You can only drop your own registrations.", 403);
+    const state = windowState(await readWindow(collegeId));
+    if (!state.open) throw new CbcsError(state.reason, 403);
+  } else if (!canEnrollOthers(session.role)) {
+    throw new CbcsError("You cannot drop student registrations.", 403);
   }
+
+  const removed = await cbcsStore().drop(registrationId);
+  if (!removed) throw new CbcsError("Registration record not found.", 404);
+  const course = await cbcsStore().course(removed.courseId);
 
   await getStore().audit.add({
     actor: session.name,
-    action: `Dropped elective registration for ${removed?.studentName} in ${removed?.courseCode}`,
+    action: `Dropped elective registration for ${removed.studentName} in ${course?.code ?? "a course"}`,
     target: "cbcs-electives",
-    collegeId: session.college === "all" ? null : session.college,
+    collegeId: auditCollege(session),
     actorSub: session.sub,
   });
-
   return { ok: true };
 }
 
@@ -571,40 +403,33 @@ export async function updateCbcsWindow(
   session: SessionPayload,
   input: UpdateCbcsWindowInput,
 ): Promise<{ ok: boolean; registrationWindowOpen: boolean; registrationDeadline: string }> {
-  const collegeId = session.college && session.college !== "all" ? session.college : "COL-1002";
-  const stream = (await collegeStream(collegeId)) || "artsScience";
-  const store = getCbcsStore(collegeId, stream);
-
-  store.windowOpen = input.registrationWindowOpen;
-  store.deadline = input.registrationDeadline;
+  const collegeId = await collegeOf(session);
+  const deadline = input.registrationDeadline.trim();
+  if (deadline && deadlineInstant(deadline) === undefined) {
+    throw new CbcsError("Enter the deadline as a date and time, e.g. 2026-10-24 17:00 IST.");
+  }
+  const current = await readWindow(collegeId);
+  const policies = input.policies ?? current.policies;
+  await getStore().settings.save(collegeId, SETTINGS_SLUG, {
+    open: input.registrationWindowOpen,
+    deadline,
+    policies: policies.join("\n"),
+  });
 
   await getStore().audit.add({
     actor: session.name,
-    action: `Updated CBCS registration window: ${input.registrationWindowOpen ? "OPEN" : "CLOSED"}, deadline: ${input.registrationDeadline}`,
+    action: `Updated CBCS registration window: ${input.registrationWindowOpen ? "OPEN" : "CLOSED"}, deadline: ${deadline || "none"}`,
     target: "cbcs-electives",
-    collegeId: session.college === "all" ? null : session.college,
+    collegeId: auditCollege(session),
     actorSub: session.sub,
   });
-
-  return { ok: true, registrationWindowOpen: store.windowOpen, registrationDeadline: store.deadline };
+  return { ok: true, registrationWindowOpen: input.registrationWindowOpen, registrationDeadline: deadline };
 }
 
-/** Dynamic ListData builder for backwards-compatible generic list template */
-export async function dynamicCbcsElectivesData(
-  collegeScope = "all",
-  stream?: string | null,
-): Promise<ListData> {
-  const mockSession: SessionPayload = {
-    college: collegeScope === "all" ? (stream === "management" ? "COL-1004" : "COL-1002") : collegeScope,
-    sub: "inst-demo",
-    role: "institution",
-    name: "Dean Academics",
-    tenant: "TNTU",
-    mfa: true,
-    exp: 0,
-  };
-
-  const overview = await getCbcsOverview(mockSession);
+/** ListData for the generic list template (the module-data fallback), from the same college records. */
+export async function dynamicCbcsElectivesData(collegeScope = "all", stream?: string | null): Promise<ListData> {
+  const college = collegeScope && collegeScope !== "all" ? collegeScope : ((await listColleges())[0]?.id ?? "");
+  const courses: CbcsCourse[] = college ? (await loadBasket(college, stream || (await streamOf(college)))).courses : [];
 
   return {
     template: "list",
@@ -617,7 +442,7 @@ export async function dynamicCbcsElectivesData(
       { key: "seatsFilled", label: "Filled", kind: "number" },
       { key: "status", label: "Status", kind: "badge" },
     ],
-    rows: overview.courses.map((c) => ({
+    rows: courses.map((c) => ({
       code: c.code,
       title: c.title,
       category: c.category,

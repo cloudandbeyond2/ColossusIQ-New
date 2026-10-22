@@ -2100,3 +2100,40 @@ model Project {
   @@index([mentorId])
   @@map("projects")
 }
+
+model CbcsCourse {
+  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  collegeId          String   @map("college_id") @db.Uuid
+  code               String
+  title              String
+  offeringDepartment String   @map("offering_department")
+  semester           Int
+  category           String
+  credits            Int
+  seatsTotal         Int      @map("seats_total")
+  instructor         String   @default("")
+  schedule           String   @default("")
+  syllabusSummary    String   @default("") @map("syllabus_summary")
+  createdBySub       String   @default("") @map("created_by_sub")
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@map("cbcs_courses")
+}
+
+model CbcsRegistration {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  collegeId    String   @map("college_id") @db.Uuid
+  courseId     String   @map("course_id") @db.Uuid
+  studentSub   String   @default("") @map("student_sub")
+  studentName  String   @map("student_name")
+  regNo        String   @map("reg_no")
+  department   String   @default("")
+  semester     Int
+  status       String   @default("Confirmed")
+  registeredBy String   @default("") @map("registered_by")
+  registeredAt DateTime @default(now()) @map("registered_at") @db.Timestamptz(6)
+
+  @@index([collegeId, registeredAt], map: "cbcs_registrations_college_idx")
+  @@map("cbcs_registrations")
+}

@@ -7,7 +7,7 @@ import { z } from "zod";
 import {
   CbcsOverviewSchema,
   CbcsCourse,
-  CbcsStudentChoice,
+  CbcsCategory,
   CreateCbcsCourseInput,
   UpdateCbcsSeatsInput,
   EnrollStudentElectiveInput,
@@ -31,6 +31,16 @@ import type { Role } from "@/lib/auth/roles";
 
 type TabKey = "baskets" | "categories" | "enrolments" | "window-settings";
 
+/** "2026-10-24 17:00 IST" -> the value a datetime-local input takes ("2026-10-24T17:00"). */
+function deadlineToInput(deadline: string): string {
+  const m = /^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2})/.exec(deadline.trim());
+  return m ? `${m[1]}T${m[2]}` : "";
+}
+/** The reverse: what the API stores (IST wall-clock time), or "" for no deadline. */
+function inputToDeadline(value: string): string {
+  return value ? `${value.replace("T", " ")} IST` : "";
+}
+
 export function CbcsElectivesModule({ role }: { role: Role }) {
   const qc = useQueryClient();
   const [activeTab, setActiveTab] = useState<TabKey>("baskets");
@@ -44,9 +54,9 @@ export function CbcsElectivesModule({ role }: { role: Role }) {
   const [showAddCourseModal, setShowAddCourseModal] = useState<boolean>(false);
   const [newCode, setNewCode] = useState("");
   const [newTitle, setNewTitle] = useState("");
-  const [newDept, setNewDept] = useState("Computer Science");
+  const [newDept, setNewDept] = useState("");
   const [newSemester, setNewSemester] = useState(4);
-  const [newCategory, setNewCategory] = useState<any>("Discipline-Specific Elective (DSE)");
+  const [newCategory, setNewCategory] = useState<CbcsCategory>("Discipline-Specific Elective (DSE)");
   const [newCredits, setNewCredits] = useState(3);
   const [newSeats, setNewSeats] = useState(60);
   const [newInstructor, setNewInstructor] = useState("");
@@ -70,7 +80,8 @@ export function CbcsElectivesModule({ role }: { role: Role }) {
   // Registration Window Modal State
   const [showWindowModal, setShowWindowModal] = useState<boolean>(false);
   const [windowOpen, setWindowOpen] = useState(true);
-  const [windowDeadline, setWindowDeadline] = useState("2026-10-24 17:00 IST");
+  const [windowDeadline, setWindowDeadline] = useState("");
+  const [windowPolicies, setWindowPolicies] = useState("");
   const [windowFormError, setWindowFormError] = useState<string | null>(null);
 
   const { data, isLoading, error, refetch } = useQuery({
@@ -143,11 +154,9 @@ export function CbcsElectivesModule({ role }: { role: Role }) {
       flash("Student successfully enrolled in elective course.");
     },
     onError: (err: unknown) => {
-      if (err instanceof ApiError) {
-        setEnrollFormError(err.message);
-      } else {
-        setEnrollFormError("Failed to enroll student.");
-      }
+      const message = err instanceof ApiError ? err.message : "Failed to enroll student.";
+      setEnrollFormError(message);
+      flash(message);
     },
   });
 
@@ -158,6 +167,7 @@ export function CbcsElectivesModule({ role }: { role: Role }) {
       void qc.invalidateQueries({ queryKey: ["cbcs-electives"] });
       flash("Elective registration dropped.");
     },
+    onError: (err: unknown) => flash(err instanceof ApiError ? err.message : "Could not drop the registration."),
   });
 
   const updateWindowMutation = useMutation({
@@ -168,6 +178,7 @@ export function CbcsElectivesModule({ role }: { role: Role }) {
       setShowWindowModal(false);
       flash("CBCS enrollment window settings updated.");
     },
+    onError: (err: unknown) => setWindowFormError(err instanceof ApiError ? err.message : "Could not save the window settings."),
   });
 
   const openAdjustModal = (course: CbcsCourse) => {
@@ -188,7 +199,8 @@ export function CbcsElectivesModule({ role }: { role: Role }) {
   const openWindowModal = () => {
     if (!data) return;
     setWindowOpen(data.kpis.registrationWindowOpen);
-    setWindowDeadline(data.kpis.registrationDeadline);
+    setWindowDeadline(deadlineToInput(data.kpis.registrationDeadline));
+    setWindowPolicies(data.policies.join("\n"));
     setWindowFormError(null);
     setShowWindowModal(true);
   };
@@ -242,7 +254,8 @@ export function CbcsElectivesModule({ role }: { role: Role }) {
     e.preventDefault();
     updateWindowMutation.mutate({
       registrationWindowOpen: windowOpen,
-      registrationDeadline: windowDeadline.trim(),
+      registrationDeadline: inputToDeadline(windowDeadline),
+      policies: windowPolicies.split("\n").map((l) => l.trim()).filter(Boolean),
     });
   };
 
@@ -299,10 +312,14 @@ export function CbcsElectivesModule({ role }: { role: Role }) {
     );
   }
 
-  const { kpis, courses, studentRegistrations, categorySummaries } = data;
+  const { kpis, courses, studentRegistrations, categorySummaries, categoryRules, policies, permissions, departments, myCourseIds, allocationRule } = data;
+  const deadlineLabel = kpis.registrationDeadline || "No deadline set";
+  const semesterOptions = Array.from(new Set(courses.map((c) => c.semester))).sort((a, b) => a - b);
+  const categoryOptions = categoryRules.map((r) => r.category);
+  const canDrop = (permissions.enrollOthers) || (permissions.selfEnroll && data.registrationOpenNow);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" data-role={role}>
       {/* Flash Banner */}
       {flashMessage && (
         <div
@@ -334,7 +351,7 @@ export function CbcsElectivesModule({ role }: { role: Role }) {
               {kpis.registrationWindowOpen ? "Registration Open" : "Registration Closed"}
             </Badge>
             <Badge tone="neutral" className="text-[11px]">
-              Deadline: {kpis.registrationDeadline}
+              Deadline: {deadlineLabel}
             </Badge>
           </div>
           <p className="text-sm text-[var(--ink-2)] mt-1">
@@ -361,7 +378,7 @@ export function CbcsElectivesModule({ role }: { role: Role }) {
             <Fi name="document" className="text-xs" />
             Export Basket (CSV)
           </Button>
-          {(role === "institution" || role === "admin" || role === "hod") && (
+          {permissions.manageWindow && (
             <Button
               variant="secondary"
               size="sm"
@@ -372,11 +389,12 @@ export function CbcsElectivesModule({ role }: { role: Role }) {
               Window Settings
             </Button>
           )}
-          {(role === "institution" || role === "admin" || role === "hod") && (
+          {permissions.manageCourses && (
             <Button
               variant="primary"
               size="sm"
               onClick={() => {
+                if (!newDept && departments[0]) setNewDept(departments[0]);
                 setCourseFormError(null);
                 setShowAddCourseModal(true);
               }}
@@ -394,7 +412,7 @@ export function CbcsElectivesModule({ role }: { role: Role }) {
         {[
           { key: "baskets", label: `Electives Basket (${courses.length})`, icon: "layers" },
           { key: "categories", label: "NEP Credit Distribution", icon: "chart-histogram" },
-          { key: "enrolments", label: `Student Allocations (${studentRegistrations.length})`, icon: "users" },
+          { key: "enrolments", label: `${permissions.selfEnroll ? "My Registrations" : "Student Allocations"} (${studentRegistrations.length})`, icon: "users" },
           { key: "window-settings", label: "CBCS Guidelines & Window", icon: "settings" },
         ].map((tab) => (
           <button
@@ -478,10 +496,10 @@ export function CbcsElectivesModule({ role }: { role: Role }) {
                   </Badge>
                 </div>
                 <div className="flex items-baseline gap-2">
-                  <span className="text-base font-bold text-[var(--ink)] truncate">{kpis.registrationDeadline}</span>
+                  <span className="text-base font-bold text-[var(--ink)] truncate">{deadlineLabel}</span>
                 </div>
                 <p className="text-[11px] text-[var(--ink-3)]">
-                  Students self-select via portal before locking.
+                  {data.registrationOpenNow ? "Students self-select via portal before locking." : data.registrationClosedReason}
                 </p>
               </CardBody>
             </Card>
@@ -490,14 +508,7 @@ export function CbcsElectivesModule({ role }: { role: Role }) {
           {/* Filters & Search */}
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
             <div className="flex items-center gap-2 flex-wrap">
-              {[
-                "All Categories",
-                "Discipline-Specific Elective (DSE)",
-                "Generic Elective (GE)",
-                "Skill Enhancement Course (SEC)",
-                "Ability Enhancement (AECC)",
-                "Value-Added Course (VAC)",
-              ].map((cat) => (
+              {["All Categories", ...categoryOptions].map((cat) => (
                 <button
                   key={cat}
                   onClick={() => setCategoryFilter(cat)}
@@ -519,10 +530,11 @@ export function CbcsElectivesModule({ role }: { role: Role }) {
                 className={cn(inputClass, "text-xs py-1.5 w-36")}
               >
                 <option value="All Semesters">All Semesters</option>
-                <option value="Semester 2">Semester 2</option>
-                <option value="Semester 3">Semester 3</option>
-                <option value="Semester 4">Semester 4</option>
-                <option value="Semester 6">Semester 6</option>
+                {semesterOptions.map((s) => (
+                  <option key={s} value={`Semester ${s}`}>
+                    Semester {s}
+                  </option>
+                ))}
               </select>
               <input
                 type="text"
@@ -535,6 +547,18 @@ export function CbcsElectivesModule({ role }: { role: Role }) {
           </div>
 
           {/* Courses Cards Grid */}
+          {filteredCourses.length === 0 && (
+            <EmptyState
+              title={courses.length === 0 ? "No elective courses yet" : "No courses match these filters"}
+              body={
+                courses.length === 0
+                  ? permissions.manageCourses
+                    ? "Publish the first elective course to open the CBCS basket for students."
+                    : "Your college has not published any elective courses yet."
+                  : "Try a different category, semester or search."
+              }
+            />
+          )}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {filteredCourses.map((c) => {
               const utilPercent = Math.round((c.seatsFilled / c.seatsTotal) * 100);
@@ -594,7 +618,7 @@ export function CbcsElectivesModule({ role }: { role: Role }) {
                     </div>
 
                     <div className="pt-2 border-t border-[var(--line)] flex items-center justify-between gap-2">
-                      {(role === "institution" || role === "admin" || role === "hod") && (
+                      {permissions.manageCourses && (
                         <Button
                           variant="secondary"
                           size="sm"
@@ -604,15 +628,28 @@ export function CbcsElectivesModule({ role }: { role: Role }) {
                           Adjust Capacity
                         </Button>
                       )}
-                      <Button
-                        variant={isFull ? "secondary" : "primary"}
-                        size="sm"
-                        disabled={isFull}
-                        onClick={() => openEnrollModal(c)}
-                        className="text-xs h-7 px-2.5 ml-auto"
-                      >
-                        {isFull ? "Capped" : "Enroll Student"}
-                      </Button>
+                      {permissions.selfEnroll && (
+                        <Button
+                          variant={myCourseIds.includes(c.id) || isFull || !data.registrationOpenNow ? "secondary" : "primary"}
+                          size="sm"
+                          disabled={myCourseIds.includes(c.id) || isFull || !data.registrationOpenNow || enrollMutation.isPending}
+                          onClick={() => enrollMutation.mutate({ courseId: c.id })}
+                          className="text-xs h-7 px-2.5 ml-auto"
+                        >
+                          {myCourseIds.includes(c.id) ? "Registered" : isFull ? "Capped" : !data.registrationOpenNow ? "Closed" : "Register"}
+                        </Button>
+                      )}
+                      {permissions.enrollOthers && (
+                        <Button
+                          variant={isFull ? "secondary" : "primary"}
+                          size="sm"
+                          disabled={isFull}
+                          onClick={() => openEnrollModal(c)}
+                          className="text-xs h-7 px-2.5 ml-auto"
+                        >
+                          {isFull ? "Capped" : "Enroll Student"}
+                        </Button>
+                      )}
                     </div>
                   </CardBody>
                 </Card>
@@ -676,36 +713,14 @@ export function CbcsElectivesModule({ role }: { role: Role }) {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[var(--line)]">
-                    <tr>
-                      <td className="p-2.5 font-semibold text-[var(--ink)]">Discipline-Specific Elective (DSE)</td>
-                      <td className="p-2.5">3 – 4 Credits</td>
-                      <td className="p-2.5">Advanced specialization in primary major</td>
-                      <td className="p-2.5"><Badge tone="teal">Mandatory (Min 4)</Badge></td>
-                    </tr>
-                    <tr>
-                      <td className="p-2.5 font-semibold text-[var(--ink)]">Generic Elective (GE)</td>
-                      <td className="p-2.5">3 Credits</td>
-                      <td className="p-2.5">Interdisciplinary studies from other departments</td>
-                      <td className="p-2.5"><Badge tone="teal">Mandatory (Min 2)</Badge></td>
-                    </tr>
-                    <tr>
-                      <td className="p-2.5 font-semibold text-[var(--ink)]">Skill Enhancement Course (SEC)</td>
-                      <td className="p-2.5">2 – 3 Credits</td>
-                      <td className="p-2.5">Practical, lab-based digital and analytical tools</td>
-                      <td className="p-2.5"><Badge tone="teal">Mandatory (Min 3)</Badge></td>
-                    </tr>
-                    <tr>
-                      <td className="p-2.5 font-semibold text-[var(--ink)]">Ability Enhancement (AECC)</td>
-                      <td className="p-2.5">2 Credits</td>
-                      <td className="p-2.5">Environmental Studies and Professional Communication</td>
-                      <td className="p-2.5"><Badge tone="teal">Mandatory (Min 2)</Badge></td>
-                    </tr>
-                    <tr>
-                      <td className="p-2.5 font-semibold text-[var(--ink)]">Value-Added Course (VAC)</td>
-                      <td className="p-2.5">1 – 2 Credits</td>
-                      <td className="p-2.5">Ethics, mental wellness, cyber hygiene, and yoga</td>
-                      <td className="p-2.5"><Badge tone="brand">Recommended</Badge></td>
-                    </tr>
+                    {categoryRules.map((r) => (
+                      <tr key={r.category}>
+                        <td className="p-2.5 font-semibold text-[var(--ink)]">{r.category}</td>
+                        <td className="p-2.5">{r.credits}</td>
+                        <td className="p-2.5">{r.objective}</td>
+                        <td className="p-2.5"><Badge tone={r.mandatory ? "teal" : "brand"}>{r.requirement}</Badge></td>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
               </div>
@@ -742,6 +757,13 @@ export function CbcsElectivesModule({ role }: { role: Role }) {
                 </tr>
               </thead>
               <tbody className="divide-y divide-[var(--line)]">
+                {studentRegistrations.length === 0 && (
+                  <tr>
+                    <td colSpan={8} className="p-6 text-center text-[var(--ink-3)]">
+                      {permissions.selfEnroll ? "You have not registered for any elective yet." : "No student has registered for an elective yet."}
+                    </td>
+                  </tr>
+                )}
                 {studentRegistrations.map((reg) => (
                   <tr key={reg.id} className="hover:bg-[var(--surface-2)]/50 transition-colors">
                     <td className="p-3 font-medium text-[var(--ink)]">
@@ -767,14 +789,16 @@ export function CbcsElectivesModule({ role }: { role: Role }) {
                       <Badge tone="teal">{reg.status}</Badge>
                     </td>
                     <td className="p-3 text-right">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => dropMutation.mutate(reg.id)}
-                        className="text-xs h-7 px-2 text-rose-600 hover:text-rose-700"
-                      >
-                        Drop
-                      </Button>
+                      {canDrop && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => dropMutation.mutate(reg.id)}
+                          className="text-xs h-7 px-2 text-rose-600 hover:text-rose-700"
+                        >
+                          Drop
+                        </Button>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -794,7 +818,7 @@ export function CbcsElectivesModule({ role }: { role: Role }) {
                 Manage registration window opening, deadlines, and automated allocation rules.
               </p>
             </div>
-            {(role === "institution" || role === "admin" || role === "hod") && (
+            {permissions.manageWindow && (
               <Button variant="secondary" size="sm" onClick={openWindowModal}>
                 Edit Window Settings
               </Button>
@@ -814,11 +838,11 @@ export function CbcsElectivesModule({ role }: { role: Role }) {
                   </div>
                   <div className="flex justify-between py-1 border-b border-[var(--line)]">
                     <span className="text-[var(--ink-3)]">Official Closing Deadline</span>
-                    <span className="font-bold text-[var(--ink)]">{kpis.registrationDeadline}</span>
+                    <span className="font-bold text-[var(--ink)]">{deadlineLabel}</span>
                   </div>
                   <div className="flex justify-between py-1">
                     <span className="text-[var(--ink-3)]">Allocation Algorithm</span>
-                    <span className="font-medium text-emerald-600">First-Come-First-Served (FCFS)</span>
+                    <span className="font-medium text-emerald-600">{allocationRule}</span>
                   </div>
                 </div>
               </CardBody>
@@ -828,9 +852,9 @@ export function CbcsElectivesModule({ role }: { role: Role }) {
               <CardBody className="p-4 space-y-3">
                 <h4 className="font-semibold text-sm text-[var(--ink)]">Institutional Enrollment Policy</h4>
                 <ul className="text-xs text-[var(--ink-2)] space-y-2 list-disc pl-5">
-                  <li>Students must register for at least 1 Generic Elective outside their parent department.</li>
-                  <li>Skill Enhancement Courses (SEC) include mandatory 30 hours of hands-on laboratory practice.</li>
-                  <li>Once an elective reaches 100% capacity, waitlisting is automatically initiated.</li>
+                  {policies.map((line) => (
+                    <li key={line}>{line}</li>
+                  ))}
                 </ul>
               </CardBody>
             </Card>
@@ -867,7 +891,7 @@ export function CbcsElectivesModule({ role }: { role: Role }) {
                   <label className="block text-xs font-medium text-[var(--ink)] mb-1">Course Code</label>
                   <input
                     type="text"
-                    placeholder="e.g. SEC205"
+                    placeholder="Course code"
                     value={newCode}
                     onChange={(e) => setNewCode(e.target.value)}
                     className={cn(inputClass, "w-full text-xs font-mono uppercase")}
@@ -878,7 +902,7 @@ export function CbcsElectivesModule({ role }: { role: Role }) {
                   <label className="block text-xs font-medium text-[var(--ink)] mb-1">Course Title</label>
                   <input
                     type="text"
-                    placeholder="e.g. Cloud Computing & DevOps"
+                    placeholder="Course title"
                     value={newTitle}
                     onChange={(e) => setNewTitle(e.target.value)}
                     className={cn(inputClass, "w-full text-xs")}
@@ -892,12 +916,18 @@ export function CbcsElectivesModule({ role }: { role: Role }) {
                   <label className="block text-xs font-medium text-[var(--ink)] mb-1">Offering Department</label>
                   <input
                     type="text"
-                    placeholder="e.g. Computer Science"
+                    list="cbcs-departments"
+                    placeholder="Choose or type a department"
                     value={newDept}
                     onChange={(e) => setNewDept(e.target.value)}
                     className={cn(inputClass, "w-full text-xs")}
                     required
                   />
+                  <datalist id="cbcs-departments">
+                    {departments.map((d) => (
+                      <option key={d} value={d} />
+                    ))}
+                  </datalist>
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-[var(--ink)] mb-1">Semester</label>
@@ -906,11 +936,11 @@ export function CbcsElectivesModule({ role }: { role: Role }) {
                     onChange={(e) => setNewSemester(Number(e.target.value))}
                     className={cn(inputClass, "w-full text-xs")}
                   >
-                    <option value={2}>Semester 2</option>
-                    <option value={3}>Semester 3</option>
-                    <option value={4}>Semester 4</option>
-                    <option value={5}>Semester 5</option>
-                    <option value={6}>Semester 6</option>
+                    {[1, 2, 3, 4, 5, 6, 7, 8].map((s) => (
+                      <option key={s} value={s}>
+                        Semester {s}
+                      </option>
+                    ))}
                   </select>
                 </div>
               </div>
@@ -920,14 +950,14 @@ export function CbcsElectivesModule({ role }: { role: Role }) {
                   <label className="block text-xs font-medium text-[var(--ink)] mb-1">CBCS Category</label>
                   <select
                     value={newCategory}
-                    onChange={(e) => setNewCategory(e.target.value)}
+                    onChange={(e) => setNewCategory(e.target.value as CbcsCategory)}
                     className={cn(inputClass, "w-full text-xs")}
                   >
-                    <option value="Discipline-Specific Elective (DSE)">Discipline-Specific Elective (DSE)</option>
-                    <option value="Generic Elective (GE)">Generic Elective (GE)</option>
-                    <option value="Skill Enhancement Course (SEC)">Skill Enhancement Course (SEC)</option>
-                    <option value="Ability Enhancement (AECC)">Ability Enhancement (AECC)</option>
-                    <option value="Value-Added Course (VAC)">Value-Added Course (VAC)</option>
+                    {categoryOptions.map((c) => (
+                      <option key={c} value={c}>
+                        {c}
+                      </option>
+                    ))}
                   </select>
                 </div>
                 <div>
@@ -949,8 +979,8 @@ export function CbcsElectivesModule({ role }: { role: Role }) {
                   <label className="block text-xs font-medium text-[var(--ink)] mb-1">Seat Intake Capacity</label>
                   <input
                     type="number"
-                    min="10"
-                    max="500"
+                    min="1"
+                    max="1000"
                     value={newSeats}
                     onChange={(e) => setNewSeats(Number(e.target.value))}
                     className={cn(inputClass, "w-full text-xs")}
@@ -961,7 +991,7 @@ export function CbcsElectivesModule({ role }: { role: Role }) {
                   <label className="block text-xs font-medium text-[var(--ink)] mb-1">Assigned Instructor</label>
                   <input
                     type="text"
-                    placeholder="e.g. Dr. K. Anand"
+                    placeholder="Faculty member's name"
                     value={newInstructor}
                     onChange={(e) => setNewInstructor(e.target.value)}
                     className={cn(inputClass, "w-full text-xs")}
@@ -974,7 +1004,7 @@ export function CbcsElectivesModule({ role }: { role: Role }) {
                 <label className="block text-xs font-medium text-[var(--ink)] mb-1">Weekly Schedule & Venue</label>
                 <input
                   type="text"
-                  placeholder="e.g. Mon & Wed, 10:00 AM – 11:30 AM (Room 204)"
+                  placeholder="Days, time and room"
                   value={newSchedule}
                   onChange={(e) => setNewSchedule(e.target.value)}
                   className={cn(inputClass, "w-full text-xs")}
@@ -1051,8 +1081,8 @@ export function CbcsElectivesModule({ role }: { role: Role }) {
                 <label className="block text-xs font-medium text-[var(--ink)] mb-1">New Total Seat Capacity</label>
                 <input
                   type="number"
-                  min={adjustingCourse.seatsFilled}
-                  max="500"
+                  min={Math.max(1, adjustingCourse.seatsFilled)}
+                  max="1000"
                   value={adjustedSeats}
                   onChange={(e) => setAdjustedSeats(Number(e.target.value))}
                   className={cn(inputClass, "w-full text-xs")}
@@ -1114,7 +1144,7 @@ export function CbcsElectivesModule({ role }: { role: Role }) {
                 <label className="block text-xs font-medium text-[var(--ink)] mb-1">Student Full Name</label>
                 <input
                   type="text"
-                  placeholder="e.g. Karthik Venkat"
+                  placeholder="Student's full name"
                   value={studentName}
                   onChange={(e) => setStudentName(e.target.value)}
                   className={cn(inputClass, "w-full text-xs")}
@@ -1127,7 +1157,7 @@ export function CbcsElectivesModule({ role }: { role: Role }) {
                   <label className="block text-xs font-medium text-[var(--ink)] mb-1">Registration / Roll No</label>
                   <input
                     type="text"
-                    placeholder="e.g. 22CS1088"
+                    placeholder="Register number"
                     value={studentRegNo}
                     onChange={(e) => setStudentRegNo(e.target.value)}
                     className={cn(inputClass, "w-full text-xs uppercase font-mono")}
@@ -1138,12 +1168,18 @@ export function CbcsElectivesModule({ role }: { role: Role }) {
                   <label className="block text-xs font-medium text-[var(--ink)] mb-1">Parent Department</label>
                   <input
                     type="text"
-                    placeholder="e.g. Physics"
+                    list="cbcs-departments"
+                    placeholder="Choose or type a department"
                     value={studentDept}
                     onChange={(e) => setStudentDept(e.target.value)}
                     className={cn(inputClass, "w-full text-xs")}
                     required
                   />
+                  <datalist id="cbcs-departments">
+                    {departments.map((d) => (
+                      <option key={d} value={d} />
+                    ))}
+                  </datalist>
                 </div>
               </div>
 
@@ -1176,7 +1212,7 @@ export function CbcsElectivesModule({ role }: { role: Role }) {
       {/* MODAL 4: WINDOW SETTINGS */}
       {showWindowModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-sm rounded-2xl bg-[var(--surface)] border border-[var(--line)] shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+          <div className="w-full max-w-md rounded-2xl bg-[var(--surface)] border border-[var(--line)] shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
             <div className="flex items-center justify-between border-b border-[var(--line)] p-4">
               <div>
                 <h3 className="font-semibold text-base text-[var(--ink)]">Elective Window Settings</h3>
@@ -1211,14 +1247,23 @@ export function CbcsElectivesModule({ role }: { role: Role }) {
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-[var(--ink)] mb-1">Registration Deadline Description</label>
+                <label className="block text-xs font-medium text-[var(--ink)] mb-1">Registration deadline (IST)</label>
                 <input
-                  type="text"
-                  placeholder="e.g. 2026-10-24 17:00 IST"
+                  type="datetime-local"
                   value={windowDeadline}
                   onChange={(e) => setWindowDeadline(e.target.value)}
                   className={cn(inputClass, "w-full text-xs")}
-                  required
+                />
+                <p className="mt-1 text-[11px] text-[var(--ink-3)]">Leave empty for no deadline. Students can&apos;t register after it passes.</p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-[var(--ink)] mb-1">Enrolment policy (one point per line)</label>
+                <textarea
+                  rows={4}
+                  value={windowPolicies}
+                  onChange={(e) => setWindowPolicies(e.target.value)}
+                  className={cn(inputClass, "w-full text-xs")}
                 />
               </div>
 

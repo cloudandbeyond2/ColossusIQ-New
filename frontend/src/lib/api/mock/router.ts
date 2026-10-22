@@ -143,6 +143,7 @@ import {
   UpdateNmcProfileInput,
 } from "@/lib/api/nmc-schemas";
 import {
+  CbcsError,
   getCbcsOverview,
   createCbcsCourse,
   updateCbcsSeats,
@@ -247,6 +248,8 @@ const ok = (body: unknown): MockResult => ({ status: 200, body });
 const err = (status: number, code: string, message: string): MockResult => ({ status, body: { error: { code, message } } });
 const notFound = () => err(404, "not_found", "Resource not found.");
 const forbidden = () => err(403, "forbidden", "You do not have permission to perform this action.");
+const cbcsFail = (e: CbcsError) =>
+  err(e.status, e.status === 404 ? "not_found" : e.status === 403 ? "forbidden" : e.status === 409 ? "conflict" : "invalid_body", e.message);
 
 /* ── request body schemas (server-side validation) ── */
 const ChatBody = ChatBodySchema;
@@ -739,34 +742,64 @@ export async function dispatch(method: string, segs: string[], rawBody: unknown,
       return ok(await updateNmcProfile(session, parsed.data));
     }
     case "GET cbcs-electives": {
-      return ok(await getCbcsOverview(session));
+      try {
+        return ok(await getCbcsOverview(session));
+      } catch (e) {
+        if (e instanceof CbcsError) return cbcsFail(e);
+        throw e;
+      }
     }
     case "POST cbcs-electives/courses": {
       if (session.role !== "institution" && session.role !== "hod" && session.role !== "admin") return forbidden();
       const parsed = CreateCbcsCourseInput.safeParse(rawBody);
       if (!parsed.success) return err(400, "invalid_body", parsed.error.issues[0]?.message ?? "Invalid course payload.");
-      return ok(await createCbcsCourse(session, parsed.data));
+      try {
+        return ok(await createCbcsCourse(session, parsed.data));
+      } catch (e) {
+        if (e instanceof CbcsError) return cbcsFail(e);
+        throw e;
+      }
     }
     case "PATCH cbcs-electives/courses/:id/seats": {
       if (session.role !== "institution" && session.role !== "hod" && session.role !== "admin") return forbidden();
       const courseId = found.id ?? segs[2] ?? "";
       const parsed = UpdateCbcsSeatsInput.safeParse({ ...(typeof rawBody === "object" && rawBody !== null ? rawBody : {}), courseId });
       if (!parsed.success) return err(400, "invalid_body", parsed.error.issues[0]?.message ?? "Invalid seat capacity payload.");
-      return ok(await updateCbcsSeats(session, parsed.data));
+      try {
+        return ok(await updateCbcsSeats(session, parsed.data));
+      } catch (e) {
+        if (e instanceof CbcsError) return cbcsFail(e);
+        throw e;
+      }
     }
     case "POST cbcs-electives/enroll": {
       const parsed = EnrollStudentElectiveInput.safeParse(rawBody);
       if (!parsed.success) return err(400, "invalid_body", parsed.error.issues[0]?.message ?? "Invalid enrollment payload.");
-      return ok(await enrollStudentElective(session, parsed.data));
+      try {
+        return ok(await enrollStudentElective(session, parsed.data));
+      } catch (e) {
+        if (e instanceof CbcsError) return cbcsFail(e);
+        throw e;
+      }
     }
     case "DELETE cbcs-electives/enrollments/:id": {
-      return ok(await dropStudentElective(session, found.id ?? segs[2] ?? ""));
+      try {
+        return ok(await dropStudentElective(session, found.id ?? segs[2] ?? ""));
+      } catch (e) {
+        if (e instanceof CbcsError) return cbcsFail(e);
+        throw e;
+      }
     }
     case "PUT cbcs-electives/window": {
       if (session.role !== "institution" && session.role !== "admin") return forbidden();
       const parsed = UpdateCbcsWindowInput.safeParse(rawBody);
       if (!parsed.success) return err(400, "invalid_body", parsed.error.issues[0]?.message ?? "Invalid window payload.");
-      return ok(await updateCbcsWindow(session, parsed.data));
+      try {
+        return ok(await updateCbcsWindow(session, parsed.data));
+      } catch (e) {
+        if (e instanceof CbcsError) return cbcsFail(e);
+        throw e;
+      }
     }
 
     case "GET osce": {

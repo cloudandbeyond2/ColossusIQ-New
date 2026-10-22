@@ -63,6 +63,27 @@ export const CbcsCategorySummarySchema = z.object({
 });
 export type CbcsCategorySummary = z.infer<typeof CbcsCategorySummarySchema>;
 
+export const CbcsCategoryRuleSchema = z.object({
+  category: CbcsCategorySchema,
+  credits: z.string(),
+  objective: z.string(),
+  requirement: z.string(),
+  mandatory: z.boolean(),
+});
+export type CbcsCategoryRule = z.infer<typeof CbcsCategoryRuleSchema>;
+
+export const CbcsPermissionsSchema = z.object({
+  /** Add courses and change seat capacity. */
+  manageCourses: z.boolean(),
+  /** Open/close the registration window and edit the policy text. */
+  manageWindow: z.boolean(),
+  /** Register (and drop) any student of the college. */
+  enrollOthers: z.boolean(),
+  /** A student registering themselves. */
+  selfEnroll: z.boolean(),
+});
+export type CbcsPermissions = z.infer<typeof CbcsPermissionsSchema>;
+
 export const CbcsOverviewSchema = z.object({
   collegeId: z.string(),
   collegeName: z.string(),
@@ -71,6 +92,23 @@ export const CbcsOverviewSchema = z.object({
   courses: z.array(CbcsCourseSchema),
   studentRegistrations: z.array(CbcsStudentChoiceSchema),
   categorySummaries: z.array(CbcsCategorySummarySchema),
+  /** The college's own departments (for the offering-department list). */
+  departments: z.array(z.string()),
+  /** The UGC credit rule for each course category. */
+  categoryRules: z.array(CbcsCategoryRuleSchema),
+  /** Policy lines the institution has written (editable). */
+  policies: z.array(z.string()),
+  allocationRule: z.string(),
+  /** Is registration possible right now (window open and the deadline not passed)? */
+  registrationOpenNow: z.boolean(),
+  registrationClosedReason: z.string(),
+  permissions: CbcsPermissionsSchema,
+  /** Course ids the signed-in student is registered in. */
+  myCourseIds: z.array(z.string()),
+  /** The signed-in student, for self-registration. */
+  viewer: z
+    .object({ name: z.string(), regNo: z.string(), department: z.string(), semester: z.number() })
+    .nullable(),
 });
 export type CbcsOverview = z.infer<typeof CbcsOverviewSchema>;
 
@@ -82,7 +120,7 @@ export const CreateCbcsCourseInput = z.object({
   semester: z.number().int().min(1).max(8),
   category: CbcsCategorySchema,
   credits: z.number().int().min(1).max(6),
-  seatsTotal: z.number().int().min(10).max(500),
+  seatsTotal: z.number().int().min(1).max(1000),
   instructor: z.string().min(2).max(100),
   schedule: z.string().min(3).max(100),
   syllabusSummary: z.string().max(500),
@@ -91,7 +129,7 @@ export type CreateCbcsCourseInput = z.infer<typeof CreateCbcsCourseInput>;
 
 export const UpdateCbcsSeatsInput = z.object({
   courseId: z.string().min(1),
-  seatsTotal: z.number().int().min(10).max(1000),
+  seatsTotal: z.number().int().min(1).max(1000),
 });
 export type UpdateCbcsSeatsInput = z.infer<typeof UpdateCbcsSeatsInput>;
 
@@ -106,6 +144,9 @@ export type EnrollStudentElectiveInput = z.infer<typeof EnrollStudentElectiveInp
 
 export const UpdateCbcsWindowInput = z.object({
   registrationWindowOpen: z.boolean(),
-  registrationDeadline: z.string().min(8).max(30),
+  /** "2026-10-24 17:00 IST" (IST wall-clock time), or empty for no deadline. */
+  registrationDeadline: z.string().max(30),
+  /** The institution's own enrolment policy lines; omit to keep the saved ones. */
+  policies: z.array(z.string().trim().min(3).max(240)).max(10).optional(),
 });
 export type UpdateCbcsWindowInput = z.infer<typeof UpdateCbcsWindowInput>;
