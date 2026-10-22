@@ -101,7 +101,7 @@ export function CurriculumModule({ role }: { role: Role }) {
           ))}
         </div>
       ) : (
-        <EmptyState title="No curricula yet" body={d.canEdit ? "Create the first programme curriculum: start blank or let AI draft the course list for you to refine." : "Your university has not published a curriculum here yet."} />
+        <EmptyState title="No curricula yet" body={d.canEdit ? "Create the first programme curriculum: start blank or let AI draft the course list for you to refine." : "Your university has not published a curriculum for your academic stream yet."} />
       )}
     </div>
   );

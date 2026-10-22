@@ -6,6 +6,7 @@ import type { SessionPayload } from "@/lib/auth/session";
 import { CreateRoadmap, Reschedule, RoadmapBoard, SessionUpdate, StoredRoadmaps, planSessions, teachingDates, type Roadmap, type RoadmapSummary } from "@/lib/api/roadmap-schemas";
 import { cleanText } from "@/lib/security/sanitize";
 import { publishedCurricula } from "./curriculum";
+import { collegeStream } from "./records";
 import type { MockResult } from "./router";
 import { studentStateStore } from "./student-state-store";
 
@@ -54,7 +55,8 @@ function summarise(r: Roadmap): RoadmapSummary {
 }
 
 async function board(s: SessionPayload): Promise<RoadmapBoard> {
-  const sources = (await publishedCurricula()).map((c) => ({
+  const stream = s.college !== ALL_COLLEGES ? await collegeStream(s.college) : null;
+  const sources = (await publishedCurricula(stream)).map((c) => ({
     curriculumId: c.id,
     programme: c.programme,
     regulation: c.regulation,
