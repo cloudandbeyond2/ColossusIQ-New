@@ -91,11 +91,13 @@ export const toneBar: Record<Tone, string> = {
 
 export function Badge({ tone = "neutral", className, children }: { tone?: Tone; className?: string; children: ReactNode }) {
   return (
-    <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium", toneClasses[tone], className)}>
+    <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap shrink-0", toneClasses[tone], className)}>
       {children}
     </span>
   );
 }
+
+export { RoleBadge, toneForRole, getRoleConfig } from "./role-badge";
 
 /** Picks a badge tone from common status words so list data needs no styling hints. */
 export function toneForStatus(value: string): Tone {
