@@ -155,7 +155,7 @@ const BESPOKE: Record<string, (props: { role: Role }) => React.ReactNode> = {
   "notice-board": () => <NoticeBoardModule />,
   "content-desk": () => <ContentDeskModule />,
   curriculum: ({ role }) => <CurriculumModule role={role} />,
-  "course-roadmap": () => <CourseRoadmapModule />,
+  "course-roadmap": ({ role }) => <CourseRoadmapModule role={role} />,
   integrations: () => <IntegrationsModule />,
   "certificate-authority": () => <CertificateAuthorityModule />,
   "certificate-requests": () => <CertificateRequestsModule />,

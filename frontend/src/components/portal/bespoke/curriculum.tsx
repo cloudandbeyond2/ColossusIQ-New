@@ -21,6 +21,7 @@ import {
   type CreateCurriculum,
   type CurriculumData,
 } from "@/lib/api/curriculum-schemas";
+import { RoadmapBoard } from "@/lib/api/roadmap-schemas";
 import type { Role } from "@/lib/auth/roles";
 import { cn } from "@/lib/utils";
 
@@ -278,6 +279,19 @@ function EditorBody({ doc, role, onBack }: { doc: CurriculumDoc; role: Role; onB
   const dirty = useMemo(() => JSON.stringify(data) !== JSON.stringify(doc.data), [data, doc.data]);
   const warnings = useMemo(() => curriculumWarnings(data), [data]);
   const credits = totalCredits(data);
+  const roadmapQuery = useQuery({
+    queryKey: ["course-roadmap"],
+    queryFn: () => apiFetch("/api/v1/course-roadmap", RoadmapBoard),
+    enabled: !edit && doc.status === "Published" && ["institution", "faculty", "hod"].includes(role),
+    staleTime: 60_000,
+  });
+  const plannedCourses = useMemo(() => {
+    const set = new Set<string>();
+    for (const r of roadmapQuery.data?.roadmaps ?? []) {
+      if (r.courseCode) set.add(r.courseCode.toUpperCase());
+    }
+    return set;
+  }, [roadmapQuery.data]);
   const done = (r: CurriculumDoc, text: string) => {
     qc.setQueryData(["curriculum", r.id], r);
     void qc.invalidateQueries({ queryKey: LIST });
@@ -455,11 +469,21 @@ function EditorBody({ doc, role, onBack }: { doc: CurriculumDoc; role: Role; onB
                     <td className="px-2 py-2.5 text-center font-medium text-ink">{c.credits}</td>
                     <td className="px-2 py-2.5">{c.units.length ? <Badge tone="teal">{c.units.length} units</Badge> : <Badge tone="neutral">Not yet</Badge>}</td>
                     <td className="px-4 py-2.5 text-right">
-                      <div className="flex justify-end gap-2">
+                      <div className="flex items-center justify-end gap-2.5">
                         {!edit && doc.status === "Published" ? (
-                          <Link href={`/${role}/course-roadmap?curriculum=${doc.id}&course=${c.code}`} className="text-xs font-medium text-brand hover:underline">
-                            Plan teaching
-                          </Link>
+                          role === "institution" ? (
+                            plannedCourses.has(c.code.toUpperCase()) ? (
+                              <Link href={`/${role}/course-roadmap?curriculum=${doc.id}&course=${c.code}`} className="text-xs font-medium text-teal hover:underline">
+                                View teaching plan
+                              </Link>
+                            ) : (
+                              <span className="text-xs text-ink-3">Plan not created</span>
+                            )
+                          ) : (
+                            <Link href={`/${role}/course-roadmap?curriculum=${doc.id}&course=${c.code}`} className={cn("text-xs font-medium hover:underline", plannedCourses.has(c.code.toUpperCase()) ? "text-teal" : "text-brand")}>
+                              {plannedCourses.has(c.code.toUpperCase()) ? "View teaching plan" : "Plan teaching"}
+                            </Link>
+                          )
                         ) : null}
                         <button type="button" onClick={() => setOpen(i)} className="text-xs font-medium text-brand hover:underline">
                           {edit ? "Edit" : "View"}

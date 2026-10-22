@@ -105,8 +105,13 @@ describe("Course Roadmap", () => {
     expect(moved.sessions.find((s) => s.status === "Planned")!.date).toBe("2027-02-01");
     expect(moved.sessions[0]!.date).toBe("2027-01-04"); // taught sessions keep their date
 
-    // Roadmaps are private to the teacher and need a college.
+    // Roadmaps are private to the teacher, but the college Principal can view all roadmaps created in their college.
     expect(RoadmapBoard.parse((await call({ ...faculty, sub: "someone-else" }, "GET", "course-roadmap")).body).roadmaps).toHaveLength(0);
+    const principal: SessionPayload = { ...faculty, sub: `prin-${Math.random()}`, role: "institution", name: "Principal", college: faculty.college };
+    const prinBoard = RoadmapBoard.parse((await call(principal, "GET", "course-roadmap")).body);
+    expect(prinBoard.roadmaps).toHaveLength(1);
+    expect((await call(principal, "POST", "course-roadmap", { curriculumId: created.id, courseCode: "ME1101", section: "B", startDate: "2027-01-04", weekdays: [1] })).status).toBe(403);
+
     expect((await call({ ...admin }, "GET", "course-roadmap")).status).toBe(409);
     expect((await call(student, "GET", "course-roadmap")).status).toBe(403);
   });

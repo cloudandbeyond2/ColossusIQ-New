@@ -14,6 +14,7 @@ export interface StudentStateStore {
   get(userKey: string, key: string): Promise<unknown | undefined>;
   save(collegeId: string, userKey: string, key: string, data: unknown): Promise<void>;
   remove(userKey: string, key: string): Promise<boolean>;
+  listByCollege(collegeId: string, key: string): Promise<unknown[]>;
 }
 
 const mem = sharedState("student-state.docs", () => new Map<string, unknown>());
@@ -29,6 +30,15 @@ const memoryStudentState: StudentStateStore = {
   },
   async remove(userKey, key) {
     return mem.delete(k(userKey, key));
+  },
+  async listByCollege(_collegeId, key) {
+    const results: unknown[] = [];
+    for (const [kStr, val] of mem.entries()) {
+      if (kStr.endsWith(`\u0000${key}`)) {
+        results.push(structuredClone(val));
+      }
+    }
+    return results;
   },
 };
 

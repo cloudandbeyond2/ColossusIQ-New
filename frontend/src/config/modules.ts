@@ -161,7 +161,7 @@ export const MODULES: ModuleDef[] = [
 
   // ───────────── Faculty ─────────────
   { slug: "copilot", title: "Faculty AI Copilot", description: "Lesson plans, notes, PPT outlines, assignments, rubrics and lab manuals.", group: "Faculty", roles: ["faculty"], template: "generator", icon: "bot", phase: "MVP", agent: "faculty-copilot" },
-  { slug: "course-roadmap", title: "Course Roadmap", description: "Turn a course's syllabus into a dated, session-by-session teaching plan and track what you have covered.", group: "Faculty", roles: ["faculty", "hod"], template: "bespoke", icon: "compass", phase: "MVP" },
+  { slug: "course-roadmap", title: "Course Roadmap", description: "Turn a course's syllabus into a dated, session-by-session teaching plan and track what you have covered.", group: "Academics", roles: ["faculty", "hod", "institution", "admin"], template: "bespoke", icon: "compass", phase: "MVP" },
   { slug: "my-classes", title: "My Classes", description: "Sections, timetable, attendance and class performance.", group: "Faculty", roles: ["faculty"], template: "bespoke", icon: "school", phase: "MVP" },
   { slug: "students", title: "Students", description: "Profiles, performance, skills and support recommendations.", group: "Faculty", roles: ["faculty", "hod", "placement"], template: "list", icon: "users", phase: "MVP" },
   { slug: "question-generator", title: "Question Paper Generator", description: "Generate blueprint-aligned question papers mapped to course outcomes.", group: "Faculty", roles: ["faculty", "hod"], template: "bespoke", icon: "wand", phase: "MVP", agent: "exam" },

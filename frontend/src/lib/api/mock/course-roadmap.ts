@@ -26,10 +26,19 @@ const invalid = (e: z.ZodError): MockResult => {
   for (const i of e.issues) fields[i.path.map(String).join(".") || "_"] ??= i.message;
   return err(422, "validation", "Please correct the highlighted fields.", fields);
 };
-const STAFF = new Set(["faculty", "hod", "admin"]);
+const STAFF = new Set(["faculty", "hod", "admin", "institution"]);
 const today = () => new Date(Date.now() + 5.5 * 3_600_000).toISOString().slice(0, 10);
 
 async function load(s: SessionPayload): Promise<Roadmap[]> {
+  if (s.role === "institution") {
+    const allDocs = await studentStateStore().listByCollege(s.college, KEY);
+    const roadmaps: Roadmap[] = [];
+    for (const doc of allDocs) {
+      const p = StoredRoadmaps.safeParse(doc);
+      if (p.success) roadmaps.push(...p.data.roadmaps);
+    }
+    return roadmaps;
+  }
   const p = StoredRoadmaps.safeParse(await studentStateStore().get(s.sub, KEY));
   return p.success ? p.data.roadmaps : [];
 }
@@ -77,6 +86,8 @@ export async function dispatchCourseRoadmap(method: string, segs: string[], rawB
     const r = all.find((x) => x.id === id);
     return r ? ok(r) : err(404, "not_found", "That roadmap no longer exists.");
   }
+
+  if (s.role === "institution") return err(403, "forbidden", "Only teaching staff (faculty and HODs) create and update teaching plans. Principals have view access.");
 
   if (method === "POST" && segs.length === 1) {
     if (all.length >= MAX) return err(409, "limit", `You can keep up to ${MAX} roadmaps. Delete an old one first.`);
