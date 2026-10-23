@@ -50,6 +50,9 @@ export function CbcsElectivesModule({ role }: { role: Role }) {
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
   const [flashMessage, setFlashMessage] = useState<string | null>(null);
 
+  // View Course Details Modal State
+  const [viewingCourse, setViewingCourse] = useState<CbcsCourse | null>(null);
+
   // Add Course Modal State
   const [showAddCourseModal, setShowAddCourseModal] = useState<boolean>(false);
   const [newCode, setNewCode] = useState("");
@@ -538,7 +541,7 @@ export function CbcsElectivesModule({ role }: { role: Role }) {
               </select>
               <input
                 type="text"
-                placeholder="Search course or code..."
+                placeholder="Search course, code or instructor..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className={cn(inputClass, "text-xs py-1.5 w-48 sm:w-60")}
@@ -559,97 +562,142 @@ export function CbcsElectivesModule({ role }: { role: Role }) {
               }
             />
           )}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
             {filteredCourses.map((c) => {
               const utilPercent = Math.round((c.seatsFilled / c.seatsTotal) * 100);
               const isFull = c.seatsFilled >= c.seatsTotal || c.status === "Full";
 
               return (
-                <Card key={c.id} className="border-[var(--line)] flex flex-col justify-between">
-                  <CardBody className="p-4 space-y-3">
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <div className="flex items-center gap-1.5">
-                          <span className="font-mono text-xs font-bold text-[var(--brand)]">{c.code}</span>
-                          <span className="text-[11px] text-[var(--ink-3)]">&bull; Sem {c.semester}</span>
+                <Card
+                  key={c.id}
+                  className="border-[var(--line)] flex flex-col justify-between hover:border-[var(--brand)]/50 transition-all shadow-sm rounded-xl overflow-hidden bg-[var(--surface)]"
+                >
+                  <CardBody className="p-4 space-y-3 flex-1 flex flex-col justify-between">
+                    <div>
+                      {/* Course Header */}
+                      <div className="flex items-start justify-between gap-2 pb-2 border-b border-[var(--line)]">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono text-xs font-bold px-2 py-0.5 rounded bg-[var(--brand)]/10 text-[var(--brand)] border border-[var(--brand)]/20">
+                              {c.code}
+                            </span>
+                            <span className="text-[11px] font-semibold text-[var(--ink-2)]">Semester {c.semester}</span>
+                          </div>
+                          <h4 className="font-bold text-sm text-[var(--ink)] mt-1.5 line-clamp-1">{c.title}</h4>
+                          <p className="text-xs text-[var(--ink-2)]">Dept. of {c.offeringDepartment}</p>
                         </div>
-                        <h4 className="font-bold text-sm text-[var(--ink)] mt-0.5">{c.title}</h4>
-                        <p className="text-xs text-[var(--ink-2)]">Dept of {c.offeringDepartment}</p>
+                        <Badge tone={isFull ? "rose" : "teal"}>{isFull ? "Full" : "Open"}</Badge>
                       </div>
-                      <Badge tone={isFull ? "rose" : "teal"}>{isFull ? "Full" : "Open"}</Badge>
+
+                      {/* Category & Credits */}
+                      <div className="flex items-center gap-1.5 mt-2.5 flex-wrap">
+                        <Badge tone="neutral" className="text-[10px]">
+                          {c.category}
+                        </Badge>
+                        <Badge tone="brand" className="text-[10px]">
+                          {c.credits} Credits
+                        </Badge>
+                      </div>
+
+                      {/* Readable Syllabus Synopsis */}
+                      <div className="mt-2.5 rounded-lg bg-[var(--surface-2)] p-2.5 border border-[var(--line)]">
+                        <div className="flex items-center justify-between text-[11px] font-semibold text-[var(--ink-2)] mb-1">
+                          <span>Syllabus Summary</span>
+                          <button
+                            type="button"
+                            onClick={() => setViewingCourse(c)}
+                            className="text-[var(--brand)] hover:underline text-[11px] font-medium inline-flex items-center gap-1 cursor-pointer"
+                          >
+                            Full details &rarr;
+                          </button>
+                        </div>
+                        <p className="text-xs text-[var(--ink)] leading-relaxed">
+                          {c.syllabusSummary}
+                        </p>
+                      </div>
+
+                      {/* Seat Capacity Bar */}
+                      <div className="space-y-1.5 text-xs mt-3">
+                        <div className="flex justify-between">
+                          <span className="text-[var(--ink-3)] font-medium">Seats Filled:</span>
+                          <span className="font-semibold text-[var(--ink)]">
+                            {c.seatsFilled} / {c.seatsTotal} ({utilPercent}%)
+                          </span>
+                        </div>
+                        <Progress
+                          value={utilPercent}
+                          tone={utilPercent >= 100 ? "rose" : utilPercent >= 80 ? "amber" : "teal"}
+                          className="h-1.5"
+                        />
+                      </div>
+
+                      {/* Instructor & Schedule Grid */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs pt-3 mt-3 border-t border-[var(--line)]">
+                        <div className="space-y-0.5">
+                          <span className="text-[10px] uppercase font-bold tracking-wider text-[var(--ink-3)] block">
+                            Instructor / Faculty
+                          </span>
+                          <span className="font-semibold text-[var(--ink)] block">
+                            {c.instructor}
+                          </span>
+                        </div>
+                        <div className="space-y-0.5">
+                          <span className="text-[10px] uppercase font-bold tracking-wider text-[var(--ink-3)] block">
+                            Schedule & Venue
+                          </span>
+                          <span className="font-semibold text-[var(--ink)] block break-words">
+                            {c.schedule}
+                          </span>
+                        </div>
+                      </div>
                     </div>
 
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <Badge tone="neutral" className="text-[10px]">
-                        {c.category}
-                      </Badge>
-                      <Badge tone="brand" className="text-[10px]">
-                        {c.credits} Credits
-                      </Badge>
-                    </div>
+                    {/* Action Footer */}
+                    <div className="pt-3 mt-3 border-t border-[var(--line)] flex items-center justify-between gap-2 flex-wrap">
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => setViewingCourse(c)}
+                        className="text-xs h-7 px-2.5"
+                      >
+                        <Fi name="eye" className="text-xs mr-1" />
+                        Details
+                      </Button>
 
-                    <p className="text-[11px] text-[var(--ink-2)] line-clamp-2 bg-[var(--surface-2)] p-2 rounded border border-[var(--line)]">
-                      {c.syllabusSummary}
-                    </p>
-
-                    <div className="space-y-1.5 text-xs">
-                      <div className="flex justify-between">
-                        <span className="text-[var(--ink-3)]">Seat Capacity:</span>
-                        <span className="font-semibold text-[var(--ink)]">
-                          {c.seatsFilled} / {c.seatsTotal} ({utilPercent}%)
-                        </span>
+                      <div className="flex items-center gap-1.5 ml-auto">
+                        {permissions.manageCourses && (
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            onClick={() => openAdjustModal(c)}
+                            className="text-xs h-7 px-2.5"
+                          >
+                            Seats
+                          </Button>
+                        )}
+                        {permissions.selfEnroll && (
+                          <Button
+                            variant={myCourseIds.includes(c.id) || isFull || !data.registrationOpenNow ? "secondary" : "primary"}
+                            size="sm"
+                            disabled={myCourseIds.includes(c.id) || isFull || !data.registrationOpenNow || enrollMutation.isPending}
+                            onClick={() => enrollMutation.mutate({ courseId: c.id })}
+                            className="text-xs h-7 px-2.5"
+                          >
+                            {myCourseIds.includes(c.id) ? "Registered" : isFull ? "Capped" : !data.registrationOpenNow ? "Closed" : "Register"}
+                          </Button>
+                        )}
+                        {permissions.enrollOthers && (
+                          <Button
+                            variant={isFull ? "secondary" : "primary"}
+                            size="sm"
+                            disabled={isFull}
+                            onClick={() => openEnrollModal(c)}
+                            className="text-xs h-7 px-2.5"
+                          >
+                            {isFull ? "Capped" : "Enroll Student"}
+                          </Button>
+                        )}
                       </div>
-                      <Progress
-                        value={utilPercent}
-                        tone={utilPercent >= 100 ? "rose" : utilPercent >= 80 ? "amber" : "teal"}
-                        className="h-1.5"
-                      />
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-2 text-[11px] pt-1 border-t border-[var(--line)]">
-                      <div>
-                        <span className="text-[var(--ink-3)] block">Instructor</span>
-                        <span className="font-medium text-[var(--ink)]">{c.instructor}</span>
-                      </div>
-                      <div>
-                        <span className="text-[var(--ink-3)] block">Schedule / Room</span>
-                        <span className="font-medium text-[var(--ink)] truncate block">{c.schedule}</span>
-                      </div>
-                    </div>
-
-                    <div className="pt-2 border-t border-[var(--line)] flex items-center justify-between gap-2">
-                      {permissions.manageCourses && (
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          onClick={() => openAdjustModal(c)}
-                          className="text-xs h-7 px-2.5"
-                        >
-                          Adjust Capacity
-                        </Button>
-                      )}
-                      {permissions.selfEnroll && (
-                        <Button
-                          variant={myCourseIds.includes(c.id) || isFull || !data.registrationOpenNow ? "secondary" : "primary"}
-                          size="sm"
-                          disabled={myCourseIds.includes(c.id) || isFull || !data.registrationOpenNow || enrollMutation.isPending}
-                          onClick={() => enrollMutation.mutate({ courseId: c.id })}
-                          className="text-xs h-7 px-2.5 ml-auto"
-                        >
-                          {myCourseIds.includes(c.id) ? "Registered" : isFull ? "Capped" : !data.registrationOpenNow ? "Closed" : "Register"}
-                        </Button>
-                      )}
-                      {permissions.enrollOthers && (
-                        <Button
-                          variant={isFull ? "secondary" : "primary"}
-                          size="sm"
-                          disabled={isFull}
-                          onClick={() => openEnrollModal(c)}
-                          className="text-xs h-7 px-2.5 ml-auto"
-                        >
-                          {isFull ? "Capped" : "Enroll Student"}
-                        </Button>
-                      )}
                     </div>
                   </CardBody>
                 </Card>
@@ -1004,7 +1052,7 @@ export function CbcsElectivesModule({ role }: { role: Role }) {
                 <label className="block text-xs font-medium text-[var(--ink)] mb-1">Weekly Schedule & Venue</label>
                 <input
                   type="text"
-                  placeholder="Days, time and room"
+                  placeholder="e.g., Tue, Thu 10:00 AM - 11:30 AM (Room 302, Science Block)"
                   value={newSchedule}
                   onChange={(e) => setNewSchedule(e.target.value)}
                   className={cn(inputClass, "w-full text-xs")}
@@ -1014,11 +1062,11 @@ export function CbcsElectivesModule({ role }: { role: Role }) {
               <div>
                 <label className="block text-xs font-medium text-[var(--ink)] mb-1">Syllabus / Learning Outcomes Summary</label>
                 <textarea
-                  rows={2}
-                  placeholder="Brief synopsis of core topics covered in this elective course..."
+                  rows={3}
+                  placeholder="Detailed synopsis of core topics, course objectives, and outcomes..."
                   value={newSyllabus}
                   onChange={(e) => setNewSyllabus(e.target.value)}
-                  className={cn(inputClass, "w-full text-xs")}
+                  className={cn(inputClass, "w-full text-xs leading-relaxed")}
                 />
               </div>
 
@@ -1183,6 +1231,21 @@ export function CbcsElectivesModule({ role }: { role: Role }) {
                 </div>
               </div>
 
+              <div>
+                <label className="block text-xs font-medium text-[var(--ink)] mb-1">Current Semester</label>
+                <select
+                  value={studentSem}
+                  onChange={(e) => setStudentSem(Number(e.target.value))}
+                  className={cn(inputClass, "w-full text-xs")}
+                >
+                  {[1, 2, 3, 4, 5, 6, 7, 8].map((s) => (
+                    <option key={s} value={s}>
+                      Semester {s}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
               <div className="flex justify-end gap-2 pt-2 border-t border-[var(--line)]">
                 <Button
                   type="button"
@@ -1289,6 +1352,140 @@ export function CbcsElectivesModule({ role }: { role: Role }) {
                 </Button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 5: FULL COURSE DETAILS & SYLLABUS */}
+      {viewingCourse && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
+          <div className="w-full max-w-lg rounded-2xl bg-[var(--surface)] border border-[var(--line)] shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-start justify-between border-b border-[var(--line)] p-5">
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-mono text-xs font-bold px-2 py-0.5 rounded bg-[var(--brand)]/10 text-[var(--brand)] border border-[var(--brand)]/20">
+                    {viewingCourse.code}
+                  </span>
+                  <Badge tone={viewingCourse.seatsFilled >= viewingCourse.seatsTotal ? "rose" : "teal"}>
+                    {viewingCourse.seatsFilled >= viewingCourse.seatsTotal ? "Full / Capped" : "Open for Registration"}
+                  </Badge>
+                  <span className="text-xs text-[var(--ink-3)]">Semester {viewingCourse.semester}</span>
+                </div>
+                <h3 className="font-bold text-lg text-[var(--ink)] mt-2">{viewingCourse.title}</h3>
+                <p className="text-xs text-[var(--ink-2)] mt-0.5">Department of {viewingCourse.offeringDepartment}</p>
+              </div>
+              <button
+                onClick={() => setViewingCourse(null)}
+                className="text-[var(--ink-3)] hover:text-[var(--ink)] text-base p-1.5 rounded-lg hover:bg-[var(--surface-2)]"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4 max-h-[72vh] overflow-y-auto">
+              {/* Badges */}
+              <div className="flex items-center gap-2 flex-wrap">
+                <Badge tone="neutral" className="text-xs">
+                  {viewingCourse.category}
+                </Badge>
+                <Badge tone="brand" className="text-xs">
+                  {viewingCourse.credits} Credits (NEP 2020)
+                </Badge>
+              </div>
+
+              {/* Syllabus & Learning Outcomes */}
+              <div className="space-y-1.5 rounded-xl bg-[var(--surface-2)] p-4 border border-[var(--line)]">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-[var(--brand)]">
+                  Complete Syllabus & Learning Outcomes
+                </h4>
+                <p className="text-sm text-[var(--ink)] leading-relaxed whitespace-pre-wrap">
+                  {viewingCourse.syllabusSummary}
+                </p>
+              </div>
+
+              {/* Faculty & Schedule Details Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="p-3.5 rounded-xl bg-[var(--surface-2)] border border-[var(--line)]">
+                  <span className="text-[11px] font-semibold uppercase text-[var(--ink-3)] block">
+                    Assigned Faculty / Instructor
+                  </span>
+                  <div className="mt-2 flex items-center gap-2.5">
+                    <div className="size-8 rounded-full bg-[var(--brand)]/15 text-[var(--brand)] flex items-center justify-center font-bold text-xs shrink-0">
+                      {viewingCourse.instructor.slice(0, 2).toUpperCase()}
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-[var(--ink)]">{viewingCourse.instructor}</p>
+                      <p className="text-[11px] text-[var(--ink-2)]">Dept. of {viewingCourse.offeringDepartment}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="p-3.5 rounded-xl bg-[var(--surface-2)] border border-[var(--line)]">
+                  <span className="text-[11px] font-semibold uppercase text-[var(--ink-3)] block">
+                    Weekly Schedule & Room
+                  </span>
+                  <p className="text-sm font-semibold text-[var(--ink)] mt-2">{viewingCourse.schedule}</p>
+                  <p className="text-[11px] text-[var(--ink-2)] mt-0.5">Weekly Contact: {viewingCourse.credits} hrs/week</p>
+                </div>
+              </div>
+
+              {/* Capacity Progress */}
+              <div className="p-3.5 rounded-xl border border-[var(--line)] space-y-2">
+                <div className="flex justify-between text-xs">
+                  <span className="text-[var(--ink-3)]">Enrolment Seat Allocation:</span>
+                  <span className="font-bold text-[var(--ink)]">
+                    {viewingCourse.seatsFilled} filled of {viewingCourse.seatsTotal} total seats (
+                    {Math.round((viewingCourse.seatsFilled / viewingCourse.seatsTotal) * 100)}%)
+                  </span>
+                </div>
+                <Progress
+                  value={Math.round((viewingCourse.seatsFilled / viewingCourse.seatsTotal) * 100)}
+                  tone={
+                    viewingCourse.seatsFilled >= viewingCourse.seatsTotal
+                      ? "rose"
+                      : viewingCourse.seatsFilled >= viewingCourse.seatsTotal * 0.8
+                      ? "amber"
+                      : "teal"
+                  }
+                  className="h-2"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between gap-2 p-4 border-t border-[var(--line)] bg-[var(--surface-2)]/50">
+              <Button variant="secondary" size="sm" onClick={() => setViewingCourse(null)}>
+                Close
+              </Button>
+              <div className="flex items-center gap-2">
+                {permissions.manageCourses && (
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => {
+                      const c = viewingCourse;
+                      setViewingCourse(null);
+                      openAdjustModal(c);
+                    }}
+                  >
+                    Adjust Capacity
+                  </Button>
+                )}
+                {permissions.enrollOthers && (
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    disabled={viewingCourse.seatsFilled >= viewingCourse.seatsTotal}
+                    onClick={() => {
+                      const c = viewingCourse;
+                      setViewingCourse(null);
+                      openEnrollModal(c);
+                    }}
+                  >
+                    Enroll Student
+                  </Button>
+                )}
+              </div>
+            </div>
           </div>
         </div>
       )}
