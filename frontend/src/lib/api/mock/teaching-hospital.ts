@@ -246,16 +246,48 @@ const DEFAULT_LOGS: HospitalCensusLog[] = [
   },
 ];
 
-function getHospitalStore(collegeScope: string) {
-  const depts = sharedState(`hospital.depts.${collegeScope}`, () => [...DEFAULT_DEPARTMENTS]);
-  const logs = sharedState(`hospital.logs.${collegeScope}`, () => [...DEFAULT_LOGS]);
-  const rotationOverrides = sharedState(`hospital.rotations.${collegeScope}`, () => new Map<string, Partial<HospitalRotationItem>>());
-  return { depts, logs, rotationOverrides };
+async function getHospitalStore(collegeScope: string) {
+  try {
+    const saved = (await getStore().settings.get(collegeScope, "hospital-dashboard")) as
+      | { depts?: HospitalDepartment[]; logs?: HospitalCensusLog[] }
+      | undefined;
+    if (saved && Array.isArray(saved.depts) && saved.depts.length > 0) {
+      return {
+        depts: saved.depts,
+        logs: Array.isArray(saved.logs) ? saved.logs : [...DEFAULT_LOGS],
+      };
+    }
+  } catch (err) {
+    console.warn("[hospital] Error reading settings store:", err);
+  }
+  const depts = sharedState(`hospital.depts.${collegeScope}`, () => DEFAULT_DEPARTMENTS.map((d) => ({ ...d })));
+  const logs = sharedState(`hospital.logs.${collegeScope}`, () => DEFAULT_LOGS.map((l) => ({ ...l })));
+  return { depts, logs };
+}
+
+async function saveHospitalStore(collegeScope: string, depts: HospitalDepartment[], logs: HospitalCensusLog[]) {
+  const mDepts = sharedState(`hospital.depts.${collegeScope}`, () => depts);
+  if (mDepts !== depts) {
+    mDepts.length = 0;
+    mDepts.push(...depts);
+  }
+  const mLogs = sharedState(`hospital.logs.${collegeScope}`, () => logs);
+  if (mLogs !== logs) {
+    mLogs.length = 0;
+    mLogs.push(...logs);
+  }
+
+  try {
+    await getStore().settings.save(collegeScope, "hospital-dashboard", { depts, logs });
+  } catch (err) {
+    console.warn("[hospital] Error saving to settings store:", err);
+  }
 }
 
 export async function getHospitalOverview(session: SessionPayload): Promise<HospitalOverview> {
   const scope = session.college || "COL-1006";
-  const { depts, logs, rotationOverrides } = getHospitalStore(scope);
+  const { depts, logs } = await getHospitalStore(scope);
+  const rotationOverrides = sharedState(`hospital.rotations.${scope}`, () => new Map<string, Partial<HospitalRotationItem>>());
 
   // Compute live KPIs across departments
   const totalBeds = depts.reduce((sum, d) => sum + d.teachingBeds, 0);
@@ -454,9 +486,22 @@ export async function getHospitalOverview(session: SessionPayload): Promise<Hosp
     occupancy: Math.round(80 + i * 0.9),
   }));
 
+  let hospitalName = scope === "COL-1006" ? "Madurai Medical College Teaching Hospital" : "University Teaching Hospital & Research Centre";
+  try {
+    const colRecord = await getStore().records.get(RESOURCES.colleges!, scope);
+    if (colRecord) {
+      const name = String((colRecord as any).name ?? (colRecord as any).data?.name ?? "");
+      if (name) {
+        hospitalName = name.toLowerCase().includes("hospital") ? name : `${name} Teaching Hospital`;
+      }
+    }
+  } catch {
+    // continue
+  }
+
   return {
     collegeId: scope,
-    hospitalName: scope === "COL-1006" ? "Madurai Medical College Teaching Hospital" : "University Teaching Hospital & Research Centre",
+    hospitalName,
     stream: "medical",
     kpis,
     departments: depts,
@@ -472,7 +517,7 @@ export async function updateHospitalCensus(
   input: UpdateHospitalCensusInput,
 ): Promise<HospitalOverview> {
   const scope = session.college || "COL-1006";
-  const { depts, logs } = getHospitalStore(scope);
+  const { depts, logs } = await getHospitalStore(scope);
 
   const dept = depts.find((d) => d.name.toLowerCase() === input.department.toLowerCase());
   if (!dept) {
@@ -515,7 +560,9 @@ export async function updateHospitalCensus(
     notes: input.notes || "Live ward census entered via Teaching Hospital Dashboard.",
   };
   logs.unshift(logEntry);
-  if (logs.length > 30) logs.pop();
+  if (logs.length > 50) logs.pop();
+
+  await saveHospitalStore(scope, depts, logs);
 
   // Audit trail
   await getStore().audit.add({
@@ -534,7 +581,10 @@ export async function certifyClinicalRotation(
   input: CertifyRotationInput,
 ): Promise<{ ok: boolean; rotationId: string }> {
   const scope = session.college || "COL-1006";
-  const { rotationOverrides } = getHospitalStore(scope);
+  const rotationOverrides = sharedState(
+    `hospital.rotations.${scope}`,
+    () => new Map<string, Partial<HospitalRotationItem>>(),
+  );
 
   // Apply override to in-memory map so updates reflect immediately
   const existingOverride = rotationOverrides.get(input.rotationId) || {};

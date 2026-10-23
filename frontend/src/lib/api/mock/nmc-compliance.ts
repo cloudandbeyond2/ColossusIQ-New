@@ -209,16 +209,79 @@ const BASE_DEPARTMENTS: Array<{
   { name: "Emergency Medicine", type: "Clinical", professors: 1, assocProfessors: 2, asstProfessors: 3, seniorResidents: 4, requiredFaculty: 6, aebasAttendance: 89 },
 ];
 
-function getNmcStore(collegeScope: string) {
-  const committees = sharedState(`nmc.committees.${collegeScope}`, () => [...DEFAULT_COMMITTEES]);
-  const actions = sharedState(`nmc.actions.${collegeScope}`, () => [...DEFAULT_ACTIONS]);
+async function getNmcStore(collegeScope: string) {
+  try {
+    const saved = (await getStore().settings.get(collegeScope, "nmc-compliance")) as
+      | {
+          committees?: NmcCommittee[];
+          actions?: NmcActionItem[];
+          profile?: NmcProfile;
+        }
+      | undefined;
+    if (saved) {
+      return {
+        committees: Array.isArray(saved.committees) && saved.committees.length > 0 ? saved.committees : DEFAULT_COMMITTEES.map((c) => ({ ...c })),
+        actions: Array.isArray(saved.actions) ? saved.actions : DEFAULT_ACTIONS.map((a) => ({ ...a })),
+        profile: saved.profile ? { ...saved.profile } : { ...DEFAULT_PROFILE },
+      };
+    }
+  } catch (err) {
+    console.warn("[nmc] Error reading settings store:", err);
+  }
+  const committees = sharedState(`nmc.committees.${collegeScope}`, () => DEFAULT_COMMITTEES.map((c) => ({ ...c })));
+  const actions = sharedState(`nmc.actions.${collegeScope}`, () => DEFAULT_ACTIONS.map((a) => ({ ...a })));
   const profile = sharedState(`nmc.profile.${collegeScope}`, () => ({ ...DEFAULT_PROFILE }));
   return { committees, actions, profile };
 }
 
+async function saveNmcStore(
+  collegeScope: string,
+  data: { committees: NmcCommittee[]; actions: NmcActionItem[]; profile: NmcProfile },
+) {
+  const mCommittees = sharedState(`nmc.committees.${collegeScope}`, () => data.committees);
+  if (mCommittees !== data.committees) {
+    mCommittees.length = 0;
+    mCommittees.push(...data.committees);
+  }
+
+  const mActions = sharedState(`nmc.actions.${collegeScope}`, () => data.actions);
+  if (mActions !== data.actions) {
+    mActions.length = 0;
+    mActions.push(...data.actions);
+  }
+
+  const mProfile = sharedState(`nmc.profile.${collegeScope}`, () => data.profile);
+  if (mProfile !== data.profile) {
+    Object.assign(mProfile, data.profile);
+  }
+
+  try {
+    await getStore().settings.save(collegeScope, "nmc-compliance", data);
+  } catch (err) {
+    console.warn("[nmc] Error saving to settings store:", err);
+  }
+}
+
 export async function getNmcComplianceOverview(session: SessionPayload): Promise<NmcComplianceData> {
   const scope = session.college || "COL-1006";
-  const { committees, actions, profile } = getNmcStore(scope);
+  const { committees, actions, profile } = await getNmcStore(scope);
+
+  // Sync college details from live database
+  try {
+    const colRecord = await getStore().records.get(RESOURCES.colleges!, scope);
+    if (colRecord) {
+      const colName = String((colRecord as any).name ?? (colRecord as any).data?.name ?? "");
+      const colPrincipal = String((colRecord as any).principal ?? (colRecord as any).data?.principal ?? "");
+      if (colName && (!profile.collegeName || profile.collegeName === DEFAULT_PROFILE.collegeName)) {
+        profile.collegeName = colName;
+      }
+      if (colPrincipal && (!profile.deanName || profile.deanName === DEFAULT_PROFILE.deanName)) {
+        profile.deanName = colPrincipal;
+      }
+    }
+  } catch {
+    // continue
+  }
 
   // Fetch live hospital overview to sync hospital metrics
   let hospitalOverview;
@@ -233,9 +296,57 @@ export async function getNmcComplianceOverview(session: SessionPayload): Promise
   const monthlySurgeries = hospitalOverview?.kpis.monthlySurgeries ?? 890;
   const monthlyDeliveries = hospitalOverview?.kpis.monthlyDeliveries ?? 392;
 
+  // Fetch real staff for this college to calculate live departmental faculty strength
+  let liveStaff: any[] = [];
+  try {
+    liveStaff = await getStore().records.all(RESOURCES.staff!, scope);
+  } catch {
+    liveStaff = [];
+  }
+
   // Compute departmental faculty counts
   const departments: NmcDepartmentCompliance[] = BASE_DEPARTMENTS.map((d, i) => {
-    const actualFaculty = d.professors + d.assocProfessors + d.asstProfessors;
+    // Check if college has live staff records in this department
+    const deptNorm = d.name.toLowerCase().replace(/[^a-z0-9]/g, "");
+    const matchingStaff = liveStaff.filter((s: any) => {
+      const staffDept = String(s.department ?? s.data?.department ?? "").toLowerCase().replace(/[^a-z0-9]/g, "");
+      const status = String(s.status ?? s.data?.status ?? "Active").toLowerCase();
+      return status === "active" && (staffDept === deptNorm || staffDept.includes(deptNorm) || deptNorm.includes(staffDept));
+    });
+
+    let professors = d.professors;
+    let assocProfessors = d.assocProfessors;
+    let asstProfessors = d.asstProfessors;
+    let seniorResidents = d.seniorResidents;
+
+    if (matchingStaff.length > 0) {
+      let profCount = 0;
+      let assocCount = 0;
+      let asstCount = 0;
+      let srCount = 0;
+
+      for (const st of matchingStaff) {
+        const desig = String(st.designation ?? st.data?.designation ?? "").toLowerCase();
+        if (desig.includes("associate") || desig.includes("assoc")) {
+          assocCount++;
+        } else if (desig.includes("assistant") || desig.includes("asst")) {
+          asstCount++;
+        } else if (desig.includes("senior resident") || desig.includes("sr. resident") || desig.includes("resident") || desig.includes("tutor")) {
+          srCount++;
+        } else if (desig.includes("professor") || desig.includes("hod") || desig.includes("dean")) {
+          profCount++;
+        } else {
+          asstCount++;
+        }
+      }
+
+      professors = profCount;
+      assocProfessors = assocCount;
+      asstProfessors = asstCount;
+      seniorResidents = srCount;
+    }
+
+    const actualFaculty = professors + assocProfessors + asstProfessors;
     const isDeficient = actualFaculty < d.requiredFaculty - 1;
     const isBorderline = actualFaculty === d.requiredFaculty - 1 || d.aebasAttendance < 80;
     const status: NmcDepartmentCompliance["status"] = isDeficient
@@ -248,15 +359,17 @@ export async function getNmcComplianceOverview(session: SessionPayload): Promise
       id: `dept-nmc-${i + 1}`,
       name: d.name,
       type: d.type,
-      professors: d.professors,
-      assocProfessors: d.assocProfessors,
-      asstProfessors: d.asstProfessors,
-      seniorResidents: d.seniorResidents,
+      professors,
+      assocProfessors,
+      asstProfessors,
+      seniorResidents,
       requiredFaculty: d.requiredFaculty,
       actualFaculty,
       aebasAttendance: d.aebasAttendance,
       status,
-      deficiencyDetails: d.deficiencyDetails,
+      deficiencyDetails: isDeficient
+        ? `Shortage of ${d.requiredFaculty - actualFaculty} faculty against NMC MSR requirements.`
+        : d.deficiencyDetails,
     };
   });
 
@@ -407,7 +520,7 @@ export async function createNmcAction(
   input: CreateNmcActionInput,
 ): Promise<NmcActionItem> {
   const scope = session.college || "COL-1006";
-  const { actions } = getNmcStore(scope);
+  const { committees, actions, profile } = await getNmcStore(scope);
 
   const newAction: NmcActionItem = {
     id: `nmc-act-${Date.now()}`,
@@ -421,6 +534,7 @@ export async function createNmcAction(
   };
 
   actions.unshift(newAction);
+  await saveNmcStore(scope, { committees, actions, profile });
 
   await getStore().audit.add({
     actor: session.name,
@@ -439,7 +553,7 @@ export async function updateNmcActionStatus(
   input: UpdateNmcActionStatusInput,
 ): Promise<{ ok: boolean }> {
   const scope = session.college || "COL-1006";
-  const { actions } = getNmcStore(scope);
+  const { committees, actions, profile } = await getNmcStore(scope);
   const found = actions.find((a) => a.id === actionId);
   if (!found) throw new Error("NMC action item not found.");
 
@@ -448,6 +562,8 @@ export async function updateNmcActionStatus(
   if (input.status === "Resolved") {
     found.resolvedAt = new Date().toISOString().slice(0, 10);
   }
+
+  await saveNmcStore(scope, { committees, actions, profile });
 
   await getStore().audit.add({
     actor: session.name,
@@ -465,11 +581,12 @@ export async function deleteNmcAction(
   actionId: string,
 ): Promise<{ ok: boolean }> {
   const scope = session.college || "COL-1006";
-  const { actions } = getNmcStore(scope);
+  const { committees, actions, profile } = await getNmcStore(scope);
   const idx = actions.findIndex((a) => a.id === actionId);
   if (idx === -1) throw new Error("NMC action item not found.");
 
   const removed = actions.splice(idx, 1)[0];
+  await saveNmcStore(scope, { committees, actions, profile });
 
   await getStore().audit.add({
     actor: session.name,
@@ -488,7 +605,7 @@ export async function updateNmcCommittee(
   input: UpdateNmcCommitteeInput,
 ): Promise<{ ok: boolean }> {
   const scope = session.college || "COL-1006";
-  const { committees } = getNmcStore(scope);
+  const { committees, actions, profile } = await getNmcStore(scope);
   const found = committees.find((c) => c.id === committeeId);
   if (!found) throw new Error("NMC committee record not found.");
 
@@ -499,6 +616,8 @@ export async function updateNmcCommittee(
   found.lastMeetingDate = input.lastMeetingDate;
   found.momUploaded = input.momUploaded;
   if (input.notes) found.notes = input.notes;
+
+  await saveNmcStore(scope, { committees, actions, profile });
 
   await getStore().audit.add({
     actor: session.name,
@@ -516,7 +635,7 @@ export async function updateNmcProfile(
   input: UpdateNmcProfileInput,
 ): Promise<{ ok: boolean }> {
   const scope = session.college || "COL-1006";
-  const { profile } = getNmcStore(scope);
+  const { committees, actions, profile } = await getNmcStore(scope);
 
   profile.nmcCode = input.nmcCode;
   profile.mbbsSeats = input.mbbsSeats;
@@ -524,6 +643,8 @@ export async function updateNmcProfile(
   if (input.cctvStreamsOnline !== undefined) profile.cctvStreamsOnline = input.cctvStreamsOnline;
   if (input.aebasPortalActive !== undefined) profile.aebasPortalActive = input.aebasPortalActive;
   if (input.meuCertified !== undefined) profile.meuCertified = input.meuCertified;
+
+  await saveNmcStore(scope, { committees, actions, profile });
 
   await getStore().audit.add({
     actor: session.name,
