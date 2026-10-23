@@ -149,7 +149,10 @@ export async function brandingDefaults(scope: string): Promise<SettingsData> {
 
 async function savedBranding(scope: string): Promise<Values | undefined> {
   const store = getStore().settings;
-  return (await store.get(scope, "branding")) ?? (scope !== ALL_COLLEGES ? await store.get(ALL_COLLEGES, "branding") : undefined);
+  return (
+    ((await store.get(scope, "branding")) as Values | undefined) ??
+    (scope !== ALL_COLLEGES ? ((await store.get(ALL_COLLEGES, "branding")) as Values | undefined) : undefined)
+  );
 }
 
 /** Every branding field with the saved value laid over the college's defaults. */

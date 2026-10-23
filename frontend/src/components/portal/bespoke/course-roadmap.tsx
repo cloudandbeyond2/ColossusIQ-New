@@ -28,17 +28,17 @@ export function CourseRoadmapModule({ role }: { role?: Role }) {
   const [creating, setCreating] = useState(() => !isPrincipal && !!params.get("course"));
 
   const targetCourse = params.get("course");
-  const d = q.data;
 
   useEffect(() => {
-    if (targetCourse && d?.roadmaps?.length && !openId) {
-      const match = d.roadmaps.find((r) => r.courseCode?.toUpperCase() === targetCourse.toUpperCase());
+    if (targetCourse && q.data?.roadmaps?.length && !openId) {
+      const match = q.data.roadmaps.find((r) => r.courseCode?.toUpperCase() === targetCourse.toUpperCase());
       if (match) setOpenId(match.id);
     }
-  }, [targetCourse, d?.roadmaps, openId]);
+  }, [targetCourse, q.data?.roadmaps, openId]);
 
   if (q.isPending) return <Skeleton className="h-96" />;
-  if (q.isError) return <LoadError error={q.error} onRetry={() => void q.refetch()} />;
+  if (q.isError || !q.data) return <LoadError error={q.error} onRetry={() => void q.refetch()} />;
+  const d = q.data;
   if (openId) return <RoadmapView id={openId} onBack={() => setOpenId(null)} />;
   return (
     <div className="space-y-5">

@@ -1397,7 +1397,10 @@ export async function moduleData(slug: string, collegeScope = "all", session?: S
         for (const section of data.sections) {
           for (const field of section.fields) {
             if (field.id in saved && saved[field.id] !== undefined) {
-              field.value = saved[field.id]!;
+              const val = saved[field.id];
+              if (typeof val === "string" || typeof val === "boolean") {
+                field.value = val;
+              }
             }
           }
         }

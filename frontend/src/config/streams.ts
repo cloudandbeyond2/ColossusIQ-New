@@ -23,7 +23,8 @@ export const COLLEGE_TYPES = Object.keys(COLLEGE_TYPE_STREAM) as CollegeType[];
 export function streamOfType(type: unknown): Stream {
   const raw = String(type ?? "").trim();
   if (raw in COLLEGE_TYPE_STREAM) {
-    return (COLLEGE_TYPE_STREAM as Record<string, Stream>)[raw];
+    const s = COLLEGE_TYPE_STREAM[raw as CollegeType];
+    if (s) return s;
   }
   const lower = raw.toLowerCase();
   if (lower.includes("art") || (lower.includes("science") && !lower.includes("tech") && !lower.includes("engineer"))) {

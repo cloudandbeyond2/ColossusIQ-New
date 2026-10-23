@@ -196,7 +196,7 @@ export interface NotificationStore {
   forUser(session: SessionPayload): Promise<Notification[]>;
 }
 
-export type SettingsValues = Record<string, string | boolean>;
+export type SettingsValues = Record<string, unknown>;
 
 export interface SettingsStore {
   get(collegeScope: string, slug: string): Promise<SettingsValues | undefined>;

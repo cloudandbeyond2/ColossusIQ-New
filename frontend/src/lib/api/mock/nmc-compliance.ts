@@ -267,16 +267,13 @@ export async function getNmcComplianceOverview(session: SessionPayload): Promise
   const { committees, actions, profile } = await getNmcStore(scope);
 
   // Sync college details from live database
+  let collegeName = scope === "COL-1006" ? "Madurai Medical College & Hospital" : "Medical College & Research Centre";
   try {
     const colRecord = await getStore().records.get(RESOURCES.colleges!, scope);
     if (colRecord) {
       const colName = String((colRecord as any).name ?? (colRecord as any).data?.name ?? "");
-      const colPrincipal = String((colRecord as any).principal ?? (colRecord as any).data?.principal ?? "");
-      if (colName && (!profile.collegeName || profile.collegeName === DEFAULT_PROFILE.collegeName)) {
-        profile.collegeName = colName;
-      }
-      if (colPrincipal && (!profile.deanName || profile.deanName === DEFAULT_PROFILE.deanName)) {
-        profile.deanName = colPrincipal;
+      if (colName) {
+        collegeName = colName;
       }
     }
   } catch {
@@ -499,7 +496,7 @@ export async function getNmcComplianceOverview(session: SessionPayload): Promise
 
   return {
     collegeId: scope,
-    collegeName: "Madurai Medical College & Hospital",
+    collegeName,
     stream: "medical",
     overallScore,
     overallGrade,
