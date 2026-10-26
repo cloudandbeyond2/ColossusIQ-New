@@ -343,42 +343,50 @@ export function OsceModule({ role }: { role: Role }) {
           </div>
 
           <div className="flex flex-wrap items-center gap-2.5">
-            <Button variant="secondary" size="sm" onClick={() => refetch()} className="border-teal-400/30 text-teal-100 hover:bg-teal-900/50">
-              <Fi name="refresh" className="mr-1.5" /> Refresh
-            </Button>
-            <Button variant="secondary" size="sm" onClick={handleExportCsv} className="border-teal-400/30 text-teal-100 hover:bg-teal-900/50">
-              <Fi name="download" className="mr-1.5" /> Export CSV
-            </Button>
+            <button
+              type="button"
+              onClick={() => refetch()}
+              className="inline-flex items-center justify-center rounded-xl h-8 px-3 text-xs md:text-sm font-medium gap-1.5 bg-teal-950/80 hover:bg-teal-900 text-teal-100 hover:text-white border border-teal-500/40 shadow-sm transition-all active:scale-[0.98]"
+            >
+              <Fi name="refresh" className="text-teal-300" /> Refresh
+            </button>
+            <button
+              type="button"
+              onClick={handleExportCsv}
+              className="inline-flex items-center justify-center rounded-xl h-8 px-3 text-xs md:text-sm font-medium gap-1.5 bg-teal-950/80 hover:bg-teal-900 text-teal-100 hover:text-white border border-teal-500/40 shadow-sm transition-all active:scale-[0.98]"
+            >
+              <Fi name="download" className="text-teal-300" /> Export CSV
+            </button>
             {canManage && (
               <>
-                <Button
-                  size="sm"
+                <button
+                  type="button"
                   onClick={() => setShowAddStationModal(true)}
-                  className="bg-teal-600 hover:bg-teal-500 text-white font-medium shadow-md shadow-teal-900/40"
+                  className="inline-flex items-center justify-center rounded-xl h-8 px-3 text-xs md:text-sm font-medium gap-1.5 bg-teal-600 hover:bg-teal-500 text-white shadow-md shadow-teal-950/40 transition-all active:scale-[0.98]"
                 >
-                  <Fi name="plus" className="mr-1.5" /> Add Station
-                </Button>
-                <Button
-                  size="sm"
+                  <Fi name="plus" /> Add Station
+                </button>
+                <button
+                  type="button"
                   onClick={() => {
                     if (data.stations.length > 0) {
                       setGradeStationId(data.stations[0]?.id || "");
                     }
                     setShowGradeModal(true);
                   }}
-                  className="bg-emerald-600 hover:bg-emerald-500 text-white font-medium"
+                  className="inline-flex items-center justify-center rounded-xl h-8 px-3 text-xs md:text-sm font-medium gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white shadow-md shadow-emerald-950/40 transition-all active:scale-[0.98]"
                 >
-                  <Fi name="memo-circle-check" className="mr-1.5" /> Grade Candidate
-                </Button>
+                  <Fi name="memo-circle-check" /> Grade Candidate
+                </button>
               </>
             )}
-            <Button
-              size="sm"
+            <button
+              type="button"
               onClick={() => setShowBookingModal(true)}
-              className="bg-sky-600 hover:bg-sky-500 text-white font-medium shadow-md shadow-sky-900/40"
+              className="inline-flex items-center justify-center rounded-xl h-8 px-3.5 text-xs md:text-sm font-semibold gap-1.5 bg-sky-600 hover:bg-sky-500 text-white shadow-md shadow-sky-950/40 transition-all active:scale-[0.98]"
             >
-              <Fi name="calendar" className="mr-1.5" /> Book Lab Slot
-            </Button>
+              <Fi name="calendar" /> Book Lab Slot
+            </button>
           </div>
         </div>
 
@@ -447,12 +455,12 @@ export function OsceModule({ role }: { role: Role }) {
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card className="border-teal-100 dark:border-teal-900/40 bg-card">
+        <Card className="border-teal-100 dark:border-teal-900/40">
           <CardBody className="p-4 flex items-center justify-between">
             <div>
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Active Stations</p>
+              <p className="text-xs font-medium text-ink-3 uppercase tracking-wider">Active Stations</p>
               <p className="text-2xl font-bold text-teal-600 dark:text-teal-400 mt-1">{kpis.activeStations}</p>
-              <p className="text-[11px] text-muted-foreground mt-0.5">Across {data.departments.length} clinical depts</p>
+              <p className="text-[11px] text-ink-3 mt-0.5">Across {data.departments.length} clinical depts</p>
             </div>
             <div className="h-10 w-10 rounded-xl bg-teal-50 dark:bg-teal-950/60 text-teal-600 flex items-center justify-center text-xl">
               <Fi name="heart" />
@@ -460,10 +468,10 @@ export function OsceModule({ role }: { role: Role }) {
           </CardBody>
         </Card>
 
-        <Card className="border-sky-100 dark:border-sky-900/40 bg-card">
+        <Card className="border-sky-100 dark:border-sky-900/40">
           <CardBody className="p-4 flex items-center justify-between">
             <div>
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Avg Pass Rate</p>
+              <p className="text-xs font-medium text-ink-3 uppercase tracking-wider">Avg Pass Rate</p>
               <p className="text-2xl font-bold text-sky-600 dark:text-sky-400 mt-1">{kpis.averagePassRate}%</p>
               <div className="w-24 mt-1">
                 <Progress value={kpis.averagePassRate} />
@@ -475,12 +483,12 @@ export function OsceModule({ role }: { role: Role }) {
           </CardBody>
         </Card>
 
-        <Card className="border-emerald-100 dark:border-emerald-900/40 bg-card">
+        <Card className="border-emerald-100 dark:border-emerald-900/40">
           <CardBody className="p-4 flex items-center justify-between">
             <div>
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">CBME Certified</p>
+              <p className="text-xs font-medium text-ink-3 uppercase tracking-wider">CBME Certified</p>
               <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400 mt-1">{kpis.certifiedCompetencies}</p>
-              <p className="text-[11px] text-muted-foreground mt-0.5">Synced to NMC Logbook</p>
+              <p className="text-[11px] text-ink-3 mt-0.5">Synced to NMC Logbook</p>
             </div>
             <div className="h-10 w-10 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 flex items-center justify-center text-xl">
               <Fi name="memo-circle-check" />
@@ -488,12 +496,12 @@ export function OsceModule({ role }: { role: Role }) {
           </CardBody>
         </Card>
 
-        <Card className="border-amber-100 dark:border-amber-900/40 bg-card">
+        <Card className="border-amber-100 dark:border-amber-900/40">
           <CardBody className="p-4 flex items-center justify-between">
             <div>
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Pending Bookings</p>
+              <p className="text-xs font-medium text-ink-3 uppercase tracking-wider">Pending Bookings</p>
               <p className="text-2xl font-bold text-amber-600 dark:text-amber-400 mt-1">{kpis.pendingBookings}</p>
-              <p className="text-[11px] text-muted-foreground mt-0.5">{kpis.highFidelitySimulators} Simulators Active</p>
+              <p className="text-[11px] text-ink-3 mt-0.5">{kpis.highFidelitySimulators} Simulators Active</p>
             </div>
             <div className="h-10 w-10 rounded-xl bg-amber-50 dark:bg-amber-950/60 text-amber-600 flex items-center justify-center text-xl">
               <Fi name="calendar" />
@@ -503,13 +511,13 @@ export function OsceModule({ role }: { role: Role }) {
       </div>
 
       {/* Navigation Tabs */}
-      <div className="flex border-b border-border space-x-2 overflow-x-auto pb-1 text-sm font-medium">
+      <div className="flex border-b border-line space-x-2 overflow-x-auto pb-1 text-sm font-medium">
         <button
           onClick={() => setActiveTab("stations")}
           className={`px-4 py-2 rounded-t-lg transition-colors border-b-2 flex items-center gap-2 whitespace-nowrap ${
             activeTab === "stations"
               ? "border-teal-600 text-teal-600 dark:text-teal-400 bg-teal-50/50 dark:bg-teal-950/30 font-semibold"
-              : "border-transparent text-muted-foreground hover:text-foreground"
+              : "border-transparent text-ink-3 hover:text-ink"
           }`}
         >
           <Fi name="clipboard-list-check" />
@@ -521,7 +529,7 @@ export function OsceModule({ role }: { role: Role }) {
           className={`px-4 py-2 rounded-t-lg transition-colors border-b-2 flex items-center gap-2 whitespace-nowrap ${
             activeTab === "sessions"
               ? "border-teal-600 text-teal-600 dark:text-teal-400 bg-teal-50/50 dark:bg-teal-950/30 font-semibold"
-              : "border-transparent text-muted-foreground hover:text-foreground"
+              : "border-transparent text-ink-3 hover:text-ink"
           }`}
         >
           <Fi name="calendar" />
@@ -533,7 +541,7 @@ export function OsceModule({ role }: { role: Role }) {
           className={`px-4 py-2 rounded-t-lg transition-colors border-b-2 flex items-center gap-2 whitespace-nowrap ${
             activeTab === "bookings"
               ? "border-teal-600 text-teal-600 dark:text-teal-400 bg-teal-50/50 dark:bg-teal-950/30 font-semibold"
-              : "border-transparent text-muted-foreground hover:text-foreground"
+              : "border-transparent text-ink-3 hover:text-ink"
           }`}
         >
           <Fi name="dashboard" />
@@ -545,7 +553,7 @@ export function OsceModule({ role }: { role: Role }) {
           className={`px-4 py-2 rounded-t-lg transition-colors border-b-2 flex items-center gap-2 whitespace-nowrap ${
             activeTab === "results"
               ? "border-teal-600 text-teal-600 dark:text-teal-400 bg-teal-50/50 dark:bg-teal-950/30 font-semibold"
-              : "border-transparent text-muted-foreground hover:text-foreground"
+              : "border-transparent text-ink-3 hover:text-ink"
           }`}
         >
           <Fi name="test" />
@@ -557,7 +565,7 @@ export function OsceModule({ role }: { role: Role }) {
           className={`px-4 py-2 rounded-t-lg transition-colors border-b-2 flex items-center gap-2 whitespace-nowrap ${
             activeTab === "equipment"
               ? "border-teal-600 text-teal-600 dark:text-teal-400 bg-teal-50/50 dark:bg-teal-950/30 font-semibold"
-              : "border-transparent text-muted-foreground hover:text-foreground"
+              : "border-transparent text-ink-3 hover:text-ink"
           }`}
         >
           <Fi name="shield-check" />
@@ -569,7 +577,7 @@ export function OsceModule({ role }: { role: Role }) {
       {activeTab === "stations" && (
         <div className="space-y-4">
           {/* Filters Bar */}
-          <div className="flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between bg-card p-3 rounded-xl border border-border">
+          <div className="flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between bg-surface p-3 rounded-xl border border-line shadow-sm">
             <div className="flex flex-wrap items-center gap-2.5">
               <select
                 aria-label="Filter by Domain"
@@ -619,7 +627,7 @@ export function OsceModule({ role }: { role: Role }) {
           {/* Stations Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {filteredStations.map((station) => (
-              <Card key={station.id} className="border-border hover:border-teal-500/50 transition-all flex flex-col justify-between">
+              <Card key={station.id} className="border-line hover:border-teal-500/50 transition-all flex flex-col justify-between">
                 <CardBody className="p-4 space-y-3">
                   <div className="flex items-start justify-between gap-2">
                     <span className="text-xs font-bold px-2 py-0.5 rounded bg-teal-100 text-teal-800 dark:bg-teal-950 dark:text-teal-300">
@@ -632,31 +640,31 @@ export function OsceModule({ role }: { role: Role }) {
 
                   <div>
                     <h3 className="font-semibold text-base leading-snug line-clamp-2">{station.title}</h3>
-                    <p className="text-xs text-muted-foreground mt-0.5">{station.department}</p>
+                    <p className="text-xs text-ink-3 mt-0.5">{station.department}</p>
                   </div>
 
-                  <div className="bg-muted/40 p-2.5 rounded-lg text-xs space-y-1.5">
+                  <div className="bg-surface-2 p-2.5 rounded-lg text-xs space-y-1.5 border border-line/40">
                     <div className="flex justify-between items-center">
-                      <span className="text-muted-foreground">Domain:</span>
-                      <span className="font-medium text-foreground">{station.domain}</span>
+                      <span className="text-ink-3">Domain:</span>
+                      <span className="font-medium text-ink">{station.domain}</span>
                     </div>
                     <div className="flex justify-between items-center">
-                      <span className="text-muted-foreground">NMC Code:</span>
+                      <span className="text-ink-3">NMC Code:</span>
                       <span className="font-mono font-medium text-teal-600 dark:text-teal-400">{station.nmcCompetencyCode}</span>
                     </div>
                     <div className="flex justify-between items-center">
-                      <span className="text-muted-foreground">Duration / Marks:</span>
-                      <span className="font-medium">
+                      <span className="text-ink-3">Duration / Marks:</span>
+                      <span className="font-medium text-ink">
                         {station.durationMinutes} mins | {station.passMarks}/{station.totalMarks} pass
                       </span>
                     </div>
                     <div className="flex justify-between items-center">
-                      <span className="text-muted-foreground">Room / Lab:</span>
-                      <span className="font-medium truncate max-w-[170px]">{station.room}</span>
+                      <span className="text-ink-3">Room / Lab:</span>
+                      <span className="font-medium text-ink truncate max-w-[170px]">{station.room}</span>
                     </div>
                     <div className="flex justify-between items-center">
-                      <span className="text-muted-foreground">Manikin / Eq:</span>
-                      <span className="font-medium truncate max-w-[170px]">{station.manikinEquipment}</span>
+                      <span className="text-ink-3">Manikin / Eq:</span>
+                      <span className="font-medium text-ink truncate max-w-[170px]">{station.manikinEquipment}</span>
                     </div>
                   </div>
 
@@ -669,9 +677,9 @@ export function OsceModule({ role }: { role: Role }) {
                     </div>
                   )}
 
-                  <div className="pt-2 border-t border-border flex items-center justify-between text-xs">
+                  <div className="pt-2 border-t border-line flex items-center justify-between text-xs">
                     <div>
-                      <span className="text-muted-foreground">Avg Pass: </span>
+                      <span className="text-ink-3">Avg Pass: </span>
                       <span className="font-semibold text-emerald-600 dark:text-emerald-400">{station.passRate}%</span>
                     </div>
                     <div className="flex items-center gap-1.5">
@@ -741,7 +749,7 @@ export function OsceModule({ role }: { role: Role }) {
               </div>
             )}
             {data.sessions.map((sess) => (
-              <Card key={sess.id} className="border-border">
+              <Card key={sess.id} className="border-line">
                 <CardBody className="p-4 space-y-3">
                   <div className="flex justify-between items-start gap-2">
                     <span className="text-xs font-semibold px-2 py-0.5 rounded bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300">
@@ -754,44 +762,44 @@ export function OsceModule({ role }: { role: Role }) {
 
                   <div>
                     <h3 className="font-semibold text-base">{sess.title}</h3>
-                    <p className="text-xs text-muted-foreground mt-0.5">{sess.department}</p>
+                    <p className="text-xs text-ink-3 mt-0.5">{sess.department}</p>
                   </div>
 
-                  <div className="bg-muted/40 p-2.5 rounded-lg text-xs space-y-1.5">
+                  <div className="bg-surface-2 p-2.5 rounded-lg text-xs space-y-1.5 border border-line/40">
                     <div className="flex justify-between items-center">
-                      <span className="text-muted-foreground">Date & Slot:</span>
-                      <span className="font-medium text-foreground">{sess.date} ({sess.timeSlot})</span>
+                      <span className="text-ink-3">Date & Slot:</span>
+                      <span className="font-medium text-ink">{sess.date} ({sess.timeSlot})</span>
                     </div>
                     <div className="flex justify-between items-center">
-                      <span className="text-muted-foreground">Circuit Venue:</span>
-                      <span className="font-medium truncate max-w-[170px]">{sess.venue}</span>
+                      <span className="text-ink-3">Circuit Venue:</span>
+                      <span className="font-medium text-ink truncate max-w-[170px]">{sess.venue}</span>
                     </div>
                     <div className="flex justify-between items-center">
-                      <span className="text-muted-foreground">Stations:</span>
+                      <span className="text-ink-3">Stations:</span>
                       <span className="font-medium text-teal-600 dark:text-teal-400">{sess.stationsAssigned} Active Stations</span>
                     </div>
                     <div className="flex justify-between items-center">
-                      <span className="text-muted-foreground">Lead Examiner:</span>
-                      <span className="font-medium truncate max-w-[170px]">{sess.leadExaminer}</span>
+                      <span className="text-ink-3">Lead Examiner:</span>
+                      <span className="font-medium text-ink truncate max-w-[170px]">{sess.leadExaminer}</span>
                     </div>
                   </div>
 
                   <div>
-                    <div className="flex justify-between text-xs text-muted-foreground mb-1">
+                    <div className="flex justify-between text-xs text-ink-3 mb-1">
                       <span>Evaluated Candidates:</span>
-                      <span className="font-semibold text-foreground">
+                      <span className="font-semibold text-ink">
                         {sess.evaluatedCount} / {sess.totalCandidates}
                       </span>
                     </div>
                     <Progress value={(sess.evaluatedCount / (sess.totalCandidates || 1)) * 100} />
                   </div>
 
-                  <div className="pt-2 border-t border-border flex justify-end items-center gap-2 text-xs">
+                  <div className="pt-2 border-t border-line flex justify-end items-center gap-2 text-xs">
                     {canManage && (
                       <select
                         value={sess.status}
                         onChange={(e) => sessionStatusMutation.mutate({ id: sess.id, status: e.target.value })}
-                        className="rounded border border-border bg-background px-2 py-1 text-xs"
+                        className="rounded border border-line bg-surface px-2 py-1 text-xs text-ink"
                         aria-label="Circuit status"
                       >
                         {["Scheduled", "In Progress", "Completed", "Results Published"].map((st) => (
@@ -801,7 +809,7 @@ export function OsceModule({ role }: { role: Role }) {
                     )}
                     <Link
                       href={`/${role}/competency-logbook`}
-                      className="px-2.5 py-1 rounded bg-muted hover:bg-muted/80 text-foreground transition-colors font-medium flex items-center gap-1"
+                      className="px-2.5 py-1 rounded bg-surface-2 hover:bg-surface border border-line text-ink transition-colors font-medium flex items-center gap-1"
                     >
                       Logbook Sync ↗
                     </Link>
@@ -828,9 +836,9 @@ export function OsceModule({ role }: { role: Role }) {
             </Button>
           </div>
 
-          <div className="overflow-x-auto rounded-xl border border-border bg-card">
+          <div className="overflow-x-auto rounded-xl border border-line bg-surface shadow-sm">
             <table className="w-full text-xs text-left">
-              <thead className="bg-muted/50 border-b border-border text-muted-foreground uppercase tracking-wider font-semibold">
+              <thead className="bg-surface-2 border-b border-line text-ink-3 uppercase tracking-wider font-semibold">
                 <tr>
                   <th className="p-3">Applicant</th>
                   <th className="p-3">Station / Room</th>
@@ -841,7 +849,7 @@ export function OsceModule({ role }: { role: Role }) {
                   {canManage && <th className="p-3 text-right">Actions</th>}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-border">
+              <tbody className="divide-y divide-line">
                 {data.bookings.map((booking) => (
                   <tr key={booking.id} className="hover:bg-muted/20">
                     <td className="p-3">
@@ -937,9 +945,9 @@ export function OsceModule({ role }: { role: Role }) {
             </div>
           </div>
 
-          <div className="overflow-x-auto rounded-xl border border-border bg-card">
+          <div className="overflow-x-auto rounded-xl border border-line bg-surface shadow-sm">
             <table className="w-full text-xs text-left">
-              <thead className="bg-muted/50 border-b border-border text-muted-foreground uppercase tracking-wider font-semibold">
+              <thead className="bg-surface-2 border-b border-line text-ink-3 uppercase tracking-wider font-semibold">
                 <tr>
                   <th className="p-3">Candidate</th>
                   <th className="p-3">Station</th>
@@ -951,7 +959,7 @@ export function OsceModule({ role }: { role: Role }) {
                   <th className="p-3 text-right">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-border">
+              <tbody className="divide-y divide-line">
                 {filteredResults.map((result) => (
                   <tr key={result.id} className="hover:bg-muted/20">
                     <td className="p-3">
@@ -1060,10 +1068,10 @@ export function OsceModule({ role }: { role: Role }) {
               </div>
             )}
             {data.equipment.map((eq) => (
-              <Card key={eq.id} className="border-border">
+              <Card key={eq.id} className="border-line">
                 <CardBody className="p-4 space-y-3">
                   <div className="flex justify-between items-start gap-2">
-                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-muted text-muted-foreground">
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-surface-2 text-ink-3 border border-line">
                       {eq.serialNo}
                     </span>
                     <Badge tone={toneForStatus(eq.status)}>
@@ -1072,36 +1080,36 @@ export function OsceModule({ role }: { role: Role }) {
                   </div>
 
                   <div>
-                    <h4 className="font-semibold text-base">{eq.name}</h4>
-                    <p className="text-xs text-muted-foreground">{eq.category}</p>
+                    <h4 className="font-semibold text-base text-ink">{eq.name}</h4>
+                    <p className="text-xs text-ink-3">{eq.category}</p>
                   </div>
 
-                  <div className="bg-muted/40 p-2.5 rounded-lg text-xs space-y-1.5">
+                  <div className="bg-surface-2 p-2.5 rounded-lg text-xs space-y-1.5 border border-line/40">
                     <div className="flex justify-between items-center">
-                      <span className="text-muted-foreground">Location:</span>
-                      <span className="font-medium text-foreground">{eq.room}</span>
+                      <span className="text-ink-3">Location:</span>
+                      <span className="font-medium text-ink">{eq.room}</span>
                     </div>
                     <div className="flex justify-between items-center">
-                      <span className="text-muted-foreground">Weekly Utilization:</span>
+                      <span className="text-ink-3">Weekly Utilization:</span>
                       <span className="font-semibold text-teal-600 dark:text-teal-400">{eq.utilizationHoursWeek} hrs/week</span>
                     </div>
                     <div className="flex justify-between items-center">
-                      <span className="text-muted-foreground">Last Inspected:</span>
-                      <span className="font-mono text-muted-foreground">{eq.lastInspection}</span>
+                      <span className="text-ink-3">Last Inspected:</span>
+                      <span className="font-mono text-ink-3">{eq.lastInspection}</span>
                     </div>
                     <div className="flex justify-between items-center">
-                      <span className="text-muted-foreground">Next Service:</span>
-                      <span className="font-mono text-muted-foreground">{eq.nextMaintenance}</span>
+                      <span className="text-ink-3">Next Service:</span>
+                      <span className="font-mono text-ink-3">{eq.nextMaintenance}</span>
                     </div>
                   </div>
 
                   {canManage && (
                     <div className="flex items-center justify-between gap-2 text-xs">
-                      <span className="text-muted-foreground">Condition:</span>
+                      <span className="text-ink-3">Condition:</span>
                       <select
                         value={eq.status}
                         onChange={(e) => updateEquipmentMutation.mutate({ id: eq.id, status: e.target.value })}
-                        className="rounded border border-border bg-background px-2 py-1 text-xs"
+                        className="rounded border border-line bg-surface px-2 py-1 text-xs text-ink"
                         aria-label="Equipment condition"
                       >
                         {["Operational", "Calibration Due", "Maintenance"].map((st) => (
@@ -1110,8 +1118,8 @@ export function OsceModule({ role }: { role: Role }) {
                       </select>
                     </div>
                   )}
-                  <div className="pt-2 border-t border-border flex justify-between items-center text-xs">
-                    <span className="text-muted-foreground">NMC Norm Status:</span>
+                  <div className="pt-2 border-t border-line flex justify-between items-center text-xs">
+                    <span className="text-ink-3">NMC Norm Status:</span>
                     <span
                       className={`font-semibold ${
                         eq.nmcComplianceStatus === "Fully Compliant"
@@ -1222,14 +1230,14 @@ export function OsceModule({ role }: { role: Role }) {
       {/* Station Detail Modal */}
       {selectedStationForDetail && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-card border border-border rounded-2xl max-w-2xl w-full p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-start">
+          <div className="w-full max-w-2xl rounded-2xl bg-surface border border-line shadow-2xl p-6 space-y-4 max-h-[90vh] overflow-y-auto text-ink animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex justify-between items-start pb-3 border-b border-line">
               <div>
                 <span className="text-xs font-bold px-2 py-0.5 rounded bg-teal-100 text-teal-800 dark:bg-teal-950 dark:text-teal-300">
                   Station #{selectedStationForDetail.number} • {selectedStationForDetail.domain}
                 </span>
-                <h3 className="text-xl font-bold mt-1 text-foreground">{selectedStationForDetail.title}</h3>
-                <p className="text-xs text-muted-foreground">
+                <h3 className="text-xl font-bold mt-1 text-ink">{selectedStationForDetail.title}</h3>
+                <p className="text-xs text-ink-3">
                   {selectedStationForDetail.department} • NMC Code:{" "}
                   <span className="font-mono text-teal-600 dark:text-teal-400 font-semibold">
                     {selectedStationForDetail.nmcCompetencyCode}
@@ -1237,8 +1245,9 @@ export function OsceModule({ role }: { role: Role }) {
                 </p>
               </div>
               <button
+                type="button"
                 onClick={() => setSelectedStationForDetail(null)}
-                className="text-muted-foreground hover:text-foreground text-xl leading-none"
+                className="w-8 h-8 rounded-lg text-ink-3 hover:text-ink hover:bg-surface-2 flex items-center justify-center transition-colors text-base"
               >
                 ✕
               </button>
@@ -1254,16 +1263,16 @@ export function OsceModule({ role }: { role: Role }) {
             )}
 
             <div>
-              <h4 className="text-sm font-semibold mb-2">Checklist Scoring Rubric ({selectedStationForDetail.checklist.length} Steps)</h4>
+              <h4 className="text-sm font-semibold mb-2 text-ink">Checklist Scoring Rubric ({selectedStationForDetail.checklist.length} Steps)</h4>
               <div className="space-y-2">
                 {selectedStationForDetail.checklist.map((step, idx) => (
-                  <div key={step.id} className="p-2.5 rounded-lg border border-border bg-muted/30 flex justify-between items-start gap-3 text-xs">
+                  <div key={step.id} className="p-2.5 rounded-lg border border-line bg-surface-2 flex justify-between items-start gap-3 text-xs">
                     <div className="flex gap-2">
-                      <span className="font-semibold text-muted-foreground">{idx + 1}.</span>
+                      <span className="font-semibold text-ink-3">{idx + 1}.</span>
                       <div>
-                        <p className="font-medium text-foreground">{step.step}</p>
+                        <p className="font-medium text-ink">{step.step}</p>
                         <div className="flex gap-2 mt-1">
-                          <span className="text-[10px] px-1.5 py-0.2 rounded bg-muted text-muted-foreground">{step.category}</span>
+                          <span className="text-[10px] px-1.5 py-0.2 rounded bg-surface text-ink-3 border border-line">{step.category}</span>
                           {step.isCritical && (
                             <span className="text-[10px] px-1.5 py-0.2 rounded bg-rose-500/20 text-rose-700 dark:text-rose-300 font-semibold">
                               Critical Step
@@ -1280,7 +1289,7 @@ export function OsceModule({ role }: { role: Role }) {
               </div>
             </div>
 
-            <div className="pt-3 border-t border-border flex justify-end gap-2">
+            <div className="pt-3 border-t border-line flex justify-end gap-2">
               <Button variant="secondary" onClick={() => setSelectedStationForDetail(null)}>
                 Close
               </Button>
@@ -1292,15 +1301,24 @@ export function OsceModule({ role }: { role: Role }) {
       {/* Add Station Modal */}
       {showAddStationModal && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-card border border-border rounded-2xl max-w-2xl w-full p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-center">
-              <h3 className="text-lg font-bold">Add New OSCE Clinical Station</h3>
-              <button onClick={() => setShowAddStationModal(false)} className="text-muted-foreground text-xl">✕</button>
+          <div className="w-full max-w-2xl rounded-2xl bg-surface border border-line shadow-2xl p-6 space-y-4 max-h-[90vh] overflow-y-auto text-ink animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex justify-between items-center pb-3 border-b border-line">
+              <div>
+                <h3 className="text-lg font-bold text-ink">Add New OSCE Clinical Station</h3>
+                <p className="text-xs text-ink-3">Configure clinical competency, manikin station and checklist rubric</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAddStationModal(false)}
+                className="w-8 h-8 rounded-lg text-ink-3 hover:text-ink hover:bg-surface-2 flex items-center justify-center transition-colors text-base"
+              >
+                ✕
+              </button>
             </div>
 
             <div className="space-y-3 text-xs">
               <div>
-                <label className="font-semibold block mb-1">Station Title</label>
+                <label className="font-semibold text-ink-2 block mb-1">Station Title</label>
                 <input
                   type="text"
                   value={stationTitle}
@@ -1312,11 +1330,11 @@ export function OsceModule({ role }: { role: Role }) {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="font-semibold block mb-1">Clinical Department</label>
+                  <label className="font-semibold text-ink-2 block mb-1">Clinical Department</label>
                   <input list="osce-depts" value={stationDept} onChange={(e) => setStationDept(e.target.value)} className={inputClass} placeholder="e.g. General Medicine" />
                 </div>
                 <div>
-                  <label className="font-semibold block mb-1">Domain</label>
+                  <label className="font-semibold text-ink-2 block mb-1">Domain</label>
                   <select
                     value={stationDomain}
                     onChange={(e) => setStationDomain(e.target.value as typeof stationDomain)}
@@ -1333,7 +1351,7 @@ export function OsceModule({ role }: { role: Role }) {
 
               <div className="grid grid-cols-3 gap-3">
                 <div>
-                  <label className="font-semibold block mb-1">Duration (Mins)</label>
+                  <label className="font-semibold text-ink-2 block mb-1">Duration (Mins)</label>
                   <input
                     type="number"
                     value={stationDuration}
@@ -1342,7 +1360,7 @@ export function OsceModule({ role }: { role: Role }) {
                   />
                 </div>
                 <div>
-                  <label className="font-semibold block mb-1">Total Marks</label>
+                  <label className="font-semibold text-ink-2 block mb-1">Total Marks</label>
                   <input
                     type="number"
                     value={stationTotalMarks}
@@ -1351,7 +1369,7 @@ export function OsceModule({ role }: { role: Role }) {
                   />
                 </div>
                 <div>
-                  <label className="font-semibold block mb-1">Pass Marks</label>
+                  <label className="font-semibold text-ink-2 block mb-1">Pass Marks</label>
                   <input
                     type="number"
                     value={stationPassMarks}
@@ -1363,7 +1381,7 @@ export function OsceModule({ role }: { role: Role }) {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="font-semibold block mb-1">NMC Competency Code</label>
+                  <label className="font-semibold text-ink-2 block mb-1">NMC Competency Code</label>
                   <input
                     type="text"
                     value={stationNmcCode}
@@ -1373,7 +1391,7 @@ export function OsceModule({ role }: { role: Role }) {
                   />
                 </div>
                 <div>
-                  <label className="font-semibold block mb-1">Room / Cubicle</label>
+                  <label className="font-semibold text-ink-2 block mb-1">Room / Cubicle</label>
                   <input
                     type="text"
                     value={stationRoom}
@@ -1385,7 +1403,7 @@ export function OsceModule({ role }: { role: Role }) {
               </div>
 
               <div>
-                <label className="font-semibold block mb-1">Manikin / Simulator Equipment</label>
+                <label className="font-semibold text-ink-2 block mb-1">Manikin / Simulator Equipment</label>
                 <input
                   type="text"
                   value={stationManikin}
@@ -1396,7 +1414,7 @@ export function OsceModule({ role }: { role: Role }) {
               </div>
 
               <div>
-                <label className="font-semibold block mb-1">Mandatory Must-Pass Critical Step</label>
+                <label className="font-semibold text-ink-2 block mb-1">Mandatory Must-Pass Critical Step</label>
                 <textarea
                   value={stationCriticalDesc}
                   onChange={(e) => setStationCriticalDesc(e.target.value)}
@@ -1408,7 +1426,7 @@ export function OsceModule({ role }: { role: Role }) {
               {/* Checklist steps editor */}
               <div>
                 <div className="flex justify-between items-center mb-1.5">
-                  <label className="font-semibold">Checklist Rubric Steps</label>
+                  <label className="font-semibold text-ink">Checklist Rubric Steps</label>
                   <Button
                     size="sm"
                     variant="secondary"
@@ -1473,7 +1491,7 @@ export function OsceModule({ role }: { role: Role }) {
               </div>
             </div>
 
-            <div className="pt-3 border-t border-border flex justify-end gap-2">
+            <div className="pt-3 border-t border-line flex justify-end gap-2">
               <Button variant="secondary" onClick={() => setShowAddStationModal(false)}>
                 Cancel
               </Button>
@@ -1495,7 +1513,7 @@ export function OsceModule({ role }: { role: Role }) {
                   })
                 }
                 disabled={!stationTitle || createStationMutation.isPending}
-                className="bg-teal-600 text-white"
+                className="bg-teal-600 text-white font-medium"
               >
                 {createStationMutation.isPending ? "Creating..." : "Save Station"}
               </Button>
@@ -1507,15 +1525,24 @@ export function OsceModule({ role }: { role: Role }) {
       {/* Schedule Session Modal */}
       {showAddSessionModal && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-card border border-border rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4">
-            <div className="flex justify-between items-center">
-              <h3 className="text-lg font-bold">Schedule OSCE Exam Circuit</h3>
-              <button onClick={() => setShowAddSessionModal(false)} className="text-muted-foreground text-xl">✕</button>
+          <div className="w-full max-w-lg rounded-2xl bg-surface border border-line shadow-2xl p-6 space-y-4 text-ink overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex justify-between items-center pb-3 border-b border-line">
+              <div>
+                <h3 className="text-lg font-bold text-ink">Schedule OSCE Exam Circuit</h3>
+                <p className="text-xs text-ink-3">Set exam rotation circuits, batches and lead examiner</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAddSessionModal(false)}
+                className="w-8 h-8 rounded-lg text-ink-3 hover:text-ink hover:bg-surface-2 flex items-center justify-center transition-colors text-base"
+              >
+                ✕
+              </button>
             </div>
 
             <div className="space-y-3 text-xs">
               <div>
-                <label className="font-semibold block mb-1">Session Title</label>
+                <label className="font-semibold text-ink-2 block mb-1">Session Title</label>
                 <input
                   type="text"
                   value={sessionTitle}
@@ -1527,7 +1554,7 @@ export function OsceModule({ role }: { role: Role }) {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="font-semibold block mb-1">Target Batch</label>
+                  <label className="font-semibold text-ink-2 block mb-1">Target Batch</label>
                   <input
                     type="text"
                     list="osce-batches"
@@ -1538,7 +1565,7 @@ export function OsceModule({ role }: { role: Role }) {
                   />
                 </div>
                 <div>
-                  <label className="font-semibold block mb-1">Department / Board</label>
+                  <label className="font-semibold text-ink-2 block mb-1">Department / Board</label>
                   <input
                     type="text"
                     list="osce-depts"
@@ -1551,7 +1578,7 @@ export function OsceModule({ role }: { role: Role }) {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="font-semibold block mb-1">Date</label>
+                  <label className="font-semibold text-ink-2 block mb-1">Date</label>
                   <input
                     type="date"
                     value={sessionDate}
@@ -1560,7 +1587,7 @@ export function OsceModule({ role }: { role: Role }) {
                   />
                 </div>
                 <div>
-                  <label className="font-semibold block mb-1">Time Slot</label>
+                  <label className="font-semibold text-ink-2 block mb-1">Time Slot</label>
                   <input
                     type="text"
                     value={sessionTime}
@@ -1571,7 +1598,7 @@ export function OsceModule({ role }: { role: Role }) {
               </div>
 
               <div>
-                <label className="font-semibold block mb-1">Circuit Venue</label>
+                <label className="font-semibold text-ink-2 block mb-1">Circuit Venue</label>
                 <input
                   type="text"
                   value={sessionVenue}
@@ -1582,7 +1609,7 @@ export function OsceModule({ role }: { role: Role }) {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="font-semibold block mb-1">Total Candidates</label>
+                  <label className="font-semibold text-ink-2 block mb-1">Total Candidates</label>
                   <input
                     type="number"
                     value={sessionCandidates}
@@ -1591,7 +1618,7 @@ export function OsceModule({ role }: { role: Role }) {
                   />
                 </div>
                 <div>
-                  <label className="font-semibold block mb-1">Lead Examiner</label>
+                  <label className="font-semibold text-ink-2 block mb-1">Lead Examiner</label>
                   <input
                     type="text"
                     value={sessionExaminer}
@@ -1602,7 +1629,7 @@ export function OsceModule({ role }: { role: Role }) {
               </div>
             </div>
 
-            <div className="pt-3 border-t border-border flex justify-end gap-2">
+            <div className="pt-3 border-t border-line flex justify-end gap-2">
               <Button variant="secondary" onClick={() => setShowAddSessionModal(false)}>
                 Cancel
               </Button>
@@ -1620,7 +1647,7 @@ export function OsceModule({ role }: { role: Role }) {
                   })
                 }
                 disabled={!sessionTitle || !sessionBatch || !sessionDept || !sessionVenue || !sessionExaminer || createSessionMutation.isPending}
-                className="bg-teal-600 text-white"
+                className="bg-teal-600 text-white font-medium"
               >
                 {createSessionMutation.isPending ? "Scheduling..." : "Schedule Circuit"}
               </Button>
@@ -1632,16 +1659,25 @@ export function OsceModule({ role }: { role: Role }) {
       {/* Book Lab Slot Modal */}
       {showBookingModal && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-card border border-border rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4">
-            <div className="flex justify-between items-center">
-              <h3 className="text-lg font-bold">Book Skills Simulation Lab Slot</h3>
-              <button onClick={() => setShowBookingModal(false)} className="text-muted-foreground text-xl">✕</button>
+          <div className="w-full max-w-lg rounded-2xl bg-surface border border-line shadow-2xl p-6 space-y-4 text-ink overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex justify-between items-center pb-3 border-b border-line">
+              <div>
+                <h3 className="text-lg font-bold text-ink">Book Skills Simulation Lab Slot</h3>
+                <p className="text-xs text-ink-3">Reserve manikin suites, task trainers, or simulation cubicles</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowBookingModal(false)}
+                className="w-8 h-8 rounded-lg text-ink-3 hover:text-ink hover:bg-surface-2 flex items-center justify-center transition-colors text-base"
+              >
+                ✕
+              </button>
             </div>
 
             <div className="space-y-3 text-xs">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="font-semibold block mb-1">Applicant Name</label>
+                  <label className="font-semibold text-ink-2 block mb-1">Applicant Name</label>
                   <input
                     type="text"
                     value={role === "student" ? data.viewer.name : bookApplicantName}
@@ -1652,7 +1688,7 @@ export function OsceModule({ role }: { role: Role }) {
                   />
                 </div>
                 <div>
-                  <label className="font-semibold block mb-1">Role</label>
+                  <label className="font-semibold text-ink-2 block mb-1">Role</label>
                   <select
                     value={bookApplicantRole}
                     onChange={(e) => setBookApplicantRole(e.target.value as typeof bookApplicantRole)}
@@ -1667,7 +1703,7 @@ export function OsceModule({ role }: { role: Role }) {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="font-semibold block mb-1">Room / Cubicle</label>
+                  <label className="font-semibold text-ink-2 block mb-1">Room / Cubicle</label>
                   <input
                     type="text"
                     value={bookRoom}
@@ -1676,7 +1712,7 @@ export function OsceModule({ role }: { role: Role }) {
                   />
                 </div>
                 <div>
-                  <label className="font-semibold block mb-1">Equipment / Manikin</label>
+                  <label className="font-semibold text-ink-2 block mb-1">Equipment / Manikin</label>
                   <input
                     type="text"
                     value={bookEquipment}
@@ -1688,7 +1724,7 @@ export function OsceModule({ role }: { role: Role }) {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="font-semibold block mb-1">Date</label>
+                  <label className="font-semibold text-ink-2 block mb-1">Date</label>
                   <input
                     type="date"
                     value={bookDate}
@@ -1697,7 +1733,7 @@ export function OsceModule({ role }: { role: Role }) {
                   />
                 </div>
                 <div>
-                  <label className="font-semibold block mb-1">Time Slot</label>
+                  <label className="font-semibold text-ink-2 block mb-1">Time Slot</label>
                   <input
                     type="text"
                     value={bookTime}
@@ -1709,7 +1745,7 @@ export function OsceModule({ role }: { role: Role }) {
               </div>
 
               <div>
-                <label className="font-semibold block mb-1">Practice Purpose</label>
+                <label className="font-semibold text-ink-2 block mb-1">Practice Purpose</label>
                 <select
                   value={bookPurpose}
                   onChange={(e) => setBookPurpose(e.target.value as typeof bookPurpose)}
@@ -1722,7 +1758,7 @@ export function OsceModule({ role }: { role: Role }) {
               </div>
 
               <div>
-                <label className="font-semibold block mb-1">Notes / Skill Objectives</label>
+                <label className="font-semibold text-ink-2 block mb-1">Notes / Skill Objectives</label>
                 <textarea
                   value={bookNotes}
                   onChange={(e) => setBookNotes(e.target.value)}
@@ -1733,7 +1769,7 @@ export function OsceModule({ role }: { role: Role }) {
               </div>
             </div>
 
-            <div className="pt-3 border-t border-border flex justify-end gap-2">
+            <div className="pt-3 border-t border-line flex justify-end gap-2.5">
               <Button variant="secondary" onClick={() => setShowBookingModal(false)}>
                 Cancel
               </Button>
@@ -1751,7 +1787,7 @@ export function OsceModule({ role }: { role: Role }) {
                   })
                 }
                 disabled={!bookRoom || !bookEquipment || !bookTime || createBookingMutation.isPending}
-                className="bg-sky-600 text-white"
+                className="bg-sky-600 hover:bg-sky-500 text-white font-medium"
               >
                 {createBookingMutation.isPending ? "Submitting..." : "Submit Reservation"}
               </Button>
@@ -1763,16 +1799,25 @@ export function OsceModule({ role }: { role: Role }) {
       {/* Grade Candidate Modal */}
       {showGradeModal && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-card border border-border rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4">
-            <div className="flex justify-between items-center">
-              <h3 className="text-lg font-bold">Grade Candidate Clinical Performance</h3>
-              <button onClick={() => setShowGradeModal(false)} className="text-muted-foreground text-xl">✕</button>
+          <div className="w-full max-w-lg rounded-2xl bg-surface border border-line shadow-2xl p-6 space-y-4 text-ink overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex justify-between items-center pb-3 border-b border-line">
+              <div>
+                <h3 className="text-lg font-bold text-ink">Grade Candidate Clinical Performance</h3>
+                <p className="text-xs text-ink-3">Evaluate checklist steps, critical safety criteria and CBME logbook certification</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowGradeModal(false)}
+                className="w-8 h-8 rounded-lg text-ink-3 hover:text-ink hover:bg-surface-2 flex items-center justify-center transition-colors text-base"
+              >
+                ✕
+              </button>
             </div>
 
             <div className="space-y-3 text-xs">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="font-semibold block mb-1">Student Full Name</label>
+                  <label className="font-semibold text-ink-2 block mb-1">Student Full Name</label>
                   <input
                     type="text"
                     value={gradeStudentName}
@@ -1782,7 +1827,7 @@ export function OsceModule({ role }: { role: Role }) {
                   />
                 </div>
                 <div>
-                  <label className="font-semibold block mb-1">Roll / Register Number</label>
+                  <label className="font-semibold text-ink-2 block mb-1">Roll / Register Number</label>
                   <input
                     type="text"
                     value={gradeRollNo}
@@ -1795,7 +1840,7 @@ export function OsceModule({ role }: { role: Role }) {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="font-semibold block mb-1">MBBS Batch</label>
+                  <label className="font-semibold text-ink-2 block mb-1">MBBS Batch</label>
                   <input
                     type="text"
                     list="osce-batches"
@@ -1805,7 +1850,7 @@ export function OsceModule({ role }: { role: Role }) {
                   />
                 </div>
                 <div>
-                  <label className="font-semibold block mb-1">Assigned Station</label>
+                  <label className="font-semibold text-ink-2 block mb-1">Assigned Station</label>
                   <select
                     value={gradeStationId}
                     onChange={(e) => setGradeStationId(e.target.value)}
@@ -1821,7 +1866,7 @@ export function OsceModule({ role }: { role: Role }) {
               </div>
 
               <div>
-                <label className="font-semibold block mb-1">Exam Circuit (optional)</label>
+                <label className="font-semibold text-ink-2 block mb-1">Exam Circuit (optional)</label>
                 <select value={gradeSessionId} onChange={(e) => setGradeSessionId(e.target.value)} className={inputClass}>
                   <option value="">Not part of a scheduled circuit</option>
                   {data.sessions.map((sx) => (
@@ -1831,7 +1876,7 @@ export function OsceModule({ role }: { role: Role }) {
               </div>
 
               <div>
-                <label className="font-semibold block mb-1">Marks Awarded</label>
+                <label className="font-semibold text-ink-2 block mb-1">Marks Awarded</label>
                 <input
                   type="number"
                   value={gradeScore}
@@ -1840,24 +1885,24 @@ export function OsceModule({ role }: { role: Role }) {
                 />
               </div>
 
-              <div className="p-2.5 rounded bg-muted/40 space-y-2">
+              <div className="p-2.5 rounded-lg bg-surface-2 border border-line space-y-2">
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input
                     type="checkbox"
                     checked={gradeCriticalMet}
                     onChange={(e) => setGradeCriticalMet(e.target.checked)}
                   />
-                  <span className="font-semibold text-foreground">
+                  <span className="font-semibold text-ink">
                     Candidate Satisfied All Mandatory Critical Steps
                   </span>
                 </label>
-                <p className="text-[11px] text-muted-foreground ml-5">
+                <p className="text-[11px] text-ink-3 ml-5">
                   If unchecked, score will automatically be flagged for skills remediation regardless of total marks.
                 </p>
               </div>
 
               <div>
-                <label className="font-semibold block mb-1">Evaluator Feedback & Recommendations</label>
+                <label className="font-semibold text-ink-2 block mb-1">Evaluator Feedback & Recommendations</label>
                 <textarea
                   value={gradeRemarks}
                   onChange={(e) => setGradeRemarks(e.target.value)}
@@ -1867,7 +1912,7 @@ export function OsceModule({ role }: { role: Role }) {
                 />
               </div>
 
-              <div className="p-2.5 rounded bg-teal-50 dark:bg-teal-950/40 border border-teal-200 dark:border-teal-900">
+              <div className="p-2.5 rounded-lg bg-teal-50 dark:bg-teal-950/40 border border-teal-200 dark:border-teal-900">
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input
                     type="checkbox"
@@ -1881,7 +1926,7 @@ export function OsceModule({ role }: { role: Role }) {
               </div>
             </div>
 
-            <div className="pt-3 border-t border-border flex justify-end gap-2">
+            <div className="pt-3 border-t border-line flex justify-end gap-2">
               <Button variant="secondary" onClick={() => setShowGradeModal(false)}>
                 Cancel
               </Button>
@@ -1900,7 +1945,7 @@ export function OsceModule({ role }: { role: Role }) {
                   })
                 }
                 disabled={!gradeStudentName || !gradeRollNo || !gradeBatch || data.stations.length === 0 || gradeStudentMutation.isPending}
-                className="bg-emerald-600 text-white"
+                className="bg-emerald-600 text-white font-medium"
               >
                 {gradeStudentMutation.isPending ? "Recording..." : "Save Evaluation"}
               </Button>
