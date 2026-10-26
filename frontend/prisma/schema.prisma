@@ -2137,3 +2137,138 @@ model CbcsRegistration {
   @@index([collegeId, registeredAt], map: "cbcs_registrations_college_idx")
   @@map("cbcs_registrations")
 }
+
+model OsceStation {
+  id                      String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  collegeId               String   @map("college_id") @db.Uuid
+  number                  Int
+  title                   String
+  department              String
+  domain                  String
+  durationMinutes         Int      @map("duration_minutes")
+  totalMarks              Int      @map("total_marks")
+  passMarks               Int      @map("pass_marks")
+  nmcCompetencyCode       String   @map("nmc_competency_code")
+  room                    String
+  manikinEquipment        String   @map("manikin_equipment")
+  examiner                String   @default("")
+  status                  String   @default("Active")
+  criticalStepRequired    Boolean  @default(false) @map("critical_step_required")
+  criticalStepDescription String   @default("") @map("critical_step_description")
+  checklist               Json     @default("[]")
+  createdBySub            String   @default("") @map("created_by_sub")
+  createdAt               DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt               DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@index([collegeId, number], map: "osce_stations_college_idx")
+  @@map("osce_stations")
+}
+
+model OsceSession {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  collegeId       String   @map("college_id") @db.Uuid
+  title           String
+  batch           String
+  department      String
+  date            String
+  timeSlot        String   @map("time_slot")
+  venue           String
+  totalCandidates Int      @map("total_candidates")
+  leadExaminer    String   @map("lead_examiner")
+  status          String   @default("Scheduled")
+  createdBySub    String   @default("") @map("created_by_sub")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@index([collegeId, date], map: "osce_sessions_college_idx")
+  @@map("osce_sessions")
+}
+
+model OsceBooking {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  collegeId      String   @map("college_id") @db.Uuid
+  applicantName  String   @map("applicant_name")
+  applicantRole  String   @map("applicant_role")
+  stationOrRoom  String   @map("station_or_room")
+  equipment      String
+  date           String
+  timeSlot       String   @map("time_slot")
+  purpose        String
+  status         String   @default("Pending Review")
+  notes          String   @default("")
+  requestedBySub String   @default("") @map("requested_by_sub")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@index([collegeId, date], map: "osce_bookings_college_idx")
+  @@map("osce_bookings")
+}
+
+model OsceResult {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  collegeId        String   @map("college_id") @db.Uuid
+  stationId        String   @map("station_id") @db.Uuid
+  sessionId        String?  @map("session_id") @db.Uuid
+  rollNo           String   @map("roll_no")
+  studentName      String   @map("student_name")
+  batch            String
+  score            Decimal
+  total            Int
+  grade            String
+  criticalStepMet  Boolean  @default(true) @map("critical_step_met")
+  examiner         String   @default("")
+  examinerSub      String   @default("") @map("examiner_sub")
+  evaluatorRemarks String   @default("") @map("evaluator_remarks")
+  cbmeCertified    Boolean  @default(false) @map("cbme_certified")
+  gradedAt         DateTime @default(now()) @map("graded_at") @db.Timestamptz(6)
+
+  @@index([collegeId, gradedAt], map: "osce_results_college_idx")
+  @@index([stationId], map: "osce_results_station_idx")
+  @@map("osce_results")
+}
+
+model OsceEquipment {
+  id                   String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  collegeId            String   @map("college_id") @db.Uuid
+  name                 String
+  serialNo             String   @map("serial_no")
+  category             String
+  room                 String
+  status               String   @default("Operational")
+  lastInspection       String   @default("") @map("last_inspection")
+  nextMaintenance      String   @default("") @map("next_maintenance")
+  utilizationHoursWeek Decimal  @default(0) @map("utilization_hours_week")
+  createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@map("osce_equipment")
+}
+
+model Club {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  collegeId      String   @map("college_id") @db.Uuid
+  name           String
+  category       String
+  description    String   @default("")
+  lead           String
+  facultyAdvisor String   @default("") @map("faculty_advisor")
+  meetingSchedule String  @map("meeting_schedule")
+  venue          String   @default("")
+  status         String   @default("Active")
+  createdBySub   String   @default("") @map("created_by_sub")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@map("clubs")
+}
+
+model ClubMember {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  collegeId  String   @map("college_id") @db.Uuid
+  clubId     String   @map("club_id") @db.Uuid
+  userSub    String   @map("user_sub")
+  memberName String   @default("") @map("member_name")
+  joinedAt   DateTime @default(now()) @map("joined_at") @db.Timestamptz(6)
+
+  @@map("club_members")
+}

@@ -81,7 +81,10 @@ export function ClubsModule({ role }: { role?: Role }) {
     queryFn: () => apiFetch("/api/v1/clubs", ClubsOverview),
   });
 
-  const isPrivileged = role === "institution" || role === "admin";
+  // what this person may do is decided on the server
+  const canCreate = query.data?.permissions.create ?? false;
+  const canRemove = query.data?.permissions.remove ?? false;
+  void role;
 
   const joinMutation = useMutation({
     mutationFn: async (clubId: string) => {
@@ -96,6 +99,7 @@ export function ClubsModule({ role }: { role?: Role }) {
       }
       setToast(res.isJoined ? "You have successfully joined the club!" : "You have left the club.");
     },
+    onError: (err) => setToast(err instanceof ApiError ? err.message : "Couldn't update your membership."),
   });
 
   const deleteMutation = useMutation({
@@ -111,9 +115,10 @@ export function ClubsModule({ role }: { role?: Role }) {
     },
   });
 
+  const allClubs = query.data?.clubs;
   const filteredClubs = useMemo(() => {
-    if (!query.data?.clubs) return [];
-    return query.data.clubs.filter((club) => {
+    if (!allClubs) return [];
+    return allClubs.filter((club) => {
       const matchesCategory = category === "All" || club.category === category;
       const q = search.toLowerCase().trim();
       const matchesSearch =
@@ -125,7 +130,7 @@ export function ClubsModule({ role }: { role?: Role }) {
         club.venue.toLowerCase().includes(q);
       return matchesCategory && matchesSearch;
     });
-  }, [query.data?.clubs, category, search]);
+  }, [allClubs, category, search]);
 
   if (query.isError) return <LoadError error={query.error} onRetry={() => void query.refetch()} />;
   if (query.isLoading || !query.data) return <TemplateSkeleton />;
@@ -226,9 +231,11 @@ export function ClubsModule({ role }: { role?: Role }) {
               </select>
             </div>
 
-            <Button onClick={() => setIsCreateOpen(true)} className="gap-2">
-              <Plus className="size-4" /> Start a club
-            </Button>
+            {canCreate ? (
+              <Button onClick={() => setIsCreateOpen(true)} className="gap-2">
+                <Plus className="size-4" /> Start a club
+              </Button>
+            ) : null}
           </div>
         </div>
 
@@ -320,7 +327,8 @@ export function ClubsModule({ role }: { role?: Role }) {
       {selectedClub ? (
         <ClubDetailModal
           club={selectedClub}
-          isPrivileged={isPrivileged}
+          isPrivileged={selectedClub.canEdit}
+          canRemove={canRemove}
           isJoining={joinMutation.isPending}
           isDeleting={deleteMutation.isPending}
           onClose={() => setSelectedClub(null)}
@@ -359,7 +367,6 @@ function CreateClubModal({
   const [isCustomFaculty, setIsCustomFaculty] = useState(false);
   const [meetingSchedule, setMeetingSchedule] = useState("");
   const [venue, setVenue] = useState("");
-  const [membersCount, setMembersCount] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   const studentsQuery = useQuery({
@@ -410,10 +417,9 @@ function CreateClubModal({
       category,
       description,
       lead,
-      facultyAdvisor: facultyAdvisor.trim() || "Faculty Coordinator",
+      facultyAdvisor: facultyAdvisor.trim(),
       meetingSchedule,
-      venue: venue.trim() || "Campus Center",
-      membersCount: parseInt(membersCount, 10) || 10,
+      venue: venue.trim(),
     });
   };
 
@@ -464,18 +470,6 @@ function CreateClubModal({
               </select>
             </div>
 
-            <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-ink-3">Initial Members</label>
-              <input
-                type="number"
-                min="1"
-                max="5000"
-                placeholder="e.g. 20"
-                value={membersCount}
-                onChange={(e) => setMembersCount(e.target.value)}
-                className={cn(inputClass, "mt-1.5")}
-              />
-            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
@@ -643,6 +637,7 @@ function CreateClubModal({
 function ClubDetailModal({
   club,
   isPrivileged,
+  canRemove,
   isJoining,
   isDeleting,
   onClose,
@@ -652,6 +647,7 @@ function ClubDetailModal({
 }: {
   club: ClubItem;
   isPrivileged: boolean;
+  canRemove: boolean;
   isJoining: boolean;
   isDeleting: boolean;
   onClose: () => void;
@@ -721,7 +717,7 @@ function ClubDetailModal({
           <div>
             <p className="text-xs font-medium text-ink-3">Meeting Venue</p>
             <p className="mt-1 flex items-center gap-1.5 text-sm font-semibold text-ink">
-              <MapPin className="size-3.5 text-rose" /> {club.venue || "Campus Center"}
+              <MapPin className="size-3.5 text-rose" /> {club.venue || "Venue to be announced"}
             </p>
           </div>
         </div>
@@ -771,7 +767,7 @@ function ClubDetailModal({
 
         {/* Bottom Actions */}
         <div className="mt-6 flex items-center justify-between border-t border-line pt-4">
-          {isPrivileged ? (
+          {canRemove ? (
             <Button
               variant="danger"
               size="sm"

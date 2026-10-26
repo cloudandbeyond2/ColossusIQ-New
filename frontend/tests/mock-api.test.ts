@@ -258,13 +258,13 @@ describe("Campus clubs API and live management", () => {
       facultyAdvisor: "Dr. Meena Raghavan",
       meetingSchedule: "Wednesdays 4:30 PM",
       venue: "Cloud Lab 2",
-      membersCount: 25,
     };
     const res = await dispatch("POST", ["clubs"], payload, instSession, new URLSearchParams());
     expect(res.status).toBe(200);
     const created = res.body as { id: string; name: string; category: string; membersCount: number };
     expect(created.name).toBe("Cloud & DevOps Society");
-    expect(created.membersCount).toBe(25);
+    // nobody has joined yet except whoever started it: the count is real members, not a typed number
+    expect(created.membersCount).toBe(1);
 
     // Verify it now appears in GET clubs
     const overview = await dispatch("GET", ["clubs"], undefined, instSession, new URLSearchParams());
@@ -277,7 +277,7 @@ describe("Campus clubs API and live management", () => {
     const createRes = await dispatch(
       "POST",
       ["clubs"],
-      { name: "Coding Club", category: "Technical", lead: "Arjun", meetingSchedule: "Sat 10 AM", membersCount: 40 },
+      { name: "Coding Club", category: "Technical", lead: "Arjun", meetingSchedule: "Sat 10 AM" },
       instSession,
       new URLSearchParams(),
     );
@@ -288,14 +288,41 @@ describe("Campus clubs API and live management", () => {
     expect(joinRes.status).toBe(200);
     const joinBody = joinRes.body as { isJoined: boolean; membersCount: number };
     expect(joinBody.isJoined).toBe(true);
-    expect(joinBody.membersCount).toBe(41); // was 40, now 41
+    expect(joinBody.membersCount).toBe(2); // the founder plus this student
 
     // Toggle again (leave)
     const leaveRes = await dispatch("POST", ["clubs", club.id, "join"], undefined, studentSession, new URLSearchParams());
     expect(leaveRes.status).toBe(200);
     const leaveBody = leaveRes.body as { isJoined: boolean; membersCount: number };
     expect(leaveBody.isJoined).toBe(false);
-    expect(leaveBody.membersCount).toBe(40);
+    expect(leaveBody.membersCount).toBe(1);
+  });
+
+  it("rejects a second club with the same name", async () => {
+    const instSession = session("institution");
+    const body = { name: "Duplicate Check Club", category: "Social", lead: "Meera", meetingSchedule: "Mon 5 PM" };
+    expect((await dispatch("POST", ["clubs"], body, instSession, new URLSearchParams())).status).toBe(200);
+    expect((await dispatch("POST", ["clubs"], { ...body, name: "duplicate check club" }, instSession, new URLSearchParams())).status).toBe(409);
+  });
+
+  it("lets a club's founder and staff edit it, but not other students", async () => {
+    const founder = session("student");
+    const created = await dispatch("POST", ["clubs"], { name: "Founder Edit Club", category: "Arts", lead: "Ravi", meetingSchedule: "Tue 4 PM" }, founder, new URLSearchParams());
+    const club = created.body as { id: string };
+    const edit = await dispatch("PUT", ["clubs", club.id], { meetingSchedule: "Wed 4 PM" }, founder, new URLSearchParams());
+    expect(edit.status).toBe(200);
+    expect((edit.body as { meetingSchedule: string }).meetingSchedule).toBe("Wed 4 PM");
+
+    const other = { ...session("student"), sub: "another-student" };
+    expect((await dispatch("PUT", ["clubs", club.id], { meetingSchedule: "Never" }, other, new URLSearchParams())).status).toBe(403);
+    expect((await dispatch("PUT", ["clubs", club.id], { venue: "Main Hall" }, session("institution"), new URLSearchParams())).status).toBe(200);
+
+    const overview = (await dispatch("GET", ["clubs"], undefined, other, new URLSearchParams())).body as {
+      permissions: { create: boolean; manage: boolean; remove: boolean };
+      clubs: Array<{ id: string; canEdit: boolean }>;
+    };
+    expect(overview.permissions).toEqual({ create: true, manage: false, remove: false });
+    expect(overview.clubs.find((c) => c.id === club.id)?.canEdit).toBe(false);
   });
 
   it("allows student to create a club, but denies student from deleting clubs", async () => {

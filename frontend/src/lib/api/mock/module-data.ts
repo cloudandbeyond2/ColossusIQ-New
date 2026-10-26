@@ -23,10 +23,10 @@ import type { Stream } from "@/config/streams";
 import { ALL_COLLEGES } from "@/config/tenancy";
 import { getStore, dataBackend } from "@/lib/data";
 import { db } from "@/lib/data/postgres/db";
-import { collegeStream } from "./records";
+import { collegeStream, listColleges } from "./records";
 import { brandingDefaults } from "./branding";
 import { dynamicBiAnalytics } from "./bi-analytics";
-import { getCollegeClubs } from "./clubs";
+import { clubsData } from "./clubs-data";
 import { getCollegeSports } from "./sports";
 import { visibleCalendarItems } from "./academic-calendar";
 import { getStudentsList } from "./students-store";
@@ -583,8 +583,8 @@ const DATA: Record<string, (collegeScope: string, live: ScopeData) => ModuleData
       "Create event",
     );
   },
-  clubs: (collegeScope) => {
-    const items = getCollegeClubs(collegeScope);
+  clubs: async (collegeScope) => {
+    const items = await clubsData().clubs(collegeScope === "all" ? ((await listColleges())[0]?.id ?? "") : collegeScope);
     return list(
       [col("club", "Club"), col("category", "Category", "badge"), col("members", "Members", "number"), col("lead", "Student lead"), col("next", "Next activity")],
       items.map((c) => ({

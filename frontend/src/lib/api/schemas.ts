@@ -645,12 +645,14 @@ export const ClubItem = z.object({
   category: z.enum(["Technical", "Cultural", "Social", "Innovation", "Arts", "Sports", "Academic"]),
   description: z.string().default(""),
   lead: z.string(),
-  facultyAdvisor: z.string().default("Faculty Coordinator"),
+  facultyAdvisor: z.string().default(""),
   membersCount: z.number().int().nonnegative(),
   meetingSchedule: z.string(),
-  venue: z.string().default("Campus Center"),
+  venue: z.string().default(""),
   status: z.enum(["Active", "Recruiting", "Inactive"]).default("Active"),
   isJoined: z.boolean().default(false),
+  /** Staff, or the person who started the club, may edit its details. */
+  canEdit: z.boolean().default(false),
   createdAt: z.string(),
 });
 export type ClubItem = z.infer<typeof ClubItem>;
@@ -664,6 +666,7 @@ export const ClubsOverview = z.object({
     upcomingActivities: z.number(),
   }),
   clubs: z.array(ClubItem),
+  permissions: z.object({ create: z.boolean(), manage: z.boolean(), remove: z.boolean() }),
 });
 export type ClubsOverview = z.infer<typeof ClubsOverview>;
 
@@ -672,10 +675,10 @@ export const CreateClubInput = z.object({
   category: z.enum(["Technical", "Cultural", "Social", "Innovation", "Arts", "Sports", "Academic"]),
   description: z.string().max(1000).default(""),
   lead: z.string().min(2, "Student lead is required").max(100),
-  facultyAdvisor: z.string().max(100).default("Faculty Coordinator"),
+  facultyAdvisor: z.string().max(100).default(""),
   meetingSchedule: z.string().min(2, "Meeting schedule is required").max(100),
-  venue: z.string().max(100).default("Campus Center"),
-  membersCount: z.number().int().min(1).max(5000).default(10),
+  venue: z.string().max(100).default(""),
+  status: z.enum(["Active", "Recruiting", "Inactive"]).optional(),
 });
 export type CreateClubInput = z.infer<typeof CreateClubInput>;
 

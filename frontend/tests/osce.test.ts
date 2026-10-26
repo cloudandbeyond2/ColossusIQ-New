@@ -48,6 +48,8 @@ const adminSession: SessionPayload = {
 
 const q = new URLSearchParams();
 
+const overview = async (session: SessionPayload) => (await dispatch("GET", ["osce"], undefined, session, q)).body as OsceOverview;
+
 describe("OSCE & Skills Simulation Lab API", () => {
   it("allows HOD to fetch OSCE overview", async () => {
     const res = await dispatch("GET", ["osce"], undefined, hodSession, q);
@@ -84,7 +86,9 @@ describe("OSCE & Skills Simulation Lab API", () => {
     );
     expect(bookingRes.status).toBe(200);
     const booking = bookingRes.body as any;
-    expect(booking.applicantName).toBe("Sneha Varma (MBBS Intern)");
+    // a student books as themselves, whatever name the form sent
+    expect(booking.applicantName).toBe("Sneha Varma");
+    expect(booking.applicantRole).toBe("Student");
     expect(booking.status).toBe("Pending Review");
   });
 
@@ -151,7 +155,7 @@ describe("OSCE & Skills Simulation Lab API", () => {
         studentName: "Mohamed Tariq",
         rollNo: "MED22-078",
         batch: "MBBS 2022",
-        stationId: "st-1",
+        stationId: (await overview(hodSession)).stations[0]!.id,
         score: 18,
         criticalStepMet: true,
         evaluatorRemarks: "Excellent rhythm and chest compression technique. Prompt AED pad attachment.",
@@ -170,7 +174,7 @@ describe("OSCE & Skills Simulation Lab API", () => {
   it("allows HOD to approve skills lab booking", async () => {
     const approveRes = await dispatch(
       "PATCH",
-      ["osce", "bookings", "book-103", "status"],
+      ["osce", "bookings", (await overview(hodSession)).bookings.find((b) => b.status === "Pending Review")!.id, "status"],
       {
         status: "Approved",
       },
@@ -204,5 +208,67 @@ describe("OSCE & Skills Simulation Lab API", () => {
       q
     );
     expect(unauthorizedRes.status).toBe(403);
+  });
+
+  it("derives a station's pass rate and a session's evaluated count from graded results", async () => {
+    const before = await overview(hodSession);
+    const station = before.stations[0]!;
+    const exam = before.sessions[0]!;
+    const res = await dispatch(
+      "POST",
+      ["osce", "grade"],
+      { studentName: "Derived Check", rollNo: "DER-001", batch: "MBBS 2022", stationId: station.id, sessionId: exam.id, score: 0, criticalStepMet: true, evaluatorRemarks: "", cbmeCertified: true },
+      facultySession,
+      q,
+    );
+    expect(res.status).toBe(200);
+    const graded = res.body as any;
+    expect(graded.grade).toBe("Remediation Needed");
+    expect(graded.cbmeCertified).toBe(false); // can't certify a failed station
+    const after = await overview(hodSession);
+    expect(after.stations.find((s) => s.id === station.id)!.passRate).toBeLessThan(station.passRate);
+    expect(after.sessions.find((s) => s.id === exam.id)!.evaluatedCount).toBe(exam.evaluatedCount + 1);
+  });
+
+  it("rejects a score above the station's total marks", async () => {
+    const station = (await overview(hodSession)).stations[0]!;
+    const res = await dispatch(
+      "POST",
+      ["osce", "grade"],
+      { studentName: "Too High", rollNo: "TH-1", batch: "B", stationId: station.id, score: station.totalMarks + 1, criticalStepMet: true, evaluatorRemarks: "", cbmeCertified: false },
+      hodSession,
+      q,
+    );
+    expect(res.status).toBe(400);
+  });
+
+  it("shows students only their own bookings, and reports manage permission by role", async () => {
+    const asStudent = await overview(studentSession);
+    expect(asStudent.permissions.manage).toBe(false);
+    expect(asStudent.bookings.every((b) => b.applicantName === "Sneha Varma")).toBe(true);
+    expect(asStudent.results.every((r) => r.rollNo === asStudent.viewer.rollNo)).toBe(true);
+    expect((await overview(facultySession)).permissions.manage).toBe(true);
+  });
+
+  it("lets staff add equipment, rejects a duplicate serial, and derives NMC status", async () => {
+    const body = { name: "Test Trainer", serialNo: "TT-0001", category: "Task Trainer", room: "Lab 9", status: "Operational", lastInspection: "2026-10-01", nextMaintenance: "2027-04-01", utilizationHoursWeek: 4 };
+    const created = await dispatch("POST", ["osce", "equipment"], body, hodSession, q);
+    expect(created.status).toBe(200);
+    expect((created.body as any).nmcComplianceStatus).toBe("Fully Compliant");
+    expect((await dispatch("POST", ["osce", "equipment"], body, hodSession, q)).status).toBe(409);
+    expect((await dispatch("POST", ["osce", "equipment"], body, studentSession, q)).status).toBe(403);
+
+    const id = (created.body as any).id as string;
+    const patched = await dispatch("PATCH", ["osce", "equipment", id], { status: "Maintenance" }, hodSession, q);
+    expect(patched.status).toBe(200);
+    expect((patched.body as any).nmcComplianceStatus).toBe("Action Needed");
+  });
+
+  it("lets staff move a circuit through its statuses but not students", async () => {
+    const exam = (await overview(hodSession)).sessions[0]!;
+    const ok = await dispatch("PATCH", ["osce", "sessions", exam.id, "status"], { status: "In Progress" }, hodSession, q);
+    expect(ok.status).toBe(200);
+    expect((ok.body as any).status).toBe("In Progress");
+    expect((await dispatch("PATCH", ["osce", "sessions", exam.id, "status"], { status: "Completed" }, studentSession, q)).status).toBe(403);
   });
 });

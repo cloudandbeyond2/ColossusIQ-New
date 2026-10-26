@@ -1,175 +1,135 @@
 import "server-only";
-import { sharedState } from "./global-state";
 import type { SessionPayload } from "@/lib/auth/session";
 import type { ClubItem, ClubsOverview, CreateClubInput } from "@/lib/api/schemas";
 import { getStore } from "@/lib/data";
+import { clubsData, type ClubRow } from "./clubs-data";
+import { listColleges } from "./records";
 
-const clubsStore = sharedState("campus.clubs.map.v2", () => new Map<string, ClubItem[]>());
+/*
+ * Campus clubs. Clubs and memberships are the college's own records (clubs-data.ts). Member counts are the number of
+ * people who actually joined, and "is joined" is per signed-in user.
+ */
 
-function defaultClubs(_collegeId: string): ClubItem[] {
-  return [];
+export class ClubError extends Error {
+  constructor(
+    message: string,
+    readonly status: 400 | 403 | 404 | 409 = 400,
+  ) {
+    super(message);
+  }
 }
 
-const joinedClubsByUser = sharedState("campus.clubs.userMemberships", () => new Map<string, Set<string>>());
+const MANAGE_ROLES = new Set(["institution", "admin", "hod", "faculty"]);
+const REMOVE_ROLES = new Set(["institution", "admin"]);
+const JOIN_BLOCKED = new Set(["recruiter"]);
 
-export function getCollegeClubs(collegeId: string): ClubItem[] {
-  const effectiveCollege = collegeId === "all" ? "COL-1001" : collegeId;
-  if (!clubsStore.has(effectiveCollege)) {
-    clubsStore.set(effectiveCollege, defaultClubs(effectiveCollege));
-  }
-  return clubsStore.get(effectiveCollege)!;
+export const canManageClubs = (role: string) => MANAGE_ROLES.has(role);
+/** Anyone on campus except outside recruiters may start a club; staff and the club's founder can then run it. */
+export const canCreateClubs = (role: string) => !JOIN_BLOCKED.has(role);
+export const canRemoveClubs = (role: string) => REMOVE_ROLES.has(role);
+
+async function collegeOf(session: SessionPayload): Promise<string> {
+  if (session.college && session.college !== "all") return session.college;
+  const first = (await listColleges())[0];
+  if (!first) throw new ClubError("There is no college to run clubs for yet.", 404);
+  return first.id;
+}
+
+const auditCollege = (session: SessionPayload) => (session.college === "all" ? null : session.college);
+
+async function audit(session: SessionPayload, action: string, target: string) {
+  await getStore().audit.add({ actor: session.name, action, target, collegeId: auditCollege(session), actorSub: session.sub });
+}
+
+function view(c: ClubRow, joined: boolean, session: SessionPayload): ClubItem {
+  const { college: _c, createdBySub, ...rest } = c;
+  void _c;
+  return { ...rest, isJoined: joined, canEdit: canManageClubs(session.role) || (createdBySub !== "" && createdBySub === session.sub) };
+}
+
+async function ownClub(session: SessionPayload, clubId: string): Promise<ClubRow> {
+  const college = await collegeOf(session);
+  const club = await clubsData().club(clubId);
+  if (!club || club.college !== college) throw new ClubError("Club not found.", 404);
+  return club;
 }
 
 export async function getClubsOverview(session: SessionPayload): Promise<ClubsOverview> {
-  const collegeId = session.college === "all" ? "COL-1001" : session.college;
-  const items = getCollegeClubs(collegeId);
-  const userJoined = joinedClubsByUser.get(session.sub) ?? new Set<string>();
-
-  const clubsWithUserStatus = items.map((c) => ({
-    ...c,
-    isJoined: userJoined.has(c.id),
-  }));
-
-  const totalMembers = items.reduce((sum, c) => sum + c.membersCount, 0);
-  const categories = new Set(items.map((c) => c.category));
-  const upcomingActivities = items.filter((c) => c.status === "Active" && Boolean(c.meetingSchedule)).length;
-
+  const college = await collegeOf(session);
+  const [clubs, joined] = await Promise.all([clubsData().clubs(college), clubsData().joined(college, session.sub)]);
+  const mine = new Set(joined);
+  const open = clubs.filter((c) => c.status !== "Inactive");
   return {
-    collegeId,
+    collegeId: college,
     kpis: {
-      totalClubs: items.length,
-      totalMembers,
-      activeCategories: categories.size,
-      upcomingActivities,
+      totalClubs: clubs.length,
+      totalMembers: clubs.reduce((sum, c) => sum + c.membersCount, 0),
+      activeCategories: new Set(clubs.map((c) => c.category)).size,
+      upcomingActivities: open.filter((c) => c.meetingSchedule.trim() !== "").length,
     },
-    clubs: clubsWithUserStatus,
+    clubs: clubs.map((c) => view(c, mine.has(c.id), session)),
+    permissions: { create: canCreateClubs(session.role), manage: canManageClubs(session.role), remove: canRemoveClubs(session.role) },
   };
 }
 
 export async function createClub(session: SessionPayload, input: CreateClubInput): Promise<ClubItem> {
-  const collegeId = session.college === "all" ? "COL-1001" : session.college;
-  const items = getCollegeClubs(collegeId);
-
-  const newClub: ClubItem = {
-    id: `club-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 6)}`,
+  const college = await collegeOf(session);
+  const created = await clubsData().create({
+    college,
     name: input.name.trim(),
     category: input.category,
     description: input.description.trim(),
     lead: input.lead.trim(),
-    facultyAdvisor: input.facultyAdvisor?.trim() || "Faculty Coordinator",
-    membersCount: input.membersCount || 10,
+    facultyAdvisor: input.facultyAdvisor.trim(),
     meetingSchedule: input.meetingSchedule.trim(),
-    venue: input.venue?.trim() || "Campus Center",
-    status: "Active",
-    isJoined: true,
-    createdAt: new Date().toISOString(),
-  };
-
-  let userJoined = joinedClubsByUser.get(session.sub);
-  if (!userJoined) {
-    userJoined = new Set<string>();
-    joinedClubsByUser.set(session.sub, userJoined);
-  }
-  userJoined.add(newClub.id);
-
-  items.unshift(newClub);
-  clubsStore.set(collegeId, items);
-
-  await getStore().audit.add({
-    actor: session.name,
-    action: `Created campus club "${newClub.name}" (${newClub.category})`,
-    target: newClub.id,
-    collegeId: session.college === "all" ? null : session.college,
-    actorSub: session.sub,
+    venue: input.venue.trim(),
+    createdBySub: session.sub,
   });
-
-  return newClub;
+  if (!created) throw new ClubError(`There is already a club called "${input.name.trim()}".`, 409);
+  // the founder is its first member
+  await clubsData().join(created, session.sub, session.name);
+  await audit(session, `Created campus club "${created.name}" (${created.category})`, created.id);
+  return view((await clubsData().club(created.id)) ?? created, true, session);
 }
 
 export async function updateClub(
   session: SessionPayload,
   clubId: string,
   patch: Partial<CreateClubInput & { status: ClubItem["status"] }>,
-): Promise<ClubItem | undefined> {
-  const collegeId = session.college === "all" ? "COL-1001" : session.college;
-  const items = getCollegeClubs(collegeId);
-  const idx = items.findIndex((c) => c.id === clubId);
-  if (idx === -1) return undefined;
-
-  const current = items[idx]!;
-  const updated: ClubItem = {
-    ...current,
-    name: patch.name !== undefined ? patch.name.trim() : current.name,
-    category: patch.category ?? current.category,
-    description: patch.description !== undefined ? patch.description.trim() : current.description,
-    lead: patch.lead !== undefined ? patch.lead.trim() : current.lead,
-    facultyAdvisor: patch.facultyAdvisor !== undefined ? patch.facultyAdvisor.trim() : current.facultyAdvisor,
-    meetingSchedule: patch.meetingSchedule !== undefined ? patch.meetingSchedule.trim() : current.meetingSchedule,
-    venue: patch.venue !== undefined ? patch.venue.trim() : current.venue,
-    status: patch.status ?? current.status,
-  };
-
-  items[idx] = updated;
-  clubsStore.set(collegeId, items);
-
-  await getStore().audit.add({
-    actor: session.name,
-    action: `Updated campus club "${updated.name}"`,
-    target: updated.id,
-    collegeId: session.college === "all" ? null : session.college,
-    actorSub: session.sub,
-  });
-
-  return updated;
+): Promise<ClubItem> {
+  const club = await ownClub(session, clubId);
+  if (!canManageClubs(session.role) && !(club.createdBySub !== "" && club.createdBySub === session.sub)) {
+    throw new ClubError("Only staff or the person who started this club can change it.", 403);
+  }
+  const clean: Record<string, string> = {};
+  for (const key of ["name", "description", "lead", "facultyAdvisor", "meetingSchedule", "venue"] as const) {
+    const v = patch[key];
+    if (v !== undefined) clean[key] = v.trim();
+  }
+  if (patch.category) clean.category = patch.category;
+  if (patch.status) clean.status = patch.status;
+  const updated = await clubsData().update(club.id, clean);
+  if (updated === "duplicate") throw new ClubError(`There is already a club called "${clean.name}".`, 409);
+  if (!updated) throw new ClubError("Club not found.", 404);
+  await audit(session, `Updated campus club "${updated.name}"`, updated.id);
+  const joined = await clubsData().joined(club.college, session.sub);
+  return view(updated, joined.includes(updated.id), session);
 }
 
-export async function deleteClub(session: SessionPayload, clubId: string): Promise<boolean> {
-  const collegeId = session.college === "all" ? "COL-1001" : session.college;
-  const items = getCollegeClubs(collegeId);
-  const target = items.find((c) => c.id === clubId);
-  if (!target) return false;
-
-  const remaining = items.filter((c) => c.id !== clubId);
-  clubsStore.set(collegeId, remaining);
-
-  await getStore().audit.add({
-    actor: session.name,
-    action: `Disbanded campus club "${target.name}"`,
-    target: target.id,
-    collegeId: session.college === "all" ? null : session.college,
-    actorSub: session.sub,
-  });
-
-  return true;
+export async function deleteClub(session: SessionPayload, clubId: string): Promise<void> {
+  const club = await ownClub(session, clubId);
+  await clubsData().remove(club.id);
+  await audit(session, `Disbanded campus club "${club.name}"`, club.id);
 }
 
-export async function toggleJoinClub(
-  session: SessionPayload,
-  clubId: string,
-): Promise<{ isJoined: boolean; membersCount: number } | undefined> {
-  const collegeId = session.college === "all" ? "COL-1001" : session.college;
-  const items = getCollegeClubs(collegeId);
-  const target = items.find((c) => c.id === clubId);
-  if (!target) return undefined;
-
-  let userJoined = joinedClubsByUser.get(session.sub);
-  if (!userJoined) {
-    userJoined = new Set<string>();
-    joinedClubsByUser.set(session.sub, userJoined);
-  }
-
-  const isCurrentlyJoined = userJoined.has(clubId);
-  let newJoinedStatus: boolean;
-
-  if (isCurrentlyJoined) {
-    userJoined.delete(clubId);
-    target.membersCount = Math.max(1, target.membersCount - 1);
-    newJoinedStatus = false;
-  } else {
-    userJoined.add(clubId);
-    target.membersCount += 1;
-    newJoinedStatus = true;
-  }
-
-  return { isJoined: newJoinedStatus, membersCount: target.membersCount };
+export async function toggleJoinClub(session: SessionPayload, clubId: string): Promise<{ isJoined: boolean; membersCount: number }> {
+  if (JOIN_BLOCKED.has(session.role)) throw new ClubError("Your account can't join campus clubs.", 403);
+  const club = await ownClub(session, clubId);
+  const data = clubsData();
+  const already = (await data.joined(club.college, session.sub)).includes(club.id);
+  if (!already && club.status === "Inactive") throw new ClubError("This club isn't accepting members right now.", 409);
+  if (already) await data.leave(club, session.sub);
+  else await data.join(club, session.sub, session.name);
+  const after = await data.club(club.id);
+  return { isJoined: !already, membersCount: after?.membersCount ?? 0 };
 }
