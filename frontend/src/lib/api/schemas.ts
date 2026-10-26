@@ -688,10 +688,11 @@ export const SportItem = z.object({
   sport: z.string(),
   team: z.string(),
   coach: z.string(),
-  captain: z.string().default("Team Captain"),
-  event: z.string(),
-  venue: z.string().default("Campus Sports Complex"),
-  squadSize: z.number().int().nonnegative().default(15),
+  captain: z.string().default(""),
+  event: z.string().default(""),
+  venue: z.string().default(""),
+  /** Derived: the number of people registered for this team. */
+  squadSize: z.number().int().nonnegative().default(0),
   status: z.enum(["Trials open", "Active", "Off-season"]).default("Active"),
   isRegistered: z.boolean().default(false),
   createdAt: z.string(),
@@ -707,6 +708,7 @@ export const SportsOverview = z.object({
     upcomingMeets: z.number(),
   }),
   sports: z.array(SportItem),
+  permissions: z.object({ manage: z.boolean(), register: z.boolean() }).default({ manage: false, register: true }),
 });
 export type SportsOverview = z.infer<typeof SportsOverview>;
 
@@ -714,13 +716,18 @@ export const CreateSportInput = z.object({
   sport: z.string().min(2, "Sport name is required").max(80),
   team: z.string().min(2, "Team name is required").max(80),
   coach: z.string().min(2, "Coach name is required").max(80),
-  captain: z.string().max(80).default("Team Captain"),
-  event: z.string().min(2, "Upcoming event is required").max(100),
-  venue: z.string().max(100).default("Campus Sports Complex"),
-  squadSize: z.number().int().min(1).max(200).default(15),
+  captain: z.string().max(80).default(""),
+  event: z.string().max(100).default(""),
+  venue: z.string().max(100).default(""),
   status: z.enum(["Trials open", "Active", "Off-season"]).default("Trials open"),
 });
 export type CreateSportInput = z.infer<typeof CreateSportInput>;
+
+export const SportRegisterInput = z.object({
+  position: z.string().max(120).default(""),
+  experience: z.string().max(300).default(""),
+});
+export type SportRegisterInput = z.infer<typeof SportRegisterInput>;
 
 export const AcademicCalendarItem = z.object({
   id: z.string(),

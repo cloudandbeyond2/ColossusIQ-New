@@ -1,168 +1,140 @@
 import "server-only";
-import { sharedState } from "./global-state";
 import type { SessionPayload } from "@/lib/auth/session";
-import type { CreateSportInput, SportItem, SportsOverview } from "@/lib/api/schemas";
+import type { CreateSportInput, SportItem, SportRegisterInput, SportsOverview } from "@/lib/api/schemas";
 import { getStore } from "@/lib/data";
+import { sportsData, type SportRow } from "./sports-data";
+import { listColleges } from "./records";
 
-const sportsStore = sharedState("campus.sports.map.v2", () => new Map<string, SportItem[]>());
-// Ensure old in-memory mock cache is purged
-sportsStore.clear();
-const registeredSportsByUser = sharedState("campus.sports.userRegistrations", () => new Map<string, Set<string>>());
+/*
+ * Campus sports. Teams and trial registrations are the college's own records (sports-data.ts). A squad's size is the
+ * number of people who actually registered, and "is registered" is per signed-in user.
+ */
 
-function defaultSports(_collegeId: string): SportItem[] {
-  return [];
+export class SportError extends Error {
+  constructor(
+    message: string,
+    readonly status: 400 | 403 | 404 | 409 = 400,
+  ) {
+    super(message);
+  }
 }
 
-export function getCollegeSports(collegeId: string): SportItem[] {
-  const effectiveCollege = collegeId === "all" ? "COL-1001" : collegeId;
-  if (!sportsStore.has(effectiveCollege)) {
-    sportsStore.set(effectiveCollege, defaultSports(effectiveCollege));
-  }
-  return sportsStore.get(effectiveCollege)!;
+const MANAGE_ROLES = new Set(["institution", "admin"]);
+const REGISTER_BLOCKED = new Set(["recruiter"]);
+
+export const canManageSports = (role: string) => MANAGE_ROLES.has(role);
+
+async function collegeOf(session: SessionPayload): Promise<string> {
+  if (session.college && session.college !== "all") return session.college;
+  const first = (await listColleges())[0];
+  if (!first) throw new SportError("There is no college to run sports for yet.", 404);
+  return first.id;
+}
+
+async function audit(session: SessionPayload, action: string, target: string) {
+  await getStore().audit.add({
+    actor: session.name,
+    action,
+    target,
+    collegeId: session.college === "all" ? null : session.college,
+    actorSub: session.sub,
+  });
+}
+
+function view(s: SportRow, registered: boolean): SportItem {
+  const { college: _c, createdBySub: _s, ...rest } = s;
+  void _c;
+  void _s;
+  return { ...rest, isRegistered: registered };
+}
+
+async function ownSport(session: SessionPayload, sportId: string): Promise<SportRow> {
+  const college = await collegeOf(session);
+  const sport = await sportsData().sport(sportId);
+  if (!sport || sport.college !== college) throw new SportError("Sports team not found.", 404);
+  return sport;
+}
+
+function requireManage(session: SessionPayload) {
+  if (!canManageSports(session.role)) throw new SportError("Only institution staff can manage sports teams.", 403);
 }
 
 export async function getSportsOverview(session: SessionPayload): Promise<SportsOverview> {
-  const collegeId = session.college === "all" ? "COL-1001" : session.college;
-  const items = getCollegeSports(collegeId);
-  const userRegistered = registeredSportsByUser.get(session.sub) ?? new Set<string>();
-
-  const sportsWithUserStatus = items.map((s) => ({
-    ...s,
-    isRegistered: userRegistered.has(s.id),
-  }));
-
-  const totalAthletes = items.reduce((sum, s) => sum + s.squadSize, 0);
-  const openTrials = items.filter((s) => s.status === "Trials open").length;
-  const upcomingMeets = items.filter((s) => Boolean(s.event)).length;
-
+  const college = await collegeOf(session);
+  const [sports, mine] = await Promise.all([sportsData().sports(college), sportsData().registered(college, session.sub)]);
+  const registered = new Set(mine);
   return {
-    collegeId,
+    collegeId: college,
     kpis: {
-      totalTeams: items.length,
-      totalAthletes,
-      openTrials,
-      upcomingMeets,
+      totalTeams: sports.length,
+      totalAthletes: sports.reduce((sum, s) => sum + s.squadSize, 0),
+      openTrials: sports.filter((s) => s.status === "Trials open").length,
+      upcomingMeets: sports.filter((s) => s.event.trim() !== "").length,
     },
-    sports: sportsWithUserStatus,
+    sports: sports.map((s) => view(s, registered.has(s.id))),
+    permissions: { manage: canManageSports(session.role), register: !REGISTER_BLOCKED.has(session.role) },
   };
 }
 
 export async function createSport(session: SessionPayload, input: CreateSportInput): Promise<SportItem> {
-  const collegeId = session.college === "all" ? "COL-1001" : session.college;
-  const items = getCollegeSports(collegeId);
-
-  const newSport: SportItem = {
-    id: `sport-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 6)}`,
+  requireManage(session);
+  const college = await collegeOf(session);
+  const created = await sportsData().create({
+    college,
     sport: input.sport.trim(),
     team: input.team.trim(),
     coach: input.coach.trim(),
-    captain: input.captain?.trim() || "Team Captain",
+    captain: input.captain.trim(),
     event: input.event.trim(),
-    venue: input.venue?.trim() || "Campus Sports Complex",
-    squadSize: input.squadSize || 15,
-    status: input.status || "Trials open",
-    isRegistered: false,
-    createdAt: new Date().toISOString(),
-  };
-
-  items.unshift(newSport);
-  sportsStore.set(collegeId, items);
-
-  await getStore().audit.add({
-    actor: session.name,
-    action: `Registered new sport/team "${newSport.sport} - ${newSport.team}"`,
-    target: newSport.id,
-    collegeId: session.college === "all" ? null : session.college,
-    actorSub: session.sub,
+    venue: input.venue.trim(),
+    status: input.status,
+    createdBySub: session.sub,
   });
-
-  return newSport;
+  if (!created) throw new SportError(`"${input.team.trim()}" is already a ${input.sport.trim()} team here.`, 409);
+  await audit(session, `Registered new sport/team "${created.sport} - ${created.team}"`, created.id);
+  return view(created, false);
 }
 
 export async function updateSport(
   session: SessionPayload,
   sportId: string,
-  patch: Partial<CreateSportInput & { status: SportItem["status"] }>,
-): Promise<SportItem | undefined> {
-  const collegeId = session.college === "all" ? "COL-1001" : session.college;
-  const items = getCollegeSports(collegeId);
-  const idx = items.findIndex((s) => s.id === sportId);
-  if (idx === -1) return undefined;
-
-  const current = items[idx]!;
-  const updated: SportItem = {
-    ...current,
-    sport: patch.sport !== undefined ? patch.sport.trim() : current.sport,
-    team: patch.team !== undefined ? patch.team.trim() : current.team,
-    coach: patch.coach !== undefined ? patch.coach.trim() : current.coach,
-    captain: patch.captain !== undefined ? patch.captain.trim() : current.captain,
-    event: patch.event !== undefined ? patch.event.trim() : current.event,
-    venue: patch.venue !== undefined ? patch.venue.trim() : current.venue,
-    squadSize: patch.squadSize !== undefined ? patch.squadSize : current.squadSize,
-    status: patch.status ?? current.status,
-  };
-
-  items[idx] = updated;
-  sportsStore.set(collegeId, items);
-
-  await getStore().audit.add({
-    actor: session.name,
-    action: `Updated sport details for "${updated.team}" (${updated.sport})`,
-    target: updated.id,
-    collegeId: session.college === "all" ? null : session.college,
-    actorSub: session.sub,
-  });
-
-  return updated;
+  patch: Partial<CreateSportInput>,
+): Promise<SportItem> {
+  requireManage(session);
+  const sport = await ownSport(session, sportId);
+  const clean: Record<string, string> = {};
+  for (const key of ["sport", "team", "coach", "captain", "event", "venue"] as const) {
+    const v = patch[key];
+    if (v !== undefined) clean[key] = v.trim();
+  }
+  if (patch.status) clean.status = patch.status;
+  const updated = await sportsData().update(sport.id, clean);
+  if (updated === "duplicate") throw new SportError("That sport already has a team with that name.", 409);
+  if (!updated) throw new SportError("Sports team not found.", 404);
+  await audit(session, `Updated sport details for "${updated.team}" (${updated.sport})`, updated.id);
+  const mine = await sportsData().registered(sport.college, session.sub);
+  return view(updated, mine.includes(updated.id));
 }
 
-export async function deleteSport(session: SessionPayload, sportId: string): Promise<boolean> {
-  const collegeId = session.college === "all" ? "COL-1001" : session.college;
-  const items = getCollegeSports(collegeId);
-  const target = items.find((s) => s.id === sportId);
-  if (!target) return false;
-
-  const remaining = items.filter((s) => s.id !== sportId);
-  sportsStore.set(collegeId, remaining);
-
-  await getStore().audit.add({
-    actor: session.name,
-    action: `Removed sport/team "${target.sport} - ${target.team}"`,
-    target: target.id,
-    collegeId: session.college === "all" ? null : session.college,
-    actorSub: session.sub,
-  });
-
-  return true;
+export async function deleteSport(session: SessionPayload, sportId: string): Promise<void> {
+  requireManage(session);
+  const sport = await ownSport(session, sportId);
+  await sportsData().remove(sport.id);
+  await audit(session, `Removed sport/team "${sport.sport} - ${sport.team}"`, sport.id);
 }
 
 export async function toggleRegisterTrial(
   session: SessionPayload,
   sportId: string,
-): Promise<{ isRegistered: boolean; squadSize: number } | undefined> {
-  const collegeId = session.college === "all" ? "COL-1001" : session.college;
-  const items = getCollegeSports(collegeId);
-  const target = items.find((s) => s.id === sportId);
-  if (!target) return undefined;
-
-  let userReg = registeredSportsByUser.get(session.sub);
-  if (!userReg) {
-    userReg = new Set<string>();
-    registeredSportsByUser.set(session.sub, userReg);
-  }
-
-  const isCurrentlyReg = userReg.has(sportId);
-  let newStatus: boolean;
-
-  if (isCurrentlyReg) {
-    userReg.delete(sportId);
-    target.squadSize = Math.max(1, target.squadSize - 1);
-    newStatus = false;
-  } else {
-    userReg.add(sportId);
-    target.squadSize += 1;
-    newStatus = true;
-  }
-
-  return { isRegistered: newStatus, squadSize: target.squadSize };
+  details: SportRegisterInput = { position: "", experience: "" },
+): Promise<{ isRegistered: boolean; squadSize: number }> {
+  if (REGISTER_BLOCKED.has(session.role)) throw new SportError("Your account can't register for sports trials.", 403);
+  const sport = await ownSport(session, sportId);
+  const data = sportsData();
+  const already = (await data.registered(sport.college, session.sub)).includes(sport.id);
+  if (!already && sport.status === "Off-season") throw new SportError("This team is off-season and isn't taking registrations.", 409);
+  if (already) await data.withdraw(sport, session.sub);
+  else await data.register(sport, session.sub, { name: session.name, position: details.position.trim(), experience: details.experience.trim() });
+  const after = await data.sport(sport.id);
+  return { isRegistered: !already, squadSize: after?.squadSize ?? 0 };
 }

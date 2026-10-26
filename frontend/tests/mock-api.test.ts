@@ -385,7 +385,6 @@ describe("Campus sports API and live management", () => {
       captain: "Aditi Rao",
       event: "Inter-collegiate TT Open · Nov 12",
       venue: "Indoor Stadium TT Arena",
-      squadSize: 8,
       status: "Trials open",
     };
     const res = await dispatch("POST", ["sports"], payload, instSession, new URLSearchParams());
@@ -393,7 +392,7 @@ describe("Campus sports API and live management", () => {
     const created = res.body as { id: string; sport: string; team: string; squadSize: number };
     expect(created.sport).toBe("Table Tennis");
     expect(created.team).toBe("AIT Spinners");
-    expect(created.squadSize).toBe(8);
+    expect(created.squadSize).toBe(0); // derived from registrations, not typed
 
     // Verify it appears in GET sports
     const overview = await dispatch("GET", ["sports"], undefined, instSession, new URLSearchParams());
@@ -413,7 +412,6 @@ describe("Campus sports API and live management", () => {
         captain: "Karthik",
         event: "Zonal meet",
         venue: "Ground A",
-        squadSize: 18,
         status: "Trials open",
       },
       instSession,
@@ -426,14 +424,14 @@ describe("Campus sports API and live management", () => {
     expect(regRes.status).toBe(200);
     const regBody = regRes.body as { isRegistered: boolean; squadSize: number };
     expect(regBody.isRegistered).toBe(true);
-    expect(regBody.squadSize).toBe(19); // 18 + 1
+    expect(regBody.squadSize).toBe(1);
 
     // Toggle again (withdraw)
     const withdrawRes = await dispatch("POST", ["sports", sport.id, "register"], undefined, studentSession, new URLSearchParams());
     expect(withdrawRes.status).toBe(200);
     const withdrawBody = withdrawRes.body as { isRegistered: boolean; squadSize: number };
     expect(withdrawBody.isRegistered).toBe(false);
-    expect(withdrawBody.squadSize).toBe(18);
+    expect(withdrawBody.squadSize).toBe(0);
   });
 
   it("denies student from registering a new sport or deleting a team", async () => {
@@ -449,6 +447,33 @@ describe("Campus sports API and live management", () => {
 
     const deleteRes = await dispatch("DELETE", ["sports", "some-sport-id"], undefined, studentSession, new URLSearchParams());
     expect(deleteRes.status).toBe(403);
+  });
+
+  it("counts real registrations, rejects duplicates and off-season registration", async () => {
+    const inst = session("institution");
+    const dup = { sport: "Squash", team: "AIT Squash", coach: "Coach Q", event: "" };
+    const first = await dispatch("POST", ["sports"], dup, inst, new URLSearchParams());
+    expect(first.status).toBe(200);
+    const created = first.body as { id: string; captain: string; venue: string };
+    expect(created.captain).toBe("");
+    expect(created.venue).toBe("");
+    expect((await dispatch("POST", ["sports"], dup, inst, new URLSearchParams())).status).toBe(409);
+
+    const s1 = session("student");
+    const s2 = { ...session("student"), sub: "other-student" };
+    await dispatch("POST", ["sports", created.id, "register"], { position: "No. 1" }, s1, new URLSearchParams());
+    const r2 = await dispatch("POST", ["sports", created.id, "register"], undefined, s2, new URLSearchParams());
+    expect((r2.body as { squadSize: number }).squadSize).toBe(2);
+
+    const overview = await dispatch("GET", ["sports"], undefined, s1, new URLSearchParams());
+    const body = overview.body as { permissions: { manage: boolean }; sports: Array<{ id: string; squadSize: number; isRegistered: boolean }> };
+    expect(body.permissions.manage).toBe(false);
+    expect(body.sports.find((x) => x.id === created.id)).toMatchObject({ squadSize: 2, isRegistered: true });
+
+    await dispatch("PUT", ["sports", created.id], { status: "Off-season" }, inst, new URLSearchParams());
+    const late = { ...session("student"), sub: "late-student" };
+    expect((await dispatch("POST", ["sports", created.id, "register"], undefined, late, new URLSearchParams())).status).toBe(409);
+    expect((await dispatch("PUT", ["sports", created.id], { coach: "X Y" }, s1, new URLSearchParams())).status).toBe(403);
   });
 
   it("allows institution to delete a sport team", async () => {

@@ -2272,3 +2272,32 @@ model ClubMember {
 
   @@map("club_members")
 }
+model Sport {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  collegeId    String   @map("college_id") @db.Uuid
+  sport        String
+  team         String
+  coach        String
+  captain      String   @default("")
+  event        String   @default("")
+  venue        String   @default("")
+  status       String   @default("Trials open")
+  createdBySub String   @default("") @map("created_by_sub")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@map("sports")
+}
+
+model SportRegistration {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  collegeId    String   @map("college_id") @db.Uuid
+  sportId      String   @map("sport_id") @db.Uuid
+  userSub      String   @map("user_sub")
+  memberName   String   @default("") @map("member_name")
+  position     String   @default("")
+  experience   String   @default("")
+  registeredAt DateTime @default(now()) @map("registered_at") @db.Timestamptz(6)
+
+  @@map("sport_registrations")
+}

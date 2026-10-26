@@ -20,7 +20,7 @@ import { placementHome, placementSnapshot } from "./placement-stats";
 import { dynamicBiAnalytics } from "./bi-analytics";
 import { moduleData } from "./module-data";
 import { ClubError, canCreateClubs, canRemoveClubs, createClub, deleteClub, getClubsOverview, toggleJoinClub, updateClub } from "./clubs";
-import { createSport, deleteSport, getSportsOverview, toggleRegisterTrial, updateSport } from "./sports";
+import { SportError, canManageSports, createSport, deleteSport, getSportsOverview, toggleRegisterTrial, updateSport } from "./sports";
 import { deleteHackathonTeam, getHackathonsOverview, listHackathonTeams, registerHackathonTeam } from "./hackathons";
 import { RegisterHackathonTeamInput } from "@/lib/api/hackathon-schemas";
 import { createProject, deleteProject, listProjects, reviewProject, updateProjectStage } from "./projects";
@@ -100,6 +100,7 @@ import {
   CreateClubInput,
   CreateInterventionInput,
   CreateSportInput,
+  SportRegisterInput,
   CreateSupportActionInput,
   EvaluationQueueItem,
   UpdateAicteActionStatusInput,
@@ -270,6 +271,8 @@ const forbidden = () => err(403, "forbidden", "You do not have permission to per
 const osceFail = (e: OsceError) =>
   err(e.status, e.status === 404 ? "not_found" : e.status === 403 ? "forbidden" : e.status === 409 ? "conflict" : "invalid_body", e.message);
 const clubFail = (e: ClubError) =>
+  err(e.status, e.status === 404 ? "not_found" : e.status === 403 ? "forbidden" : e.status === 409 ? "conflict" : "invalid_body", e.message);
+const sportFail = (e: SportError) =>
   err(e.status, e.status === 404 ? "not_found" : e.status === 403 ? "forbidden" : e.status === 409 ? "conflict" : "invalid_body", e.message);
 const hospitalFail = (e: HospitalError) =>
   err(e.status, e.status === 404 ? "not_found" : e.status === 403 ? "forbidden" : e.status === 409 ? "conflict" : "invalid_body", e.message);
@@ -1093,31 +1096,43 @@ export async function dispatch(method: string, segs: string[], rawBody: unknown,
 
     /* ── campus sports ── */
     case "GET sports":
-      return ok(await getSportsOverview(session));
-    case "POST sports": {
-      if (session.role !== "institution" && session.role !== "admin") return forbidden();
-      const parsed = CreateSportInput.safeParse(rawBody);
-      if (!parsed.success) return err(400, "invalid_body", parsed.error.issues[0]?.message ?? "Invalid sport payload.");
-      return ok(await createSport(session, parsed.data));
-    }
-    case "PUT sports/:id": {
-      if (session.role !== "institution" && session.role !== "admin") return forbidden();
-      if (!b) return notFound();
-      const parsed = CreateSportInput.partial().safeParse(rawBody);
-      if (!parsed.success) return err(400, "invalid_body", "Invalid sport payload.");
-      const updated = await updateSport(session, b, parsed.data);
-      return updated ? ok(updated) : notFound();
-    }
-    case "POST sports/:id/register": {
-      if (!b) return notFound();
-      const res = await toggleRegisterTrial(session, b);
-      return res ? ok(res) : notFound();
-    }
+    case "POST sports":
+    case "PUT sports/:id":
+    case "POST sports/:id/register":
     case "DELETE sports/:id": {
-      if (session.role !== "institution" && session.role !== "admin") return forbidden();
-      if (!b) return notFound();
-      const success = await deleteSport(session, b);
-      return success ? ok({ ok: true }) : notFound();
+      try {
+        switch (found.route) {
+          case "GET sports":
+            return ok(await getSportsOverview(session));
+          case "POST sports": {
+            if (!canManageSports(session.role)) return forbidden();
+            const parsed = CreateSportInput.safeParse(rawBody);
+            if (!parsed.success) return err(400, "invalid_body", parsed.error.issues[0]?.message ?? "Invalid sport payload.");
+            return ok(await createSport(session, parsed.data));
+          }
+          case "PUT sports/:id": {
+            if (!canManageSports(session.role)) return forbidden();
+            if (!b) return notFound();
+            const parsed = CreateSportInput.partial().safeParse(rawBody);
+            if (!parsed.success) return err(400, "invalid_body", parsed.error.issues[0]?.message ?? "Invalid sport payload.");
+            return ok(await updateSport(session, b, parsed.data));
+          }
+          case "POST sports/:id/register": {
+            if (!b) return notFound();
+            const parsed = SportRegisterInput.safeParse(rawBody ?? {});
+            if (!parsed.success) return err(400, "invalid_body", parsed.error.issues[0]?.message ?? "Invalid registration.");
+            return ok(await toggleRegisterTrial(session, b, parsed.data));
+          }
+          default:
+            if (!canManageSports(session.role)) return forbidden();
+            if (!b) return notFound();
+            await deleteSport(session, b);
+            return ok({ ok: true });
+        }
+      } catch (e) {
+        if (e instanceof SportError) return sportFail(e);
+        throw e;
+      }
     }
 
     /* ── institutional reports ── */
