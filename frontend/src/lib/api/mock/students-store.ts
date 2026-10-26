@@ -31,7 +31,90 @@ export interface StudentInput {
 }
 
 // Student store starts empty and is populated through user actions (forms, Excel import)
-let studentsStore: StudentRecord[] = [];
+const INITIAL_STUDENTS: StudentRecord[] = [
+  {
+    id: "STU-5101",
+    name: "Keerthana S.",
+    roll: "21MB1042",
+    section: "Phase III Part 1 · Batch A",
+    department: "Medical & Health Sciences",
+    departmentCode: "MBBS",
+    cgpa: 8.8,
+    readiness: 92,
+    signal: "High performer",
+    email: "keerthana.s@mmch.ac.in",
+    phone: "9842100001",
+    collegeId: "COL-1006",
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: "STU-5102",
+    name: "Divya Ramesh",
+    roll: "51211001",
+    section: "Phase III Part 1 · Batch A",
+    department: "Medical & Health Sciences",
+    departmentCode: "MBBS",
+    cgpa: 8.5,
+    readiness: 88,
+    signal: "None",
+    email: "divya.ramesh@mmch.ac.in",
+    phone: "9842100002",
+    collegeId: "COL-1006",
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: "STU-5103",
+    name: "Karthik Raja",
+    roll: "51211002",
+    section: "Phase III Part 1 · Batch A",
+    department: "Medical & Health Sciences",
+    departmentCode: "MBBS",
+    cgpa: 8.2,
+    readiness: 84,
+    signal: "None",
+    email: "karthik.raja@mmch.ac.in",
+    phone: "9842100003",
+    collegeId: "COL-1006",
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: "STU-5104",
+    name: "Pooja Sundaram",
+    roll: "51211003",
+    section: "Phase III Part 1 · Batch B",
+    department: "Medical & Health Sciences",
+    departmentCode: "MBBS",
+    cgpa: 7.8,
+    readiness: 79,
+    signal: "Review suggested",
+    email: "pooja.s@mmch.ac.in",
+    phone: "9842100004",
+    collegeId: "COL-1006",
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: "STU-5105",
+    name: "Manoj Kumar V.",
+    roll: "51211004",
+    section: "Phase III Part 1 · Batch B",
+    department: "Medical & Health Sciences",
+    departmentCode: "MBBS",
+    cgpa: 9.1,
+    readiness: 95,
+    signal: "High performer",
+    email: "manoj.kumar@mmch.ac.in",
+    phone: "9842100005",
+    collegeId: "COL-1006",
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+];
+
+let studentsStore: StudentRecord[] = [...INITIAL_STUDENTS];
 
 let nextStudentSeq = 1;
 
@@ -212,7 +295,7 @@ export async function createStudent(
     if (!college) throw new Error("College not found");
 
     const dept = (await t.department.findFirst({
-      where: { streamKey: college.type.toLowerCase() === "medical" ? "medical" : "engineering" },
+      where: { streamKey: college.type.toLowerCase().includes("medical") ? "medical" : "engineering" },
     })) || (await t.department.findFirst());
     if (!dept) throw new Error("Department not found");
 

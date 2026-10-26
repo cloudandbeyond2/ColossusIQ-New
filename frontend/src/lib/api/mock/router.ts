@@ -251,6 +251,14 @@ import { dispatchNotifications } from "./notifications";
 import { audit, recentAudit } from "./audit";
 import { createStudent, deleteStudent, getStudentsList, importStudents, updateStudent } from "./students-store";
 import { createFaculty, deleteFaculty, getFacultyList, updateFaculty } from "./faculty-store";
+import {
+  approveClinicalCase,
+  approveDopsSkill,
+  createClinicalCase,
+  listClinicalCases,
+  listDopsSkills,
+  submitDopsSkill,
+} from "./clinical-cases-store";
 import { generateDynamicStudentDashboard, getStudentAcademicProfile } from "./student-profile";
 import {
   getFacultyAllocationProfile,
@@ -612,6 +620,7 @@ export async function dispatch(method: string, segs: string[], rawBody: unknown,
   if (LEARNING_AREAS.has(segs[0] ?? "")) return dispatchLearning(method, segs, rawBody, session, query);
   if (segs[0] === "students" && segs[1] !== "me") return dispatchStudents(method, segs, rawBody, session, query);
   if (segs[0] === "faculty") return dispatchFaculty(method, segs, rawBody, session, query);
+  if (segs[0] === "clinical") return dispatchClinical(method, segs, rawBody, session, query);
   const found = matchRoute(method, segs);
   if (!found) return notFound();
   const b = found.id;
@@ -2503,6 +2512,87 @@ async function dispatchFaculty(
       console.error("[DELETE /faculty] Error deleting faculty:", e);
       return err(400, "delete_faculty_failed", e?.message || "Failed to delete faculty member.");
     }
+  }
+
+  return notFound();
+}
+
+
+async function dispatchClinical(
+  method: string,
+  segs: string[],
+  rawBody: unknown,
+  session: SessionPayload,
+  _query: URLSearchParams
+): Promise<MockResult> {
+  if (method === "GET" && segs[1] === "cases") {
+    const list = listClinicalCases(session.college);
+    return ok({ cases: list });
+  }
+
+  if (method === "POST" && segs[1] === "cases" && (!segs[2] || segs[2] === "")) {
+    let body: any = rawBody;
+    if (typeof body === "string") {
+      try {
+        body = JSON.parse(body);
+      } catch {}
+    }
+    const created = createClinicalCase({
+      bed: body.bed,
+      patient: body.patient || body.name,
+      diagnosis: body.diagnosis,
+      complaints: body.complaints,
+      faculty: body.faculty,
+      studentName: session.name || body.studentName || "Aishwarya V.",
+      studentRoll: body.studentRoll || "51211005",
+      collegeId: session.college,
+    });
+    return { status: 201, body: created };
+  }
+
+  if (method === "POST" && segs[1] === "cases" && segs[2] === "approve") {
+    let body: any = rawBody;
+    if (typeof body === "string") {
+      try {
+        body = JSON.parse(body);
+      } catch {}
+    }
+    const facultyName = session.name || "Dr. R. Prakash, MD";
+    const approved = approveClinicalCase(body.id, facultyName);
+    if (!approved) return notFound();
+    return ok({ ok: true, case: approved });
+  }
+
+  if (method === "GET" && segs[1] === "dops") {
+    return ok({ skills: listDopsSkills() });
+  }
+
+  if (method === "POST" && segs[1] === "dops" && segs[2] === "submit") {
+    let body: any = rawBody;
+    if (typeof body === "string") {
+      try {
+        body = JSON.parse(body);
+      } catch {}
+    }
+    const updated = submitDopsSkill({
+      code: body.code || body.procedure,
+      notes: body.notes,
+      supervisor: body.supervisor,
+      studentName: session.name || "Aishwarya V.",
+    });
+    return ok({ ok: true, skill: updated });
+  }
+
+  if (method === "POST" && segs[1] === "dops" && segs[2] === "approve") {
+    let body: any = rawBody;
+    if (typeof body === "string") {
+      try {
+        body = JSON.parse(body);
+      } catch {}
+    }
+    const supervisor = session.name || "Dr. R. Prakash, MD";
+    const certified = approveDopsSkill(body.code, supervisor);
+    return ok({ ok: true, skill: certified });
   }
 
   return notFound();

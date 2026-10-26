@@ -18,8 +18,8 @@ import { COLLEGE_SEEDS, collegeRows, scopedRows, stamp } from "./seed-records";
  */
 
 /* ── state ─────────────────────────────────────────── */
-const stores = sharedState("records.stores", () => new Map<string, Map<string, ResourceRecord>>());
-const counters = sharedState("records.counters", () => new Map<string, number>());
+const stores = sharedState("records.stores.v3", () => new Map<string, Map<string, ResourceRecord>>());
+const counters = sharedState("records.counters.v3", () => new Map<string, number>());
 const sites = sharedState("website.store", () => new Map<string, Site>());
 const media = sharedState("media.store", () => new Map<string, MediaItem>());
 const auditTrail = sharedState("audit.trail", () => [] as Array<AuditEntry & { collegeId?: string | null }>);

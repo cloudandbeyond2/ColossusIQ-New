@@ -304,6 +304,9 @@ export const CLINICAL_DEPARTMENTS = [
   "Dermatology",
   "ENT",
   "Ophthalmology",
+  "Anaesthesiology",
+  "Radiodiagnosis",
+  "Respiratory Medicine",
 ] as const;
 
 RESOURCES.rotations = {
