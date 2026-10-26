@@ -153,12 +153,16 @@ import {
   deleteNmcAction,
   updateNmcCommittee,
   updateNmcProfile,
+  updateNmcDepartmentNorm,
+  seedStandardCommittees,
+  NmcError,
 } from "./nmc-compliance";
 import {
   CreateNmcActionInput,
   UpdateNmcActionStatusInput,
   UpdateNmcCommitteeInput,
   UpdateNmcProfileInput,
+  UpdateNmcDepartmentNormInput,
 } from "@/lib/api/nmc-schemas";
 import {
   CbcsError,
@@ -284,6 +288,8 @@ const reportFail = (e: ReportError) =>
   err(e.status, e.status === 404 ? "not_found" : e.status === 403 ? "forbidden" : e.status === 409 ? "conflict" : "invalid_body", e.message);
 const hospitalFail = (e: HospitalError) =>
   err(e.status, e.status === 404 ? "not_found" : e.status === 403 ? "forbidden" : e.status === 409 ? "conflict" : "invalid_body", e.message);
+const nmcFail = (e: NmcError) =>
+  err(e.status, e.status === 404 ? "not_found" : e.status === 403 ? "forbidden" : e.status === 409 ? "conflict" : "invalid_body", e.message);
 const cbcsFail = (e: CbcsError) =>
   err(e.status, e.status === 404 ? "not_found" : e.status === 403 ? "forbidden" : e.status === 409 ? "conflict" : "invalid_body", e.message);
 
@@ -392,6 +398,8 @@ export const PATTERNS = [
   "DELETE nmc-compliance/actions/:id",
   "PATCH nmc-compliance/committees/:id",
   "PUT nmc-compliance/profile",
+  "PUT nmc-compliance/departments",
+  "POST nmc-compliance/committees/seed",
   "GET cbcs-electives",
   "POST cbcs-electives/courses",
   "PATCH cbcs-electives/courses/:id/seats",
@@ -786,37 +794,54 @@ export async function dispatch(method: string, segs: string[], rawBody: unknown,
         throw e;
       }
     }
-    case "GET nmc-compliance": {
+    case "GET nmc-compliance":
+    case "POST nmc-compliance/actions":
+    case "PATCH nmc-compliance/actions/:id":
+    case "DELETE nmc-compliance/actions/:id":
+    case "PATCH nmc-compliance/committees/:id":
+    case "PUT nmc-compliance/profile":
+    case "PUT nmc-compliance/departments":
+    case "POST nmc-compliance/committees/seed": {
       if (session.role !== "institution" && session.role !== "admin") return forbidden();
-      return ok(await getNmcComplianceOverview(session));
-    }
-    case "POST nmc-compliance/actions": {
-      if (session.role !== "institution" && session.role !== "admin") return forbidden();
-      const parsed = CreateNmcActionInput.safeParse(rawBody);
-      if (!parsed.success) return err(400, "invalid_body", parsed.error.issues[0]?.message ?? "Invalid action payload.");
-      return ok(await createNmcAction(session, parsed.data));
-    }
-    case "PATCH nmc-compliance/actions/:id": {
-      if (session.role !== "institution" && session.role !== "admin") return forbidden();
-      const parsed = UpdateNmcActionStatusInput.safeParse(rawBody);
-      if (!parsed.success) return err(400, "invalid_body", parsed.error.issues[0]?.message ?? "Invalid status payload.");
-      return ok(await updateNmcActionStatus(session, found.id ?? segs[2] ?? "", parsed.data));
-    }
-    case "DELETE nmc-compliance/actions/:id": {
-      if (session.role !== "institution" && session.role !== "admin") return forbidden();
-      return ok(await deleteNmcAction(session, found.id ?? segs[2] ?? ""));
-    }
-    case "PATCH nmc-compliance/committees/:id": {
-      if (session.role !== "institution" && session.role !== "admin") return forbidden();
-      const parsed = UpdateNmcCommitteeInput.safeParse(rawBody);
-      if (!parsed.success) return err(400, "invalid_body", parsed.error.issues[0]?.message ?? "Invalid committee payload.");
-      return ok(await updateNmcCommittee(session, found.id ?? segs[2] ?? "", parsed.data));
-    }
-    case "PUT nmc-compliance/profile": {
-      if (session.role !== "institution" && session.role !== "admin") return forbidden();
-      const parsed = UpdateNmcProfileInput.safeParse(rawBody);
-      if (!parsed.success) return err(400, "invalid_body", parsed.error.issues[0]?.message ?? "Invalid profile payload.");
-      return ok(await updateNmcProfile(session, parsed.data));
+      const bad = (m: string, d: string) => err(400, "invalid_body", m || d);
+      try {
+        switch (found.route) {
+          case "GET nmc-compliance":
+            return ok(await getNmcComplianceOverview(session));
+          case "POST nmc-compliance/actions": {
+            const parsed = CreateNmcActionInput.safeParse(rawBody);
+            if (!parsed.success) return bad(parsed.error.issues[0]?.message ?? "", "Invalid action payload.");
+            return ok(await createNmcAction(session, parsed.data));
+          }
+          case "PATCH nmc-compliance/actions/:id": {
+            const parsed = UpdateNmcActionStatusInput.safeParse(rawBody);
+            if (!parsed.success) return bad(parsed.error.issues[0]?.message ?? "", "Invalid status payload.");
+            return ok(await updateNmcActionStatus(session, found.id ?? segs[2] ?? "", parsed.data));
+          }
+          case "DELETE nmc-compliance/actions/:id":
+            return ok(await deleteNmcAction(session, found.id ?? segs[2] ?? ""));
+          case "PATCH nmc-compliance/committees/:id": {
+            const parsed = UpdateNmcCommitteeInput.safeParse(rawBody);
+            if (!parsed.success) return bad(parsed.error.issues[0]?.message ?? "", "Invalid committee payload.");
+            return ok(await updateNmcCommittee(session, found.id ?? segs[2] ?? "", parsed.data));
+          }
+          case "PUT nmc-compliance/profile": {
+            const parsed = UpdateNmcProfileInput.safeParse(rawBody);
+            if (!parsed.success) return bad(parsed.error.issues[0]?.message ?? "", "Invalid profile payload.");
+            return ok(await updateNmcProfile(session, parsed.data));
+          }
+          case "PUT nmc-compliance/departments": {
+            const parsed = UpdateNmcDepartmentNormInput.safeParse(rawBody);
+            if (!parsed.success) return bad(parsed.error.issues[0]?.message ?? "", "Invalid department payload.");
+            return ok(await updateNmcDepartmentNorm(session, parsed.data));
+          }
+          default:
+            return ok(await seedStandardCommittees(session));
+        }
+      } catch (e) {
+        if (e instanceof NmcError) return nmcFail(e);
+        throw e;
+      }
     }
     case "GET cbcs-electives": {
       try {

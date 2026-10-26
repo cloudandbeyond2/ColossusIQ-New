@@ -1,5 +1,8 @@
 import { z } from "zod";
 
+/** "Not Assessed" means the college has not recorded the data that norm is measured from. */
+export const NmcStatusSchema = z.enum(["Compliant", "Needs Attention", "Deficient", "Not Assessed"]);
+
 export const NmcNormItemSchema = z.object({
   id: z.string(),
   name: z.string(),
@@ -15,7 +18,7 @@ export const NmcNormItemSchema = z.object({
   norm: z.string(),
   score: z.number(),
   target: z.number(),
-  status: z.enum(["Compliant", "Needs Attention", "Deficient"]),
+  status: NmcStatusSchema,
   remediation: z.string().optional(),
 });
 export type NmcNormItem = z.infer<typeof NmcNormItemSchema>;
@@ -28,13 +31,17 @@ export const NmcDepartmentComplianceSchema = z.object({
   assocProfessors: z.number(),
   asstProfessors: z.number(),
   seniorResidents: z.number(),
-  requiredFaculty: z.number(),
+  /** null until the college sets the required strength for this department. */
+  requiredFaculty: z.number().nullable(),
   actualFaculty: z.number(),
-  aebasAttendance: z.number(),
-  status: z.enum(["Compliant", "Needs Attention", "Deficient"]),
+  /** null until the college records this department's biometric attendance. */
+  aebasAttendance: z.number().nullable(),
+  status: z.enum(["Compliant", "Needs Attention", "Deficient", "Not Set"]),
   deficiencyDetails: z.string().optional(),
 });
 export type NmcDepartmentCompliance = z.infer<typeof NmcDepartmentComplianceSchema>;
+
+export const NmcCommitteeStatusSchema = z.enum(["Not Constituted", "Constituted & Active", "Pending Reconstitution", "In Review"]);
 
 export const NmcCommitteeSchema = z.object({
   id: z.string(),
@@ -45,7 +52,7 @@ export const NmcCommitteeSchema = z.object({
   membersCount: z.number(),
   meetingFrequency: z.string(),
   lastMeetingDate: z.string(),
-  status: z.enum(["Constituted & Active", "Pending Reconstitution", "In Review"]),
+  status: NmcCommitteeStatusSchema,
   momUploaded: z.boolean(),
   notes: z.string().optional(),
 });
@@ -64,6 +71,7 @@ export const NmcActionItemSchema = z.object({
 });
 export type NmcActionItem = z.infer<typeof NmcActionItemSchema>;
 
+/** Empty string / 0 means "not recorded yet". */
 export const NmcProfileSchema = z.object({
   nmcCode: z.string(),
   mbbsSeats: z.number(),
@@ -74,8 +82,8 @@ export const NmcProfileSchema = z.object({
   aebasPortalActive: z.boolean(),
   meuCertified: z.boolean(),
   ethicsCommitteeRegNo: z.string(),
-  lastInspectionDate: z.string().optional(),
-  nextInspectionWindow: z.string().optional(),
+  lastInspectionDate: z.string(),
+  nextInspectionWindow: z.string(),
 });
 export type NmcProfile = z.infer<typeof NmcProfileSchema>;
 
@@ -83,15 +91,15 @@ export const NmcComplianceDataSchema = z.object({
   collegeId: z.string(),
   collegeName: z.string(),
   stream: z.string(),
-  overallScore: z.number(),
+  /** null until at least one norm can be assessed. */
+  overallScore: z.number().nullable(),
   overallGrade: z.string(),
   overallStatus: z.string(),
   kpis: z.object({
-    overallCompliance: z.number(),
-    facultyAdequacy: z.number(),
-    aebasAverage: z.number(),
-    bedOccupancy: z.number(),
-    cbmeCompletion: z.number(),
+    overallCompliance: z.number().nullable(),
+    facultyAdequacy: z.number().nullable(),
+    aebasAverage: z.number().nullable(),
+    bedOccupancy: z.number().nullable(),
     openActions: z.number(),
   }),
   norms: z.array(NmcNormItemSchema),
@@ -101,15 +109,17 @@ export const NmcComplianceDataSchema = z.object({
   profile: NmcProfileSchema,
   strengths: z.array(z.string()),
   deficiencies: z.array(z.string()),
+  /** What the signed-in user may do, decided by the server. */
+  permissions: z.object({ manage: z.boolean() }),
 });
 export type NmcComplianceData = z.infer<typeof NmcComplianceDataSchema>;
 
 // Inputs
 export const CreateNmcActionInput = z.object({
-  title: z.string().min(3).max(200),
+  title: z.string().trim().min(3).max(200),
   category: z.string().min(2).max(100),
   priority: z.enum(["High", "Medium", "Low"]).default("High"),
-  assignee: z.string().min(2).max(100),
+  assignee: z.string().trim().min(2).max(100),
   dueDate: z.string().min(8).max(20),
   notes: z.string().max(500).optional(),
 });
@@ -122,22 +132,35 @@ export const UpdateNmcActionStatusInput = z.object({
 export type UpdateNmcActionStatusInput = z.infer<typeof UpdateNmcActionStatusInput>;
 
 export const UpdateNmcCommitteeInput = z.object({
-  chairperson: z.string().min(2).max(100),
-  convener: z.string().min(2).max(100),
-  membersCount: z.number().int().min(1).max(50),
-  status: z.enum(["Constituted & Active", "Pending Reconstitution", "In Review"]),
-  lastMeetingDate: z.string().min(8).max(20),
-  momUploaded: z.boolean().default(true),
+  chairperson: z.string().trim().max(100).default(""),
+  convener: z.string().trim().max(100).default(""),
+  membersCount: z.number().int().min(0).max(50).default(0),
+  status: NmcCommitteeStatusSchema,
+  lastMeetingDate: z.string().max(20).default(""),
+  momUploaded: z.boolean().default(false),
+  meetingFrequency: z.string().max(60).optional(),
   notes: z.string().max(500).optional(),
 });
 export type UpdateNmcCommitteeInput = z.infer<typeof UpdateNmcCommitteeInput>;
 
 export const UpdateNmcProfileInput = z.object({
-  nmcCode: z.string().min(2).max(50),
-  mbbsSeats: z.number().int().min(50).max(500),
-  ethicsCommitteeRegNo: z.string().min(2).max(100),
-  cctvStreamsOnline: z.number().int().min(0).max(100).optional(),
+  nmcCode: z.string().trim().max(50).default(""),
+  mbbsSeats: z.number().int().min(0).max(500).default(0),
+  ethicsCommitteeRegNo: z.string().trim().max(100).default(""),
+  cctvStreamsOnline: z.number().int().min(0).max(1000).optional(),
+  cctvStreamsTotal: z.number().int().min(0).max(1000).optional(),
   aebasPortalActive: z.boolean().optional(),
   meuCertified: z.boolean().optional(),
+  lopStatus: z.string().trim().max(120).optional(),
+  affiliationYear: z.number().int().min(0).max(2200).optional(),
+  lastInspectionDate: z.string().max(20).optional(),
+  nextInspectionWindow: z.string().trim().max(80).optional(),
 });
 export type UpdateNmcProfileInput = z.infer<typeof UpdateNmcProfileInput>;
+
+export const UpdateNmcDepartmentNormInput = z.object({
+  department: z.string().min(2).max(100),
+  requiredFaculty: z.number().int().min(0).max(200).nullable(),
+  aebasAttendance: z.number().min(0).max(100).nullable(),
+});
+export type UpdateNmcDepartmentNormInput = z.infer<typeof UpdateNmcDepartmentNormInput>;

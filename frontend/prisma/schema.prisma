@@ -2301,3 +2301,64 @@ model SportRegistration {
 
   @@map("sport_registrations")
 }
+
+model NmcProfile {
+  collegeId          String   @id @map("college_id") @db.Uuid
+  nmcCode            String   @default("") @map("nmc_code")
+  mbbsSeats          Int      @default(0) @map("mbbs_seats")
+  lopStatus          String   @default("") @map("lop_status")
+  affiliationYear    String   @default("") @map("affiliation_year")
+  cctvOnline         Int      @default(0) @map("cctv_online")
+  cctvTotal          Int      @default(0) @map("cctv_total")
+  aebasActive        Boolean  @default(false) @map("aebas_active")
+  meuCertified       Boolean  @default(false) @map("meu_certified")
+  ethicsRegNo        String   @default("") @map("ethics_reg_no")
+  lastInspectionDate String   @default("") @map("last_inspection_date")
+  nextInspectionWindow String @default("") @map("next_inspection_window")
+  updatedAt          DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@map("nmc_profile")
+}
+
+model NmcCommittee {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  collegeId        String   @map("college_id") @db.Uuid
+  name             String
+  mandate          String   @default("")
+  chairperson      String   @default("")
+  convener         String   @default("")
+  membersCount     Int      @default(0) @map("members_count")
+  meetingFrequency String   @default("") @map("meeting_frequency")
+  lastMeetingDate  String   @default("") @map("last_meeting_date")
+  status           String   @default("Not Constituted")
+  momUploaded      Boolean  @default(false) @map("mom_uploaded")
+  notes            String   @default("")
+
+  @@map("nmc_committees")
+}
+
+model NmcAction {
+  id         String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  collegeId  String  @map("college_id") @db.Uuid
+  title      String
+  category   String  @default("")
+  priority   String  @default("Medium")
+  status     String  @default("Open")
+  assignee   String  @default("")
+  dueDate    String  @default("") @map("due_date")
+  notes      String  @default("")
+  resolvedAt String  @default("") @map("resolved_at")
+
+  @@map("nmc_actions")
+}
+
+model NmcDepartmentNorm {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  collegeId       String   @map("college_id") @db.Uuid
+  department      String
+  requiredFaculty Int?     @map("required_faculty")
+  aebasAttendance Decimal? @map("aebas_attendance")
+
+  @@unique([collegeId, department])
+  @@map("nmc_department_norms")
+}

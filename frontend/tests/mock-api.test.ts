@@ -1255,112 +1255,102 @@ describe("Teaching Hospital Management (/institution/hospital-dashboard)", () =>
 
 describe("NMC / Council Compliance (/institution/nmc-compliance)", () => {
   const medicalSession = { ...session("institution"), college: "COL-1006" };
-
-  it("serves live NMC overview adhering to NmcComplianceDataSchema", async () => {
-    const res = await dispatch("GET", ["nmc-compliance"], undefined, medicalSession, new URLSearchParams());
+  const call = (method: string, segs: string[], body?: unknown, sess = medicalSession) =>
+    dispatch(method, segs, body, sess, new URLSearchParams());
+  const overview = async () => {
+    const res = await call("GET", ["nmc-compliance"]);
     expect(res.status).toBe(200);
     const parsed = NmcComplianceDataSchema.safeParse(res.body);
     expect(parsed.success).toBe(true);
-    if (!parsed.success) return;
+    return parsed.success ? parsed.data : (undefined as never);
+  };
 
-    expect(parsed.data.departments.length).toBe(21);
-    expect(parsed.data.committees.length).toBe(7);
-    expect(parsed.data.norms.length).toBe(8);
-    expect(parsed.data.overallScore).toBeGreaterThan(70);
-    expect(parsed.data.kpis.facultyAdequacy).toBeGreaterThan(80);
-    expect(parsed.data.kpis.aebasAverage).toBeGreaterThan(75);
+  it("starts from the college's own records, with no invented figures", async () => {
+    const d = await overview();
+    expect(d.departments.length).toBe(21);
+    expect(d.committees.length).toBe(0);
+    expect(d.profile.nmcCode).toBe("");
+    expect(d.profile.mbbsSeats).toBe(0);
+    expect(d.kpis.facultyAdequacy).toBeNull();
+    expect(d.kpis.aebasAverage).toBeNull();
+    expect(d.departments.every((x) => x.requiredFaculty === null && x.status === "Not Set")).toBe(true);
+    expect(d.norms.find((n) => n.id === "NMC-NORM-05")?.status).toBe("Not Assessed");
+    expect(d.permissions.manage).toBe(true);
   });
 
   it("denies access to unauthorized roles", async () => {
     const studentSess = { ...session("student"), college: "COL-1006" };
-    const res = await dispatch("GET", ["nmc-compliance"], undefined, studentSess, new URLSearchParams());
-    expect(res.status).toBe(403);
+    expect((await call("GET", ["nmc-compliance"], undefined, studentSess)).status).toBe(403);
+    expect((await call("POST", ["nmc-compliance", "committees", "seed"], {}, studentSess)).status).toBe(403);
   });
 
-  it("manages NMC compliance action items: create, update status, and delete", async () => {
-    // 1. Create action
-    const createRes = await dispatch(
-      "POST",
-      ["nmc-compliance", "actions"],
-      {
-        title: "Procure Neonatal Resuscitation Model",
-        category: "Infrastructure & Labs",
-        priority: "High",
-        assignee: "Skills Lab Director",
-        dueDate: "2026-11-20",
-        notes: "Identified in internal council mock inspection.",
-      },
-      medicalSession,
-      new URLSearchParams()
-    );
+  it("adds the standard committees once and validates constitution", async () => {
+    const first = await call("POST", ["nmc-compliance", "committees", "seed"], {});
+    expect(first.status).toBe(200);
+    expect((first.body as { added: number }).added).toBe(7);
+    const again = await call("POST", ["nmc-compliance", "committees", "seed"], {});
+    expect((again.body as { added: number }).added).toBe(0);
+
+    const d = await overview();
+    expect(d.committees.length).toBe(7);
+    expect(d.committees.every((c) => c.status === "Not Constituted")).toBe(true);
+
+    const id = d.committees[0]!.id;
+    const bad = await call("PATCH", ["nmc-compliance", "committees", id], {
+      chairperson: "", convener: "", membersCount: 0, status: "Constituted & Active", lastMeetingDate: "", momUploaded: false,
+    });
+    expect(bad.status).toBe(400);
+    const good = await call("PATCH", ["nmc-compliance", "committees", id], {
+      chairperson: "Dr. A", convener: "Dr. B", membersCount: 9, status: "Constituted & Active", lastMeetingDate: "2026-10-12", momUploaded: true,
+    });
+    expect(good.status).toBe(200);
+    const after = await overview();
+    expect(after.committees.find((c) => c.id === id)?.chairperson).toBe("Dr. A");
+    expect(after.norms.find((n) => n.id === "NMC-NORM-05")?.current).toContain("1 of 7");
+    expect((await call("PATCH", ["nmc-compliance", "committees", "00000000-0000-0000-0000-000000000000"], {
+      chairperson: "x", convener: "", membersCount: 1, status: "In Review", lastMeetingDate: "",
+    })).status).toBe(404);
+  });
+
+  it("manages action items: create, update status, delete", async () => {
+    const createRes = await call("POST", ["nmc-compliance", "actions"], {
+      title: "Procure Neonatal Resuscitation Model", category: "Infrastructure & Labs", priority: "High",
+      assignee: "Skills Lab Director", dueDate: "2026-11-20", notes: "Identified in internal mock inspection.",
+    });
     expect(createRes.status).toBe(200);
-    const newAction = createRes.body as any;
-    expect(newAction.id).toBeDefined();
-    expect(newAction.status).toBe("Pending");
-
-    // 2. Update status
-    const updateRes = await dispatch(
-      "PATCH",
-      ["nmc-compliance", "actions", newAction.id],
-      { status: "Resolved", notes: "Procurement order PO-9921 placed." },
-      medicalSession,
-      new URLSearchParams()
-    );
-    expect(updateRes.status).toBe(200);
-
-    // 3. Delete action
-    const deleteRes = await dispatch(
-      "DELETE",
-      ["nmc-compliance", "actions", newAction.id],
-      undefined,
-      medicalSession,
-      new URLSearchParams()
-    );
-    expect(deleteRes.status).toBe(200);
+    const created = createRes.body as { id: string };
+    expect((await overview()).kpis.openActions).toBeGreaterThan(0);
+    expect((await call("PATCH", ["nmc-compliance", "actions", created.id], { status: "Resolved", notes: "PO placed." })).status).toBe(200);
+    const resolved = (await overview()).actions.find((x) => x.id === created.id);
+    expect(resolved?.status).toBe("Resolved");
+    expect((await call("DELETE", ["nmc-compliance", "actions", created.id])).status).toBe(200);
+    expect((await call("DELETE", ["nmc-compliance", "actions", created.id])).status).toBe(404);
   });
 
-  it("updates statutory committee details", async () => {
-    const res = await dispatch(
-      "PATCH",
-      ["nmc-compliance", "committees", "NMC-COM-01"],
-      {
-        chairperson: "Dr. R. Meenakshi, MD",
-        convener: "Dr. P. Sundaram, MD",
-        membersCount: 15,
-        status: "Constituted & Active",
-        lastMeetingDate: "2026-10-12",
-        momUploaded: true,
-        notes: "MEU CISP-IV preparation scheduled.",
-      },
-      medicalSession,
-      new URLSearchParams()
-    );
-    expect(res.status).toBe(200);
+  it("saves the profile and per-department norms, and computes scores from them", async () => {
+    expect((await call("PUT", ["nmc-compliance", "profile"], {
+      nmcCode: "NMC-MED-TN-042", mbbsSeats: 150, ethicsCommitteeRegNo: "ECR/1", cctvStreamsOnline: 8, cctvStreamsTotal: 10,
+    })).status).toBe(200);
+    expect((await call("PUT", ["nmc-compliance", "profile"], { cctvStreamsOnline: 20, cctvStreamsTotal: 10 })).status).toBe(400);
+    let d = await overview();
+    expect(d.profile.mbbsSeats).toBe(150);
+    expect(d.norms.find((n) => n.id === "NMC-NORM-06")?.score).toBe(80);
+
+    expect((await call("PUT", ["nmc-compliance", "departments"], { department: "Anatomy", requiredFaculty: 50, aebasAttendance: 90 })).status).toBe(200);
+    expect((await call("PUT", ["nmc-compliance", "departments"], { department: "Made Up", requiredFaculty: 2, aebasAttendance: null })).status).toBe(400);
+    d = await overview();
+    const anatomy = d.departments.find((x) => x.name === "Anatomy")!;
+    expect(anatomy.requiredFaculty).toBe(50);
+    expect(anatomy.status).not.toBe("Not Set");
+    expect(d.kpis.facultyAdequacy).not.toBeNull();
+    expect(d.kpis.aebasAverage).toBe(90);
   });
 
-  it("updates NMC college profile", async () => {
-    const res = await dispatch(
-      "PUT",
-      ["nmc-compliance", "profile"],
-      {
-        nmcCode: "NMC-MED-TN-042",
-        mbbsSeats: 250,
-        ethicsCommitteeRegNo: "ECR/124/Inst/TN/2021/RR-24",
-        cctvStreamsOnline: 25,
-      },
-      medicalSession,
-      new URLSearchParams()
-    );
-    expect(res.status).toBe(200);
-  });
-
-  it("provides dynamic scorecard module-data for backwards compatibility", async () => {
+  it("provides the scorecard module-data adapter", async () => {
     const data = await moduleData("nmc-compliance");
     expect(data).toBeDefined();
     if (data && "overall" in data) {
-      expect(typeof (data as any).overall).toBe("number");
-      expect((data as any).dimensions.length).toBeGreaterThan(0);
-      expect((data as any).strengths.length).toBeGreaterThan(0);
+      expect(typeof (data as { overall: number }).overall).toBe("number");
     }
   });
 });
