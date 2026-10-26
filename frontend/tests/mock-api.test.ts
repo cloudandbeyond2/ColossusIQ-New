@@ -1044,18 +1044,74 @@ describe("Teaching Hospital Management (/institution/hospital-dashboard)", () =>
     expect(parsed.success).toBe(true);
     if (!parsed.success) return;
 
-    expect(parsed.data.departments.length).toBe(11);
-    expect(parsed.data.kpis.totalBeds).toBeGreaterThan(600);
-    expect(parsed.data.kpis.occupancyRate).toBeGreaterThanOrEqual(70);
+    // a new college has no invented wards, census or facility figures
+    expect(parsed.data.departments).toEqual([]);
+    expect(parsed.data.kpis.totalBeds).toBe(0);
+    expect(parsed.data.recentLogs).toEqual([]);
+    expect(parsed.data.monthlyTrends).toEqual([]);
     expect(parsed.data.nmcNorms.length).toBeGreaterThan(0);
-    expect(parsed.data.activeRotations.length).toBeGreaterThan(0);
+    expect(parsed.data.nmcNorms.every((n) => n.currentValue === "Not recorded yet")).toBe(true);
+    expect(parsed.data.permissions).toEqual({ manage: true, certify: true });
+  });
+
+  it("lets staff add a department, then derives occupancy, norms and trends from census entries", async () => {
+    const add = await dispatch(
+      "POST",
+      ["hospital", "departments"],
+      { name: "General Medicine", category: "Medicine & Allied", hod: "Dr. Test", teachingBeds: 150, icuBeds: 20, cbmeTargetCases: 8, units: ["Unit I"] },
+      medicalSession,
+      new URLSearchParams(),
+    );
+    expect(add.status).toBe(200);
+    const dup = await dispatch("POST", ["hospital", "departments"], { name: "general medicine", category: "Medicine & Allied", teachingBeds: 10 }, medicalSession, new URLSearchParams());
+    expect(dup.status).toBe(409);
+
+    const fresh = (await dispatch("GET", ["hospital", "overview"], undefined, medicalSession, new URLSearchParams())).body as any;
+    expect(fresh.departments[0].status).toBe("Awaiting Census");
+
+    const tooMany = await dispatch("POST", ["hospital", "census"], { department: "General Medicine", occupiedBeds: 151, opd: 1, ipdAdmissions: 1 }, medicalSession, new URLSearchParams());
+    expect(tooMany.status).toBe(400);
+
+    const census = await dispatch(
+      "POST",
+      ["hospital", "census"],
+      { department: "General Medicine", occupiedBeds: 135, icuOccupied: 12, opd: 260, ipdAdmissions: 22, discharges: 18, surgeries: 4, casesPerStudent: 9, notes: "census check" },
+      medicalSession,
+      new URLSearchParams(),
+    );
+    expect(census.status).toBe(200);
+    const d = census.body as any;
+    expect(d.kpis.totalBeds).toBe(150);
+    expect(d.kpis.occupiedBeds).toBe(135);
+    expect(d.kpis.occupancyRate).toBe(90);
+    expect(d.kpis.totalIcuBeds).toBe(20);
+    expect(d.kpis.icuOccupiedBeds).toBe(12);
+    expect(d.kpis.dailyDischarges).toBe(18);
+    expect(d.kpis.monthlySurgeries).toBe(4);
+    expect(d.departments[0].status).toBe("Optimal");
+    expect(d.nmcNorms.find((n: any) => n.id === "norm-occupancy").status).toBe("Pass");
+    expect(d.monthlyTrends.length).toBe(1);
+    expect(d.recentLogs[0].notes).toBe("census check");
+
+    const profile = await dispatch(
+      "PUT",
+      ["hospital", "profile"],
+      { hospitalName: "Test Hospital", labTestsDaily: 3000, bloodWholeUnits: 50, bloodComponentUnits: 80, bloodBankLicensed: true },
+      medicalSession,
+      new URLSearchParams(),
+    );
+    expect(profile.status).toBe(200);
+    const p = profile.body as any;
+    expect(p.hospitalName).toBe("Test Hospital");
+    expect(p.nmcNorms.find((n: any) => n.id === "norm-lab").status).toBe("Pass");
+    expect(p.nmcNorms.find((n: any) => n.id === "norm-bloodbank").status).toBe("Pass");
   });
 
   it("records ward census, updates occupancy and adds to audit log", async () => {
     const payload = {
       department: "General Medicine",
-      occupiedBeds: 135,
-      opd: 260,
+      occupiedBeds: 120,
+      opd: 270,
       ipdAdmissions: 22,
       notes: "Post-monsoon seasonal viral fever ward surge.",
     };
@@ -1067,8 +1123,8 @@ describe("Teaching Hospital Management (/institution/hospital-dashboard)", () =>
     const data = overviewRes.body as any;
     const gm = data.departments.find((d: any) => d.name === "General Medicine");
     expect(gm).toBeDefined();
-    expect(gm.occupiedBeds).toBe(135);
-    expect(gm.opdDaily).toBe(260);
+    expect(gm.occupiedBeds).toBe(120);
+    expect(gm.opdDaily).toBe(270);
 
     // Verify census log entry
     const log = data.recentLogs.find((l: any) => l.department === "General Medicine");

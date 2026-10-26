@@ -126,8 +126,19 @@ import {
   updateAicteCommittee,
   updateAicteProfile,
 } from "./aicte-compliance";
-import { getHospitalOverview, updateHospitalCensus, certifyClinicalRotation } from "./teaching-hospital";
-import { UpdateHospitalCensusInput, CertifyRotationInput } from "@/lib/api/hospital-schemas";
+import {
+  HospitalError,
+  canCertifyRotations,
+  canManageHospital,
+  certifyClinicalRotation,
+  createHospitalDepartment,
+  getHospitalOverview,
+  removeHospitalDepartment,
+  updateHospitalCensus,
+  updateHospitalDepartment,
+  updateHospitalProfile,
+} from "./teaching-hospital";
+import { CertifyRotationInput, CreateHospitalDepartmentInput, UpdateHospitalCensusInput, UpdateHospitalProfileInput } from "@/lib/api/hospital-schemas";
 import {
   getNmcComplianceOverview,
   createNmcAction,
@@ -260,6 +271,8 @@ const osceFail = (e: OsceError) =>
   err(e.status, e.status === 404 ? "not_found" : e.status === 403 ? "forbidden" : e.status === 409 ? "conflict" : "invalid_body", e.message);
 const clubFail = (e: ClubError) =>
   err(e.status, e.status === 404 ? "not_found" : e.status === 403 ? "forbidden" : e.status === 409 ? "conflict" : "invalid_body", e.message);
+const hospitalFail = (e: HospitalError) =>
+  err(e.status, e.status === 404 ? "not_found" : e.status === 403 ? "forbidden" : e.status === 409 ? "conflict" : "invalid_body", e.message);
 const cbcsFail = (e: CbcsError) =>
   err(e.status, e.status === 404 ? "not_found" : e.status === 403 ? "forbidden" : e.status === 409 ? "conflict" : "invalid_body", e.message);
 
@@ -357,6 +370,10 @@ export const PATTERNS = [
   "PUT aicte-compliance/profile",
   "GET hospital/overview",
   "POST hospital/census",
+  "POST hospital/departments",
+  "PUT hospital/departments/:id",
+  "DELETE hospital/departments/:id",
+  "PUT hospital/profile",
   "POST hospital/rotations/:id/certify",
   "GET nmc-compliance",
   "POST nmc-compliance/actions",
@@ -708,21 +725,53 @@ export async function dispatch(method: string, segs: string[], rawBody: unknown,
       if (!parsed.success) return err(400, "invalid_body", parsed.error.issues[0]?.message ?? "Invalid AICTE id.");
       return ok(await updateAicteProfile(session, parsed.data));
     }
-    case "GET hospital/overview": {
-      return ok(await getHospitalOverview(session));
-    }
-    case "POST hospital/census": {
-      if (session.role !== "institution" && session.role !== "hod" && session.role !== "admin") return forbidden();
-      const parsed = UpdateHospitalCensusInput.safeParse(rawBody);
-      if (!parsed.success) return err(400, "invalid_body", parsed.error.issues[0]?.message ?? "Invalid hospital census payload.");
-      return ok(await updateHospitalCensus(session, parsed.data));
-    }
+    case "GET hospital/overview":
+    case "POST hospital/census":
+    case "POST hospital/departments":
+    case "PUT hospital/departments/:id":
+    case "DELETE hospital/departments/:id":
+    case "PUT hospital/profile":
     case "POST hospital/rotations/:id/certify": {
-      if (session.role !== "institution" && session.role !== "hod" && session.role !== "faculty" && session.role !== "admin") return forbidden();
-      const rotationId = found.id ?? segs[2] ?? "";
-      const parsed = CertifyRotationInput.safeParse({ ...(typeof rawBody === "object" && rawBody !== null ? rawBody : {}), rotationId });
-      if (!parsed.success) return err(400, "invalid_body", parsed.error.issues[0]?.message ?? "Invalid rotation certification payload.");
-      return ok(await certifyClinicalRotation(session, parsed.data));
+      const id = found.id ?? segs[2] ?? "";
+      const bad = (e: { issues: { message: string }[] }, fallback: string) => err(400, "invalid_body", e.issues[0]?.message ?? fallback);
+      try {
+        if (found.route === "POST hospital/rotations/:id/certify") {
+          if (!canCertifyRotations(session.role)) return forbidden();
+          const parsed = CertifyRotationInput.safeParse({ ...(typeof rawBody === "object" && rawBody !== null ? rawBody : {}), rotationId: id });
+          if (!parsed.success) return bad(parsed.error, "Invalid rotation certification payload.");
+          return ok(await certifyClinicalRotation(session, parsed.data));
+        }
+        if (found.route !== "GET hospital/overview" && !canManageHospital(session.role)) return forbidden();
+        switch (found.route) {
+          case "GET hospital/overview":
+            return ok(await getHospitalOverview(session));
+          case "POST hospital/census": {
+            const parsed = UpdateHospitalCensusInput.safeParse(rawBody);
+            if (!parsed.success) return bad(parsed.error, "Invalid hospital census payload.");
+            return ok(await updateHospitalCensus(session, parsed.data));
+          }
+          case "POST hospital/departments": {
+            const parsed = CreateHospitalDepartmentInput.safeParse(rawBody);
+            if (!parsed.success) return bad(parsed.error, "Invalid department payload.");
+            return ok(await createHospitalDepartment(session, parsed.data));
+          }
+          case "PUT hospital/departments/:id": {
+            const parsed = CreateHospitalDepartmentInput.partial().safeParse(rawBody);
+            if (!parsed.success) return bad(parsed.error, "Invalid department payload.");
+            return ok(await updateHospitalDepartment(session, id, parsed.data));
+          }
+          case "DELETE hospital/departments/:id":
+            return ok(await removeHospitalDepartment(session, id));
+          default: {
+            const parsed = UpdateHospitalProfileInput.safeParse(rawBody);
+            if (!parsed.success) return bad(parsed.error, "Invalid hospital profile payload.");
+            return ok(await updateHospitalProfile(session, parsed.data));
+          }
+        }
+      } catch (e) {
+        if (e instanceof HospitalError) return hospitalFail(e);
+        throw e;
+      }
     }
     case "GET nmc-compliance": {
       if (session.role !== "institution" && session.role !== "admin") return forbidden();

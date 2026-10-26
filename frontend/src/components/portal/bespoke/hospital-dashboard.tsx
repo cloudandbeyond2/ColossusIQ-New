@@ -47,6 +47,27 @@ export function HospitalDashboardModule({ role }: { role: Role }) {
   const [censusSurgeries, setCensusSurgeries] = useState<number>(0);
   const [censusDeliveries, setCensusDeliveries] = useState<number>(0);
   const [censusNotes, setCensusNotes] = useState<string>("");
+  const [censusIcu, setCensusIcu] = useState<number>(0);
+  const [censusDischarges, setCensusDischarges] = useState<number>(0);
+  const [censusCases, setCensusCases] = useState<string>("");
+
+  // department set-up and hospital facilities
+  const [deptModal, setDeptModal] = useState<{ id: string | null } | null>(null);
+  const [dName, setDName] = useState("");
+  const [dCategory, setDCategory] = useState<HospitalDepartment["category"]>("Medicine & Allied");
+  const [dHod, setDHod] = useState("");
+  const [dBeds, setDBeds] = useState(0);
+  const [dIcu, setDIcu] = useState(0);
+  const [dTarget, setDTarget] = useState(0);
+  const [dUnits, setDUnits] = useState("");
+  const [deptError, setDeptError] = useState<string | null>(null);
+  const [showFacilities, setShowFacilities] = useState(false);
+  const [fName, setFName] = useState("");
+  const [fLab, setFLab] = useState("");
+  const [fWhole, setFWhole] = useState("");
+  const [fComponent, setFComponent] = useState("");
+  const [fLicensed, setFLicensed] = useState(false);
+  const [facilitiesError, setFacilitiesError] = useState<string | null>(null);
   const [censusError, setCensusError] = useState<string | null>(null);
 
   // Rotation sign-off modal state
@@ -113,14 +134,76 @@ export function HospitalDashboardModule({ role }: { role: Role }) {
     },
   });
 
+  const errText = (err: unknown, fallback: string) => (err instanceof ApiError ? err.message : fallback);
+
+  const deptMutation = useMutation({
+    mutationFn: ({ id, input }: { id: string | null; input: Record<string, unknown> }) =>
+      id
+        ? apiFetch(`/api/v1/hospital/departments/${id}`, z.any(), { method: "PUT", body: input })
+        : apiFetch("/api/v1/hospital/departments", z.any(), { method: "POST", body: input }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["hospital-overview"] });
+      setDeptModal(null);
+      setDeptError(null);
+      flash("Department saved.");
+    },
+    onError: (err: unknown) => setDeptError(errText(err, "Couldn't save the department.")),
+  });
+
+  const removeDeptMutation = useMutation({
+    mutationFn: (id: string) => apiFetch(`/api/v1/hospital/departments/${id}`, z.any(), { method: "DELETE" }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["hospital-overview"] });
+      flash("Department removed.");
+    },
+    onError: (err: unknown) => flash(errText(err, "Couldn't remove the department.")),
+  });
+
+  const facilitiesMutation = useMutation({
+    mutationFn: (input: Record<string, unknown>) => apiFetch("/api/v1/hospital/profile", z.any(), { method: "PUT", body: input }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["hospital-overview"] });
+      setShowFacilities(false);
+      setFacilitiesError(null);
+      flash("Hospital facilities saved; NMC norms recalculated.");
+    },
+    onError: (err: unknown) => setFacilitiesError(errText(err, "Couldn't save the facilities.")),
+  });
+
+  const openDeptModal = (dept?: HospitalDepartment) => {
+    setDeptModal({ id: dept?.id ?? null });
+    setDName(dept?.name ?? "");
+    setDCategory(dept?.category ?? "Medicine & Allied");
+    setDHod(dept?.hod ?? "");
+    setDBeds(dept?.teachingBeds ?? 0);
+    setDIcu(dept?.icuBeds ?? 0);
+    setDTarget(dept?.cbmeTargetCases ?? 0);
+    setDUnits(dept?.units.join(", ") ?? "");
+    setDeptError(null);
+  };
+
+  const openFacilities = () => {
+    const pr = data?.profile;
+    setFName(pr?.hospitalName ?? "");
+    setFLab(pr?.labTestsDaily != null ? String(pr.labTestsDaily) : "");
+    setFWhole(pr?.bloodWholeUnits != null ? String(pr.bloodWholeUnits) : "");
+    setFComponent(pr?.bloodComponentUnits != null ? String(pr.bloodComponentUnits) : "");
+    setFLicensed(pr?.bloodBankLicensed ?? false);
+    setFacilitiesError(null);
+    setShowFacilities(true);
+  };
+
   const openCensusModalFor = (dept?: HospitalDepartment) => {
     if (dept) {
       setSelectedDeptForCensus(dept.name);
       setCensusOpd(dept.opdDaily);
       setCensusIpd(dept.ipdAdmissionsDaily);
       setCensusOccupiedBeds(dept.occupiedBeds);
-      setCensusSurgeries(dept.surgeriesMonthly ? Math.round(dept.surgeriesMonthly / 25) : 0);
-      setCensusDeliveries(dept.deliveriesMonthly ? Math.round(dept.deliveriesMonthly / 25) : 0);
+      setCensusSurgeries(0);
+      setCensusDeliveries(0);
+      setCensusIcu(dept.icuOccupied);
+      setCensusDischarges(0);
+      setCensusCases(dept.studentCasesWeekly > 0 ? String(dept.studentCasesWeekly) : "");
     } else if (data && data.departments.length > 0) {
       const first = data.departments[0];
       if (first) {
@@ -128,9 +211,12 @@ export function HospitalDashboardModule({ role }: { role: Role }) {
         setCensusOpd(first.opdDaily);
         setCensusIpd(first.ipdAdmissionsDaily);
         setCensusOccupiedBeds(first.occupiedBeds);
+        setCensusIcu(first.icuOccupied);
+        setCensusCases(first.studentCasesWeekly > 0 ? String(first.studentCasesWeekly) : "");
       }
       setCensusSurgeries(0);
       setCensusDeliveries(0);
+      setCensusDischarges(0);
     }
     setCensusNotes("");
     setCensusError(null);
@@ -159,6 +245,9 @@ export function HospitalDashboardModule({ role }: { role: Role }) {
       occupiedBeds: Number(censusOccupiedBeds),
       surgeries: Number(censusSurgeries) || undefined,
       deliveries: Number(censusDeliveries) || undefined,
+      icuOccupied: Number(censusIcu) || undefined,
+      discharges: Number(censusDischarges) || undefined,
+      casesPerStudent: censusCases.trim() === "" ? undefined : Number(censusCases),
       notes: censusNotes.trim() || undefined,
     });
   };
@@ -250,6 +339,8 @@ export function HospitalDashboardModule({ role }: { role: Role }) {
 
   const { kpis, departments, nmcNorms, recentLogs, activeRotations, monthlyTrends } = data;
   const isOccupancyCompliant = kpis.occupancyRate >= 80;
+  const canManage = data.permissions.manage;
+  const canCertify = data.permissions.certify;
 
   // Chart data for departmental beds
   const deptBedChartData = departments.slice(0, 7).map((d) => ({
@@ -311,16 +402,23 @@ export function HospitalDashboardModule({ role }: { role: Role }) {
             <Fi name="document" className="text-xs" />
             Export Census CSV
           </Button>
-          {(role === "institution" || role === "hod" || role === "admin") && (
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={() => openCensusModalFor()}
-              className="flex items-center gap-1.5"
-            >
-              <Fi name="plus" className="text-xs" />
-              Update Daily Census
-            </Button>
+          {canManage && (
+            <>
+              <Button variant="secondary" size="sm" onClick={openFacilities} className="flex items-center gap-1.5">
+                <Fi name="hospital" className="text-xs" />
+                Hospital Facilities
+              </Button>
+              <Button variant="secondary" size="sm" onClick={() => openDeptModal()} className="flex items-center gap-1.5">
+                <Fi name="plus" className="text-xs" />
+                Add Department
+              </Button>
+              {departments.length > 0 && (
+                <Button variant="primary" size="sm" onClick={() => openCensusModalFor()} className="flex items-center gap-1.5">
+                  <Fi name="plus" className="text-xs" />
+                  Update Daily Census
+                </Button>
+              )}
+            </>
           )}
         </div>
       </div>
@@ -349,6 +447,14 @@ export function HospitalDashboardModule({ role }: { role: Role }) {
           </button>
         ))}
       </div>
+
+      {departments.length === 0 && (
+        <EmptyState
+          title="No departments set up yet"
+          body={canManage ? "Add your hospital's wards and departments, then record the first daily census to see occupancy, trends and NMC norm status." : "The hospital's wards haven't been set up yet."}
+          action={canManage ? <Button variant="primary" onClick={() => openDeptModal()}>Add Department</Button> : undefined}
+        />
+      )}
 
       {/* TAB 1: OVERVIEW */}
       {activeTab === "overview" && (
@@ -384,7 +490,7 @@ export function HospitalDashboardModule({ role }: { role: Role }) {
               <CardBody className="p-4 space-y-2">
                 <div className="flex items-center justify-between text-xs text-[var(--ink-2)]">
                   <span>Daily OPD Footfall</span>
-                  <Badge tone="teal">Norm: ≥1,200/day</Badge>
+                  <Badge tone="teal">Norm: ≥2,500/day</Badge>
                 </div>
                 <div className="flex items-baseline gap-2">
                   <span className="text-2xl font-bold text-[var(--ink)]">{kpis.dailyOpd.toLocaleString()}</span>
@@ -394,9 +500,6 @@ export function HospitalDashboardModule({ role }: { role: Role }) {
                   <span>IPD Admissions: {kpis.dailyIpdAdmissions}</span>
                   <span>Discharges: {kpis.dailyDischarges}</span>
                 </div>
-                <p className="text-[11px] text-[var(--ink-3)]">
-                  Adequate clinical material available for bedside CBME training.
-                </p>
               </CardBody>
             </Card>
 
@@ -406,7 +509,7 @@ export function HospitalDashboardModule({ role }: { role: Role }) {
                 <div className="flex items-center justify-between text-xs text-[var(--ink-2)]">
                   <span>Critical Care (ICU / ICCU)</span>
                   <Badge tone="amber">
-                    {Math.round((kpis.icuOccupiedBeds / kpis.totalIcuBeds) * 100)}% Load
+                    {kpis.totalIcuBeds > 0 ? Math.round((kpis.icuOccupiedBeds / kpis.totalIcuBeds) * 100) : 0}% Load
                   </Badge>
                 </div>
                 <div className="flex items-baseline gap-2">
@@ -417,7 +520,7 @@ export function HospitalDashboardModule({ role }: { role: Role }) {
                 </div>
                 <div className="flex justify-between text-[11px] text-[var(--ink-2)]">
                   <span>Emergency 24x7: {kpis.emergencyFootfall} pts</span>
-                  <span>Ratio: {( (kpis.totalIcuBeds / kpis.totalBeds) * 100 ).toFixed(1)}% (Norm ≥10%)</span>
+                  <span>Ratio: {kpis.totalBeds > 0 ? ((kpis.totalIcuBeds / kpis.totalBeds) * 100).toFixed(1) : "0.0"}% (Norm ≥10%)</span>
                 </div>
                 <p className="text-[11px] text-[var(--ink-3)]">
                   ICU, ICCU, NICU, PICU & Trauma triage units operational.
@@ -501,7 +604,7 @@ export function HospitalDashboardModule({ role }: { role: Role }) {
             <div className="flex items-center justify-between">
               <h3 className="text-base font-semibold text-[var(--ink)]">Clinical Department Census Snapshot</h3>
               <Button variant="secondary" size="sm" onClick={() => setActiveTab("departments")}>
-                Manage All 11 Wards
+                Manage All {departments.length} Wards
               </Button>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -675,15 +778,25 @@ export function HospitalDashboardModule({ role }: { role: Role }) {
                     <span className="text-[11px] text-[var(--ink-3)]">
                       {dept.units.length} Unit{dept.units.length > 1 ? "s" : ""}: {dept.units.join(", ")}
                     </span>
-                    {(role === "institution" || role === "hod" || role === "admin") && (
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        onClick={() => openCensusModalFor(dept)}
-                        className="text-xs h-7 px-2.5"
-                      >
-                        Record Census
-                      </Button>
+                    {canManage && (
+                      <div className="flex items-center gap-1.5">
+                        <Button variant="secondary" size="sm" onClick={() => openDeptModal(dept)} className="text-xs h-7 px-2.5">
+                          Edit
+                        </Button>
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => {
+                            if (confirm(`Remove ${dept.name} and its census history?`)) removeDeptMutation.mutate(dept.id);
+                          }}
+                          className="text-xs h-7 px-2.5"
+                        >
+                          Remove
+                        </Button>
+                        <Button variant="secondary" size="sm" onClick={() => openCensusModalFor(dept)} className="text-xs h-7 px-2.5">
+                          Record Census
+                        </Button>
+                      </div>
                     )}
                   </div>
                 </CardBody>
@@ -768,7 +881,7 @@ export function HospitalDashboardModule({ role }: { role: Role }) {
                       </Badge>
                     </td>
                     <td className="p-3 text-right">
-                      {(role === "institution" || role === "hod" || role === "faculty" || role === "admin") && (
+                      {canCertify && (
                         <Button
                           variant="secondary"
                           size="sm"
@@ -890,6 +1003,136 @@ export function HospitalDashboardModule({ role }: { role: Role }) {
         </div>
       )}
 
+      {/* MODAL 0: DEPARTMENT SET-UP */}
+      {deptModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-lg rounded-2xl bg-[var(--surface)] border border-[var(--line)] shadow-xl overflow-hidden">
+            <div className="flex items-center justify-between border-b border-[var(--line)] p-4">
+              <h3 className="font-semibold text-base text-[var(--ink)]">{deptModal.id ? "Edit Department" : "Add Department"}</h3>
+              <button onClick={() => setDeptModal(null)} className="text-[var(--ink-3)] hover:text-[var(--ink)] text-sm p-1">✕</button>
+            </div>
+            <form
+              className="p-4 space-y-3"
+              onSubmit={(e) => {
+                e.preventDefault();
+                deptMutation.mutate({
+                  id: deptModal.id,
+                  input: {
+                    name: dName,
+                    category: dCategory,
+                    hod: dHod,
+                    teachingBeds: Number(dBeds),
+                    icuBeds: Number(dIcu),
+                    cbmeTargetCases: Number(dTarget),
+                    units: dUnits.split(",").map((u) => u.trim()).filter(Boolean),
+                  },
+                });
+              }}
+            >
+              {deptError && <div className="p-3 text-xs rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-600">{deptError}</div>}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-[var(--ink)] mb-1">Department / Ward</label>
+                  <input value={dName} onChange={(e) => setDName(e.target.value)} className={cn(inputClass, "w-full text-xs")} placeholder="e.g. General Medicine" required />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-[var(--ink)] mb-1">Category</label>
+                  <select value={dCategory} onChange={(e) => setDCategory(e.target.value as HospitalDepartment["category"])} className={cn(inputClass, "w-full text-xs")}>
+                    <option>Medicine & Allied</option>
+                    <option>Surgery & Allied</option>
+                    <option>OBG & Paediatrics</option>
+                    <option>Emergency & Critical Care</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-[var(--ink)] mb-1">Head of Department</label>
+                <input value={dHod} onChange={(e) => setDHod(e.target.value)} className={cn(inputClass, "w-full text-xs")} />
+              </div>
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-[var(--ink)] mb-1">Teaching Beds</label>
+                  <input type="number" min="0" max="2000" value={dBeds} onChange={(e) => setDBeds(Number(e.target.value))} className={cn(inputClass, "w-full text-xs")} required />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-[var(--ink)] mb-1">ICU Beds</label>
+                  <input type="number" min="0" max="500" value={dIcu} onChange={(e) => setDIcu(Number(e.target.value))} className={cn(inputClass, "w-full text-xs")} />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-[var(--ink)] mb-1">Target Cases / Student / Wk</label>
+                  <input type="number" min="0" max="100" step="0.5" value={dTarget} onChange={(e) => setDTarget(Number(e.target.value))} className={cn(inputClass, "w-full text-xs")} />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-[var(--ink)] mb-1">Units (comma separated)</label>
+                <input value={dUnits} onChange={(e) => setDUnits(e.target.value)} className={cn(inputClass, "w-full text-xs")} placeholder="Unit I (Ward 11), Unit II (Ward 12)" />
+              </div>
+              <div className="flex justify-end gap-2 pt-2 border-t border-[var(--line)]">
+                <Button type="button" variant="secondary" size="sm" onClick={() => setDeptModal(null)}>Cancel</Button>
+                <Button type="submit" variant="primary" size="sm" disabled={deptMutation.isPending}>{deptMutation.isPending ? "Saving..." : "Save Department"}</Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: HOSPITAL FACILITIES */}
+      {showFacilities && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-2xl bg-[var(--surface)] border border-[var(--line)] shadow-xl overflow-hidden">
+            <div className="flex items-center justify-between border-b border-[var(--line)] p-4">
+              <div>
+                <h3 className="font-semibold text-base text-[var(--ink)]">Hospital Facilities</h3>
+                <p className="text-xs text-[var(--ink-2)]">Lab and blood-bank figures used for the NMC norm checks.</p>
+              </div>
+              <button onClick={() => setShowFacilities(false)} className="text-[var(--ink-3)] hover:text-[var(--ink)] text-sm p-1">✕</button>
+            </div>
+            <form
+              className="p-4 space-y-3"
+              onSubmit={(e) => {
+                e.preventDefault();
+                const num = (v: string) => (v.trim() === "" ? null : Number(v));
+                facilitiesMutation.mutate({
+                  hospitalName: fName,
+                  labTestsDaily: num(fLab),
+                  bloodWholeUnits: num(fWhole),
+                  bloodComponentUnits: num(fComponent),
+                  bloodBankLicensed: fLicensed,
+                });
+              }}
+            >
+              {facilitiesError && <div className="p-3 text-xs rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-600">{facilitiesError}</div>}
+              <div>
+                <label className="block text-xs font-medium text-[var(--ink)] mb-1">Hospital name</label>
+                <input value={fName} onChange={(e) => setFName(e.target.value)} className={cn(inputClass, "w-full text-xs")} placeholder={data.hospitalName} />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-[var(--ink)] mb-1">Central lab tests per day</label>
+                <input type="number" min="0" value={fLab} onChange={(e) => setFLab(e.target.value)} className={cn(inputClass, "w-full text-xs")} />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-[var(--ink)] mb-1">Whole blood units</label>
+                  <input type="number" min="0" value={fWhole} onChange={(e) => setFWhole(e.target.value)} className={cn(inputClass, "w-full text-xs")} />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-[var(--ink)] mb-1">Component units (PRBC/FFP)</label>
+                  <input type="number" min="0" value={fComponent} onChange={(e) => setFComponent(e.target.value)} className={cn(inputClass, "w-full text-xs")} />
+                </div>
+              </div>
+              <label className="flex items-center gap-2 text-xs text-[var(--ink)]">
+                <input type="checkbox" checked={fLicensed} onChange={(e) => setFLicensed(e.target.checked)} />
+                Blood centre holds a valid licence (24/7 component separation)
+              </label>
+              <div className="flex justify-end gap-2 pt-2 border-t border-[var(--line)]">
+                <Button type="button" variant="secondary" size="sm" onClick={() => setShowFacilities(false)}>Cancel</Button>
+                <Button type="submit" variant="primary" size="sm" disabled={facilitiesMutation.isPending}>{facilitiesMutation.isPending ? "Saving..." : "Save Facilities"}</Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* MODAL 1: UPDATE WARD CENSUS */}
       {showCensusModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
@@ -925,6 +1168,8 @@ export function HospitalDashboardModule({ role }: { role: Role }) {
                       setCensusOpd(found.opdDaily);
                       setCensusIpd(found.ipdAdmissionsDaily);
                       setCensusOccupiedBeds(found.occupiedBeds);
+                      setCensusIcu(found.icuOccupied);
+                      setCensusCases(found.studentCasesWeekly > 0 ? String(found.studentCasesWeekly) : "");
                     }
                   }}
                   className={cn(inputClass, "w-full text-xs")}
@@ -952,7 +1197,7 @@ export function HospitalDashboardModule({ role }: { role: Role }) {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-[var(--ink)] mb-1">Today's OPD Footfall</label>
+                  <label className="block text-xs font-medium text-[var(--ink)] mb-1">Today&apos;s OPD Footfall</label>
                   <input
                     type="number"
                     min="0"
@@ -999,6 +1244,21 @@ export function HospitalDashboardModule({ role }: { role: Role }) {
                     onChange={(e) => setCensusDeliveries(Number(e.target.value))}
                     className={cn(inputClass, "w-full text-xs")}
                   />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-[var(--ink)] mb-1">ICU Beds Occupied</label>
+                  <input type="number" min="0" max="500" value={censusIcu} onChange={(e) => setCensusIcu(Number(e.target.value))} className={cn(inputClass, "w-full text-xs")} />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-[var(--ink)] mb-1">Discharges Today</label>
+                  <input type="number" min="0" max="500" value={censusDischarges} onChange={(e) => setCensusDischarges(Number(e.target.value))} className={cn(inputClass, "w-full text-xs")} />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-[var(--ink)] mb-1">Cases / Student / Wk</label>
+                  <input type="number" min="0" max="100" step="0.1" value={censusCases} onChange={(e) => setCensusCases(e.target.value)} className={cn(inputClass, "w-full text-xs")} />
                 </div>
               </div>
 

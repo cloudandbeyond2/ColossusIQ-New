@@ -6,6 +6,8 @@ export const HospitalDepartmentSchema = z.object({
   category: z.enum(["Medicine & Allied", "Surgery & Allied", "OBG & Paediatrics", "Emergency & Critical Care"]),
   hod: z.string(),
   teachingBeds: z.number(),
+  icuBeds: z.number().default(0),
+  icuOccupied: z.number().default(0),
   occupiedBeds: z.number(),
   occupancyPercent: z.number(),
   opdDaily: z.number(),
@@ -16,8 +18,9 @@ export const HospitalDepartmentSchema = z.object({
   cbmeTargetCases: z.number(),
   units: z.array(z.string()),
   activeStudents: z.number(),
-  status: z.enum(["Optimal", "Surplus", "Attention Required"]),
+  status: z.enum(["Optimal", "Surplus", "Attention Required", "Awaiting Census"]),
   statusNotes: z.string().optional(),
+  lastCensusAt: z.string().optional(),
 });
 export type HospitalDepartment = z.infer<typeof HospitalDepartmentSchema>;
 
@@ -84,6 +87,15 @@ export const HospitalMonthlyTrendSchema = z.object({
 });
 export type HospitalMonthlyTrend = z.infer<typeof HospitalMonthlyTrendSchema>;
 
+export const HospitalProfileSchema = z.object({
+  hospitalName: z.string(),
+  labTestsDaily: z.number().nullable(),
+  bloodWholeUnits: z.number().nullable(),
+  bloodComponentUnits: z.number().nullable(),
+  bloodBankLicensed: z.boolean(),
+});
+export type HospitalProfile = z.infer<typeof HospitalProfileSchema>;
+
 export const HospitalOverviewSchema = z.object({
   collegeId: z.string(),
   hospitalName: z.string(),
@@ -94,6 +106,8 @@ export const HospitalOverviewSchema = z.object({
   recentLogs: z.array(HospitalCensusLogSchema),
   activeRotations: z.array(HospitalRotationItemSchema),
   monthlyTrends: z.array(HospitalMonthlyTrendSchema),
+  profile: HospitalProfileSchema,
+  permissions: z.object({ manage: z.boolean(), certify: z.boolean() }),
 });
 export type HospitalOverview = z.infer<typeof HospitalOverviewSchema>;
 
@@ -104,6 +118,9 @@ export const UpdateHospitalCensusInput = z.object({
   occupiedBeds: z.number().int().min(0).max(1000),
   surgeries: z.number().int().min(0).max(500).optional(),
   deliveries: z.number().int().min(0).max(300).optional(),
+  icuOccupied: z.number().int().min(0).max(500).optional(),
+  discharges: z.number().int().min(0).max(500).optional(),
+  casesPerStudent: z.number().min(0).max(100).optional(),
   notes: z.string().max(500).optional(),
 });
 export type UpdateHospitalCensusInput = z.infer<typeof UpdateHospitalCensusInput>;
@@ -115,3 +132,25 @@ export const CertifyRotationInput = z.object({
   remarks: z.string().max(500).optional(),
 });
 export type CertifyRotationInput = z.infer<typeof CertifyRotationInput>;
+
+export const HospitalCategoryEnum = z.enum(["Medicine & Allied", "Surgery & Allied", "OBG & Paediatrics", "Emergency & Critical Care"]);
+
+export const CreateHospitalDepartmentInput = z.object({
+  name: z.string().trim().min(2, "Department name is required").max(120),
+  category: HospitalCategoryEnum,
+  hod: z.string().trim().max(120).default(""),
+  teachingBeds: z.number().int().min(0).max(2000),
+  icuBeds: z.number().int().min(0).max(500).default(0),
+  cbmeTargetCases: z.number().min(0).max(100).default(0),
+  units: z.array(z.string().trim().min(1).max(80)).max(20).default([]),
+});
+export type CreateHospitalDepartmentInput = z.infer<typeof CreateHospitalDepartmentInput>;
+
+export const UpdateHospitalProfileInput = z.object({
+  hospitalName: z.string().trim().max(160).default(""),
+  labTestsDaily: z.number().int().min(0).max(100000).nullable().default(null),
+  bloodWholeUnits: z.number().int().min(0).max(100000).nullable().default(null),
+  bloodComponentUnits: z.number().int().min(0).max(100000).nullable().default(null),
+  bloodBankLicensed: z.boolean().default(false),
+});
+export type UpdateHospitalProfileInput = z.infer<typeof UpdateHospitalProfileInput>;
