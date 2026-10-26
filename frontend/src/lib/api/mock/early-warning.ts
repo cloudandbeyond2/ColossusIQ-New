@@ -15,48 +15,24 @@ import type {
 import type { SessionPayload } from "@/lib/auth/session";
 import { getStore } from "@/lib/data";
 import { computeReadiness } from "./learning";
-import { sharedState } from "./global-state";
+import { supportData } from "./support-data";
 import { getCollege, listColleges } from "./records";
 
-interface StudentCaseRecord {
-  status: "Pending review" | "In progress" | "Resolved";
-  notes?: string;
-  assignedMentor?: string;
-  lastActionDate?: string;
+export class SupportError extends Error {
+  constructor(
+    message: string,
+    readonly status: 400 | 403 | 404 | 409 = 400,
+  ) {
+    super(message);
+  }
 }
 
-// In-memory case management persistent across Next.js reloads & bundles per college
-const collegeStudentCases = sharedState("earlyWarning.cases", () => new Map<string, Map<string, StudentCaseRecord>>());
-const collegeInterventions = sharedState("earlyWarning.interventions", () => new Map<string, EarlyWarningIntervention[]>());
-
-async function resolveCollegeId(sessionCollege: string | null | undefined): Promise<string> {
-  let collegeId = sessionCollege && sessionCollege !== ALL_COLLEGES ? sessionCollege : "COL-1001";
-  const college = await getCollege(collegeId);
-  if (!college) {
-    const all = await listColleges();
-    if (all.length > 0 && all[0]) {
-      collegeId = all[0].id;
-    }
-  }
-  return collegeId;
-}
-
-function getCollegeCases(collegeId: string): Map<string, StudentCaseRecord> {
-  let cases = collegeStudentCases.get(collegeId);
-  if (!cases) {
-    cases = new Map();
-    collegeStudentCases.set(collegeId, cases);
-  }
-  return cases;
-}
-
-function getCollegeInterventionsList(collegeId: string): EarlyWarningIntervention[] {
-  let list = collegeInterventions.get(collegeId);
-  if (!list) {
-    list = [];
-    collegeInterventions.set(collegeId, list);
-  }
-  return list;
+/** The caller's college; admin ("all") works on the first college. */
+export async function resolveCollegeId(sessionCollege: string | null | undefined): Promise<string> {
+  if (sessionCollege && sessionCollege !== ALL_COLLEGES && (await getCollege(sessionCollege))) return sessionCollege;
+  const first = (await listColleges())[0];
+  if (!first) throw new SupportError("There is no college to show yet.", 404);
+  return first.id;
 }
 
 function deriveBatch(rollNo: string): string {
@@ -73,45 +49,38 @@ export async function createSupportAction(
   input: CreateSupportActionInput
 ): Promise<EarlyWarningIntervention> {
   const collegeId = await resolveCollegeId(session.college);
-  const now = new Date().toISOString();
+  const board = await getStore().readiness.board(collegeId);
+  const student = board.find((s) => s.studentSub === input.studentId);
+  if (!student) throw new SupportError("That student isn't in this college.", 404);
 
-  const item: EarlyWarningIntervention = {
-    id: `ACT-${Date.now().toString(36).toUpperCase()}`,
-    studentId: input.studentId,
-    studentName: input.studentName,
-    rollNo: "",
-    department: "",
-    strategy: input.strategy,
-    facultyLead: input.facultyLead,
+  const data = supportData();
+  const item = await data.addAction(collegeId, {
+    studentSub: student.studentSub,
+    studentName: student.name,
+    rollNo: student.rollNo,
+    department: student.department,
+    strategy: input.strategy.trim(),
+    facultyLead: input.facultyLead.trim(),
     targetDate: input.targetDate,
-    status: "In progress",
-    notes: input.notes,
-    createdAt: now.slice(0, 10),
-  };
-
-  // Find student metadata
-  const store = getStore();
-  const rawBoard = await store.readiness.board(collegeId);
-  const found = rawBoard.find((s) => s.studentSub === input.studentId || s.name === input.studentName);
-  if (found) {
-    item.rollNo = found.rollNo;
-    item.department = found.department;
-  }
-
-  const interventions = getCollegeInterventionsList(collegeId);
-  interventions.unshift(item);
-
-  // Update case record
-  const cases = getCollegeCases(collegeId);
-  const existing = cases.get(input.studentId) ?? { status: "Pending review" };
-  cases.set(input.studentId, {
-    ...existing,
-    status: "In progress",
-    assignedMentor: input.facultyLead,
-    lastActionDate: now.slice(0, 10),
-    notes: input.notes ? `${input.strategy}: ${input.notes}` : input.strategy,
+    notes: input.notes.trim(),
+    authorSub: session.sub,
   });
+  if (!item) throw new SupportError("Could not save the support plan.", 404);
 
+  await data.saveCase(collegeId, student.studentSub, {
+    status: "In progress",
+    assignedMentor: input.facultyLead.trim(),
+    notes: input.notes ? `${input.strategy}: ${input.notes}` : input.strategy,
+    lastActionDate: new Date().toISOString().slice(0, 10),
+    updatedBySub: session.sub,
+  });
+  await getStore().audit.add({
+    actor: session.name,
+    action: `Created support plan for ${student.name}: ${input.strategy}`,
+    target: "early-warning",
+    collegeId,
+    actorSub: session.sub,
+  });
   return item;
 }
 
@@ -120,18 +89,26 @@ export async function updateReviewStatus(
   input: UpdateReviewStatusInput
 ): Promise<{ ok: boolean; status: string; notes?: string }> {
   const collegeId = await resolveCollegeId(session.college);
-  const cases = getCollegeCases(collegeId);
-  const existing = cases.get(input.studentId) ?? { status: "Pending review" };
+  const board = await getStore().readiness.board(collegeId);
+  const student = board.find((s) => s.studentSub === input.studentId);
+  if (!student) throw new SupportError("That student isn't in this college.", 404);
 
-  const updated: StudentCaseRecord = {
-    ...existing,
+  const data = supportData();
+  await data.saveCase(collegeId, student.studentSub, {
     status: input.reviewStatus,
     lastActionDate: new Date().toISOString().slice(0, 10),
     ...(input.notes !== undefined ? { notes: input.notes } : {}),
-  };
-  cases.set(input.studentId, updated);
-
-  return { ok: true, status: updated.status, notes: updated.notes };
+    updatedBySub: session.sub,
+  });
+  const saved = (await data.cases(collegeId)).get(student.studentSub);
+  await getStore().audit.add({
+    actor: session.name,
+    action: `Marked ${student.name} as ${input.reviewStatus} in Early Warning`,
+    target: "early-warning",
+    collegeId,
+    actorSub: session.sub,
+  });
+  return { ok: true, status: input.reviewStatus, notes: saved?.notes || undefined };
 }
 
 export async function getEarlyWarningOverview(
@@ -178,8 +155,8 @@ export async function getEarlyWarningOverview(
   const evaluatedStudents = rawBoard.map(computeReadiness);
 
   // 4. Case records & interventions
-  const cases = getCollegeCases(collegeId);
-  const interventions = getCollegeInterventionsList(collegeId);
+  const cases = await supportData().cases(collegeId);
+  const interventions = await supportData().actions(collegeId);
 
   // Build flagged student models
   const students: EarlyWarningStudent[] = evaluatedStudents.map((s) => {
@@ -308,9 +285,9 @@ export async function getEarlyWarningOverview(
       signals,
       recommendation,
       reviewStatus,
-      assignedMentor: caseInfo?.assignedMentor,
-      lastActionDate: caseInfo?.lastActionDate,
-      actionNotes: caseInfo?.notes,
+      assignedMentor: caseInfo?.assignedMentor || undefined,
+      lastActionDate: caseInfo?.lastActionDate ?? undefined,
+      actionNotes: caseInfo?.notes || undefined,
     };
   });
 

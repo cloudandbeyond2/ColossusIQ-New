@@ -2362,3 +2362,52 @@ model NmcDepartmentNorm {
   @@unique([collegeId, department])
   @@map("nmc_department_norms")
 }
+
+model StudentSupportCase {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  collegeId      String    @map("college_id") @db.Uuid
+  studentSub     String    @map("student_sub")
+  status         String    @default("Pending review")
+  assignedMentor String    @default("") @map("assigned_mentor")
+  notes          String    @default("")
+  lastActionDate DateTime? @map("last_action_date") @db.Date
+  updatedBySub   String    @default("") @map("updated_by_sub")
+  updatedAt      DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([collegeId, studentSub])
+  @@map("student_support_cases")
+}
+
+model StudentSupportAction {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  collegeId   String   @map("college_id") @db.Uuid
+  studentSub  String   @map("student_sub")
+  studentName String   @default("") @map("student_name")
+  rollNo      String   @default("") @map("roll_no")
+  department  String   @default("")
+  strategy    String
+  facultyLead String   @map("faculty_lead")
+  targetDate  String   @map("target_date")
+  status      String   @default("In progress")
+  notes       String   @default("")
+  authorSub   String   @default("") @map("author_sub")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@map("student_support_actions")
+}
+
+model SkillIntervention {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  collegeId   String   @map("college_id") @db.Uuid
+  title       String
+  department  String
+  batch       String
+  targetSkill String   @map("target_skill")
+  facultyLead String   @map("faculty_lead")
+  duration    String
+  status      String   @default("Upcoming")
+  authorSub   String   @default("") @map("author_sub")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@map("skill_interventions")
+}

@@ -1,6 +1,5 @@
 import "server-only";
 import { RESOURCES } from "@/config/resources";
-import { ALL_COLLEGES } from "@/config/tenancy";
 import type {
   ChartSpec,
   CreateInterventionInput,
@@ -15,31 +14,32 @@ import type {
 import type { SessionPayload } from "@/lib/auth/session";
 import { getStore } from "@/lib/data";
 import { computeReadiness, READINESS_RULES } from "./learning";
-import { getCollege, listColleges } from "./records";
-
-// In-memory persistent interventions per college (created by actual users)
-const collegeInterventions = new Map<string, SkillIntervention[]>();
+import { getCollege } from "./records";
+import { supportData } from "./support-data";
+import { resolveCollegeId, SupportError } from "./early-warning";
 
 export async function createIntervention(
   session: SessionPayload,
   input: CreateInterventionInput
 ): Promise<SkillIntervention> {
-  const collegeId = session.college !== ALL_COLLEGES ? session.college : "COL-1001";
-  const item: SkillIntervention = {
-    id: `INT-${Date.now().toString(36).toUpperCase()}`,
-    title: input.title,
-    department: input.department,
-    batch: input.batch,
-    targetSkill: input.targetSkill,
-    facultyLead: input.facultyLead,
-    duration: input.duration,
-    enrolledCount: 0,
-    status: "Upcoming",
-    impact: `Targeting proficiency uplift for ${input.targetSkill}`,
-  };
-
-  const existing = collegeInterventions.get(collegeId) ?? [];
-  collegeInterventions.set(collegeId, [item, ...existing]);
+  const collegeId = await resolveCollegeId(session.college);
+  const item = await supportData().addSkill(collegeId, {
+    title: input.title.trim(),
+    department: input.department.trim(),
+    batch: input.batch.trim(),
+    targetSkill: input.targetSkill.trim(),
+    facultyLead: input.facultyLead.trim(),
+    duration: input.duration.trim(),
+    authorSub: session.sub,
+  });
+  if (!item) throw new SupportError("Could not save the programme.", 404);
+  await getStore().audit.add({
+    actor: session.name,
+    action: `Created skill programme: ${item.title}`,
+    target: "department-skills",
+    collegeId,
+    actorSub: session.sub,
+  });
   return item;
 }
 
@@ -58,15 +58,8 @@ export async function getDepartmentSkillsOverview(
   filterBatch = "all",
   filterDomain = "all"
 ): Promise<DepartmentSkillsData> {
-  let collegeId = session.college !== ALL_COLLEGES ? session.college : "COL-1001";
-  let college = await getCollege(collegeId);
-  if (!college) {
-    const all = await listColleges();
-    if (all.length > 0 && all[0]) {
-      college = all[0];
-      collegeId = college.id;
-    }
-  }
+  const collegeId = await resolveCollegeId(session.college);
+  const college = await getCollege(collegeId);
 
   const collegeTitle = String(college?.name ?? "College");
   const store = getStore();
@@ -463,7 +456,7 @@ export async function getDepartmentSkillsOverview(
   ];
 
   // 12. REAL Interventions for this college
-  const currentInterventions = (collegeInterventions.get(collegeId) ?? []).filter((item) => {
+  const currentInterventions = (await supportData().skills(collegeId)).filter((item) => {
     if (isDeptSpecific && item.department !== "All Departments" && item.department !== effectiveDept) {
       return false;
     }

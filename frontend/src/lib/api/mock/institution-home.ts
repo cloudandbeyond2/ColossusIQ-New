@@ -8,14 +8,12 @@ import { formatNumber } from "@/lib/utils";
 import { collegeStream, getCollege, listColleges } from "./records";
 
 export async function dynamicInstitutionHome(session: SessionPayload): Promise<RoleHome> {
-  let collegeId = session.college !== ALL_COLLEGES ? session.college : "COL-1001";
-  let college = await getCollege(collegeId);
+  // The caller's college; admin ("all") sees the first college.
+  let collegeId: string = session.college !== ALL_COLLEGES ? session.college : "";
+  let college = collegeId ? await getCollege(collegeId) : undefined;
   if (!college) {
-    const all = await listColleges();
-    if (all.length > 0 && all[0]) {
-      college = all[0];
-      collegeId = college.id;
-    }
+    college = (await listColleges())[0];
+    collegeId = college?.id ?? "";
   }
 
   const collegeName = String(college?.name ?? "College");
@@ -83,7 +81,7 @@ export async function dynamicInstitutionHome(session: SessionPayload): Promise<R
       ? Math.round(
           deptsWithStudents.reduce((sum, d) => sum + (deptStats.get(d.id)?.readiness ?? 0), 0) / deptsWithStudents.length
         )
-      : 72;
+      : null;
 
   const studentCount = totalDeptStudents > 0 ? totalDeptStudents : enrolled;
   const facultyCount = teachingStaff > 0 ? teachingStaff : totalDeptFaculty > 0 ? totalDeptFaculty : activeStaff;
@@ -91,11 +89,13 @@ export async function dynamicInstitutionHome(session: SessionPayload): Promise<R
   // Rotations for medical stream
   const rotations = stream === "medical" ? await getStore().records.all(RESOURCES.rotations!, collegeId) : [];
   const ongoingRotations = rotations.filter((r) => r.status === "Ongoing").length;
+  const withAttendance = rotations.filter((r) => r.attendance !== undefined && r.attendance !== null && r.attendance !== "");
   const avgAttendance =
-    rotations.length > 0
-      ? Math.round(rotations.reduce((a, r) => a + Number(r.attendance ?? 0), 0) / rotations.length)
-      : 88;
-  const pendingLogbooks = rotations.reduce((a, r) => a + Math.max(0, 30 - Number(r.competenciesSigned ?? 0)), 0);
+    withAttendance.length > 0
+      ? Math.round(withAttendance.reduce((a, r) => a + Number(r.attendance), 0) / withAttendance.length)
+      : null;
+  const lowAttendance = withAttendance.filter((r) => Number(r.attendance) < 80).length;
+  const certifiedCompetencies = rotations.reduce((a, r) => a + Number(r.competenciesSigned ?? 0), 0);
 
   // KPIs
   const kpis: Kpi[] =
@@ -121,9 +121,9 @@ export async function dynamicInstitutionHome(session: SessionPayload): Promise<R
           },
           {
             label: "Avg clinical attendance",
-            value: `${avgAttendance}%`,
-            delta: avgAttendance >= 80 ? "NMC norm met" : "Attendance risk",
-            tone: avgAttendance >= 80 ? "teal" : "rose",
+            value: avgAttendance === null ? "—" : `${avgAttendance}%`,
+            delta: avgAttendance === null ? "No attendance recorded" : avgAttendance >= 80 ? "Meets the 80% requirement" : "Attendance risk",
+            tone: avgAttendance === null ? "neutral" : avgAttendance >= 80 ? "teal" : "rose",
           },
           {
             label: "Departments",
@@ -144,9 +144,10 @@ export async function dynamicInstitutionHome(session: SessionPayload): Promise<R
             tone: "gold",
           },
           {
-            label: "Pending logbook sign-offs",
-            value: String(pendingLogbooks),
-            tone: pendingLogbooks > 0 ? "amber" : "teal",
+            label: "Logbook competencies certified",
+            value: formatNumber(certifiedCompetencies),
+            delta: "Across all postings",
+            tone: "teal",
           },
         ]
       : [
@@ -182,14 +183,9 @@ export async function dynamicInstitutionHome(session: SessionPayload): Promise<R
           },
           {
             label: "Placement readiness",
-            value: totalDeptStudents > 0 ? `${avgReadiness}%` : "—",
-            delta:
-              totalDeptStudents > 0
-                ? avgReadiness >= 70
-                  ? `+${avgReadiness - 70}% vs target`
-                  : `${avgReadiness - 70}% vs target`
-                : "No active cohort",
-            tone: avgReadiness >= 75 ? "teal" : avgReadiness >= 60 ? "brand" : "amber",
+            value: avgReadiness !== null && totalDeptStudents > 0 ? `${avgReadiness}%` : "—",
+            delta: avgReadiness !== null && totalDeptStudents > 0 ? "Average across departments" : "No active cohort",
+            tone: avgReadiness === null ? "neutral" : avgReadiness >= 75 ? "teal" : avgReadiness >= 60 ? "brand" : "amber",
           },
           {
             label: "Campus events",
@@ -244,7 +240,7 @@ export async function dynamicInstitutionHome(session: SessionPayload): Promise<R
       title: "Clinical Postings by Department",
       xKey: "name",
       series: ["Postings"],
-      data: rotList.length > 0 ? rotList : [{ name: "Medicine", Postings: 8 }, { name: "Surgery", Postings: 6 }],
+      data: rotList.length > 0 ? rotList : [{ name: "No postings yet", Postings: 0 }],
     };
   } else {
     const funnelData = [
@@ -298,10 +294,10 @@ export async function dynamicInstitutionHome(session: SessionPayload): Promise<R
       tone: "teal",
     });
   }
-  if (stream === "medical" && pendingLogbooks > 0) {
+  if (stream === "medical" && lowAttendance > 0) {
     queue.push({
-      title: `${pendingLogbooks} logbook sign-offs pending`,
-      meta: "Clinical rotation certification backlog",
+      title: `${lowAttendance} clinical posting${lowAttendance > 1 ? "s" : ""} below 80% attendance`,
+      meta: "Eligibility risk before university exams",
       href: "/institution/rotations",
       tone: "rose",
     });
@@ -353,17 +349,17 @@ export async function dynamicInstitutionHome(session: SessionPayload): Promise<R
       const topS = deptStats.get(top.id);
       insights.push({
         title: "Department Placement Readiness Lead",
-        body: `${String(top.department)} leads institutional readiness at ${topS?.readiness ?? avgReadiness}% with ${topS?.programmes ?? 1} active programmes and ${topS?.faculty ?? 0} teaching staff.`,
+        body: `${String(top.department)} leads institutional readiness at ${topS?.readiness ?? 0}% with ${topS?.programmes ?? 1} active programmes and ${topS?.faculty ?? 0} teaching staff.`,
         evidence: "Placement readiness analytics",
         tone: "brand",
       });
     }
   }
-  if (insights.length < 2) {
+  if (insights.length === 0) {
     insights.push({
-      title: "Campus AI Integration",
-      body: "Institutional RAG knowledge base grounds AI answers across student and faculty assistants.",
-      evidence: "Institutional governance log",
+      title: "Nothing to report yet",
+      body: "Insights appear here once the college has admissions, staff and department records.",
+      evidence: "No records yet",
       tone: "sky",
     });
   }

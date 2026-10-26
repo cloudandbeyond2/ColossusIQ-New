@@ -123,7 +123,7 @@ import {
   toggleScheduledReport,
 } from "./reports";
 import { createIntervention, getDepartmentSkillsOverview } from "./department-skills";
-import { createSupportAction, getEarlyWarningOverview, updateReviewStatus } from "./early-warning";
+import { createSupportAction, getEarlyWarningOverview, updateReviewStatus, SupportError } from "./early-warning";
 import {
   canManageAicte,
   createAicteAction,
@@ -289,6 +289,8 @@ const reportFail = (e: ReportError) =>
 const hospitalFail = (e: HospitalError) =>
   err(e.status, e.status === 404 ? "not_found" : e.status === 403 ? "forbidden" : e.status === 409 ? "conflict" : "invalid_body", e.message);
 const nmcFail = (e: NmcError) =>
+  err(e.status, e.status === 404 ? "not_found" : e.status === 403 ? "forbidden" : e.status === 409 ? "conflict" : "invalid_body", e.message);
+const supportFail = (e: SupportError) =>
   err(e.status, e.status === 404 ? "not_found" : e.status === 403 ? "forbidden" : e.status === 409 ? "conflict" : "invalid_body", e.message);
 const cbcsFail = (e: CbcsError) =>
   err(e.status, e.status === 404 ? "not_found" : e.status === 403 ? "forbidden" : e.status === 409 ? "conflict" : "invalid_body", e.message);
@@ -683,7 +685,12 @@ export async function dispatch(method: string, segs: string[], rawBody: unknown,
       if (session.role !== "institution" && session.role !== "hod" && session.role !== "admin") return forbidden();
       const parsed = CreateInterventionInput.safeParse(rawBody);
       if (!parsed.success) return err(400, "invalid_body", parsed.error.issues[0]?.message ?? "Invalid intervention payload.");
-      return ok(await createIntervention(session, parsed.data));
+      try {
+        return ok(await createIntervention(session, parsed.data));
+      } catch (e) {
+        if (e instanceof SupportError) return supportFail(e);
+        throw e;
+      }
     }
     case "GET early-warning": {
       if (session.role !== "institution" && session.role !== "hod" && session.role !== "faculty" && session.role !== "admin") return forbidden();
@@ -696,14 +703,24 @@ export async function dispatch(method: string, segs: string[], rawBody: unknown,
       if (session.role !== "institution" && session.role !== "hod" && session.role !== "faculty" && session.role !== "admin") return forbidden();
       const parsed = CreateSupportActionInput.safeParse(rawBody);
       if (!parsed.success) return err(400, "invalid_body", parsed.error.issues[0]?.message ?? "Invalid support action payload.");
-      return ok(await createSupportAction(session, parsed.data));
+      try {
+        return ok(await createSupportAction(session, parsed.data));
+      } catch (e) {
+        if (e instanceof SupportError) return supportFail(e);
+        throw e;
+      }
     }
     case "PATCH early-warning/reviews/:id": {
       if (session.role !== "institution" && session.role !== "hod" && session.role !== "faculty" && session.role !== "admin") return forbidden();
       const studentId = found.id ?? segs[2] ?? "";
       const parsed = UpdateReviewStatusInput.safeParse({ ...(typeof rawBody === "object" && rawBody !== null ? rawBody : {}), studentId });
       if (!parsed.success) return err(400, "invalid_body", parsed.error.issues[0]?.message ?? "Invalid review status payload.");
-      return ok(await updateReviewStatus(session, parsed.data));
+      try {
+        return ok(await updateReviewStatus(session, parsed.data));
+      } catch (e) {
+        if (e instanceof SupportError) return supportFail(e);
+        throw e;
+      }
     }
     case "GET aicte-compliance": {
       if (session.role !== "institution" && session.role !== "admin" && session.role !== "hod") return forbidden();

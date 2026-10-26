@@ -808,6 +808,8 @@ describe("Security settings and runtime actions", () => {
     expect(createRes.status).toBe(200);
     const item = createRes.body as SkillIntervention;
     expect(item.title).toBe("Test Docker & K8s Sprint");
+    const again = (await dispatch("GET", ["department-skills"], undefined, instSession, new URLSearchParams())).body as { interventions: SkillIntervention[] };
+    expect(again.interventions.some((i) => i.id === item.id)).toBe(true);
   });
 });
 
@@ -1007,11 +1009,15 @@ describe("Student Success & Early Warning API", () => {
     });
   });
 
-  it("logs a support plan for an at-risk student", async () => {
+  it("logs a support plan for a real student and shows it in the overview", async () => {
     const instSession = session("institution");
+    const ov = await dispatch("GET", ["early-warning"], undefined, instSession, new URLSearchParams());
+    const students = (ov.body as { students: Array<{ id: string; studentName: string; rollNo: string }> }).students;
+    expect(students.length).toBeGreaterThan(0);
+    const target = students[0]!;
     const payload = {
-      studentId: "student-sub-123",
-      studentName: "Anand Kumar",
+      studentId: target.id,
+      studentName: "ignored - the server uses the student's own record",
       strategy: "1-on-1 Faculty Mentorship",
       facultyLead: "Dr. Meena Raghavan",
       targetDate: "2026-10-20",
@@ -1019,26 +1025,51 @@ describe("Student Success & Early Warning API", () => {
     };
     const res = await dispatch("POST", ["early-warning", "interventions"], payload, instSession, new URLSearchParams());
     expect(res.status).toBe(200);
-    const body = res.body as { id: string; studentName: string; strategy: string; status: string };
-    expect(body.id).toMatch(/^ACT-/);
-    expect(body.studentName).toBe("Anand Kumar");
-    expect(body.strategy).toBe("1-on-1 Faculty Mentorship");
+    const body = res.body as { id: string; studentName: string; rollNo: string; strategy: string; status: string };
+    expect(body.studentName).toBe(target.studentName);
+    expect(body.rollNo).toBe(target.rollNo);
     expect(body.status).toBe("In progress");
+
+    const after = (await dispatch("GET", ["early-warning"], undefined, instSession, new URLSearchParams())).body as {
+      interventions: Array<{ id: string }>;
+      students: Array<{ id: string; reviewStatus: string; assignedMentor?: string }>;
+    };
+    expect(after.interventions.some((i) => i.id === body.id)).toBe(true);
+    const row = after.students.find((x) => x.id === target.id)!;
+    expect(row.reviewStatus).toBe("In progress");
+    expect(row.assignedMentor).toBe("Dr. Meena Raghavan");
+  });
+
+  it("rejects support actions for a student who isn't in the college", async () => {
+    const instSession = session("institution");
+    const res = await dispatch(
+      "POST",
+      ["early-warning", "interventions"],
+      { studentId: "no-such-student", studentName: "X", strategy: "Mentoring", facultyLead: "Dr. A", targetDate: "2026-10-20", notes: "" },
+      instSession,
+      new URLSearchParams(),
+    );
+    expect(res.status).toBe(404);
+    const patch = await dispatch("PATCH", ["early-warning", "reviews", "no-such-student"], { reviewStatus: "Resolved" }, session("hod"), new URLSearchParams());
+    expect(patch.status).toBe(404);
   });
 
   it("updates case review status via PATCH", async () => {
     const hodSession = session("hod");
+    const ov = await dispatch("GET", ["early-warning"], undefined, session("institution"), new URLSearchParams());
+    const target = (ov.body as { students: Array<{ id: string }> }).students[0]!;
     const res = await dispatch(
       "PATCH",
-      ["early-warning", "reviews", "student-sub-123"],
+      ["early-warning", "reviews", target.id],
       { reviewStatus: "Resolved", notes: "Completed 3 mentorship sessions and cleared exam" },
       hodSession,
       new URLSearchParams()
     );
     expect(res.status).toBe(200);
-    const body = res.body as { ok: boolean; status: string };
+    const body = res.body as { ok: boolean; status: string; notes?: string };
     expect(body.ok).toBe(true);
     expect(body.status).toBe("Resolved");
+    expect(body.notes).toBe("Completed 3 mentorship sessions and cleared exam");
   });
 
   it("forbids student role from accessing early-warning", async () => {
