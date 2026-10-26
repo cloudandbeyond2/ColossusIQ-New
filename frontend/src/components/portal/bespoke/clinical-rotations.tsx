@@ -50,6 +50,22 @@ interface RotationEntry {
   clinicalFocus: string;
 }
 
+const EMPTY_POSTING: RotationEntry = {
+  id: "ROT-NONE",
+  department: "No posting",
+  unit: "-",
+  duration: "-",
+  dates: "-",
+  supervisor: "-",
+  attendance: 0,
+  totalDays: 0,
+  attendedDays: 0,
+  competenciesCertified: 0,
+  competenciesRequired: 0,
+  status: "Scheduled",
+  clinicalFocus: "-",
+};
+
 const DEFAULT_ROADMAP: RotationEntry[] = [
   {
     id: "ROT-1001",
@@ -287,7 +303,7 @@ export function ClinicalRotationsModule({ role }: { role?: Role }) {
     queryKey: ["clinical", "dops"],
     queryFn: () => apiFetch("/api/v1/clinical/dops", z.any()),
   });
-  const skillsList = dopsData?.skills ?? DEFAULT_COMPETENCIES;
+  const skillsList: ProcedureSkill[] = dopsData?.skills ?? DEFAULT_COMPETENCIES;
 
   const createCaseMutation = useMutation({
     mutationFn: (data: any) =>
@@ -377,7 +393,7 @@ export function ClinicalRotationsModule({ role }: { role?: Role }) {
 
   // Active ongoing posting
   const activePosting = useMemo(() => {
-    return roadmap.find((r) => r.status === "Ongoing") || roadmap[0] || DEFAULT_ROADMAP[1];
+    return roadmap.find((r) => r.status === "Ongoing") ?? roadmap[0] ?? DEFAULT_ROADMAP[1] ?? EMPTY_POSTING;
   }, [roadmap]);
 
   // Dynamic count of DOPS certified
@@ -698,7 +714,7 @@ export function ClinicalRotationsModule({ role }: { role?: Role }) {
             </Card>
           ) : (
             <div className="grid gap-4 md:grid-cols-2">
-              {paginatedCases.map((c, i) => (
+              {paginatedCases.map((c: any, i: number) => (
                 <Card key={i} className="p-5 transition-all hover:border-brand/40">
                   <div className="flex items-center justify-between">
                     <Badge tone="brand">{c.bed}</Badge>
