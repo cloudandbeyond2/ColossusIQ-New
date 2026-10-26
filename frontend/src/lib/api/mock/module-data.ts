@@ -76,7 +76,6 @@ interface ScopeData {
 import { getAicteComplianceOverview } from "./aicte-compliance";
 import {
   cbcsElectives,
-  competencyLogbook,
   hospitalDashboard,
   nmcCompliance,
   osceStations,
@@ -192,7 +191,6 @@ function admissionInsights(_collegeScope: string, live: ScopeData): DashboardDat
 
 const DATA: Record<string, (collegeScope: string, live: ScopeData) => ModuleData | Promise<ModuleData>> = {
   "admission-insights": admissionInsights,
-  "competency-logbook": competencyLogbook,
   osce: osceStations,
   "hospital-dashboard": (scope, live) => dynamicHospitalDashboardData(scope, live.session),
   "nmc-compliance": (scope, live) => dynamicNmcComplianceData(scope, live.session),

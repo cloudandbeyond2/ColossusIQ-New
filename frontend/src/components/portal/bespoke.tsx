@@ -74,6 +74,7 @@ import { ProjectReviewModule } from "./bespoke/project-review";
 import { NotificationsConfigModule } from "./bespoke/notifications-config";
 import { HospitalDashboardModule } from "./bespoke/hospital-dashboard";
 import { NmcComplianceModule } from "./bespoke/nmc-compliance";
+import { CompetencyLogbookModule } from "./bespoke/competency-logbook";
 import { CbcsElectivesModule } from "./bespoke/cbcs-electives";
 import { QuestionGeneratorModule } from "./bespoke/question-generator";
 import { IncubationPipelineModule } from "./bespoke/incubation-pipeline";
@@ -96,6 +97,7 @@ const BESPOKE: Record<string, (props: { role: Role }) => React.ReactNode> = {
   "recruiter-interviews": ({ role }) => <RecruiterInterviewsModule role={role} />,
   "cbcs-electives": ({ role }) => <CbcsElectivesModule role={role} />,
   "nmc-compliance": () => <NmcComplianceModule />,
+  "competency-logbook": () => <CompetencyLogbookModule />,
   "hospital-dashboard": ({ role }) => <HospitalDashboardModule role={role} />,
   "notifications-config": () => <NotificationsConfigModule />,
   "project-review": () => <ProjectReviewModule />,

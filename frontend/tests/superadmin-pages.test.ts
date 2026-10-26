@@ -61,6 +61,7 @@ const BESPOKE_API: Record<string, string[]> = {
   "incubation-pipeline": ["incubation-pipeline"],
   "cbcs-electives": ["cbcs-electives"],
   "nmc-compliance": ["nmc-compliance"],
+  "competency-logbook": ["competency-logbook"],
   "question-generator": ["faculty/question-papers"],
   mentors: ["incubation/mentors"],
   startups: ["incubation/startups"],

@@ -1,7 +1,7 @@
 import "server-only";
 import type { CourseDetail, DashboardData, Kpi, ListData, RoleHome, ScorecardData, StudentDashboard } from "@/lib/api/schemas";
 import type { Stream } from "@/config/streams";
-import { COURSES, STUDENT_DASHBOARD, personName, seeded } from "./fixtures";
+import { COURSES, STUDENT_DASHBOARD } from "./fixtures";
 
 /*
  * Content that differs by academic stream, so an MBBS student, a B.Com student and a B.E. student
@@ -214,43 +214,6 @@ export function relabelSubjects(data: DashboardData, stream: Stream | null): Das
 }
 
 /* ── new stream-only modules ────────────────────── */
-export function competencyLogbook(): ListData {
-  const r = seeded(771);
-  const rows = [
-    ["PA 7.1", "Define and classify neoplasia", "Pathology", "K"],
-    ["PH 1.13", "Describe mechanism of action of adrenergic drugs", "Pharmacology", "KH"],
-    ["IM 4.9", "Elicit a clinical history in a patient with fever", "General Medicine", "SH"],
-    ["SU 5.2", "Perform wound dressing under supervision", "General Surgery", "P"],
-    ["OG 8.3", "Perform obstetric examination", "Obstetrics & Gynaecology", "SH"],
-    ["PE 1.4", "Perform anthropometry and plot growth chart", "Paediatrics", "P"],
-    ["CM 5.2", "Conduct a nutritional assessment in the community", "Community Medicine", "SH"],
-    ["MI 1.2", "Perform and interpret Gram stain", "Microbiology", "P"],
-  ].map(([code, competency, department, level]) => ({
-    code: code!,
-    competency: competency!,
-    department: department!,
-    level: level!,
-    attempts: 1 + Math.floor(r() * 3),
-    status: r() > 0.55 ? "Certified" : r() > 0.3 ? "Pending review" : "Not attempted",
-    certifiedBy: `Dr. ${personName(Math.floor(r() * 30))}`,
-  }));
-  return {
-    template: "list",
-    columns: [
-      { key: "code", label: "Competency", kind: "text" },
-      { key: "competency", label: "Description", kind: "text" },
-      { key: "department", label: "Department", kind: "text" },
-      { key: "level", label: "Level (K/KH/SH/P)", kind: "badge" },
-      { key: "attempts", label: "Attempts", kind: "number" },
-      { key: "status", label: "Status", kind: "badge" },
-      { key: "certifiedBy", label: "Certifying faculty", kind: "text" },
-    ],
-    rows,
-    filterKey: "status",
-    primaryAction: "Request sign-off",
-  };
-}
-
 export function osceStations(): ListData {
   return {
     template: "list",

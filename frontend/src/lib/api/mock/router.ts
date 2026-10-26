@@ -164,6 +164,8 @@ import {
   UpdateNmcProfileInput,
   UpdateNmcDepartmentNormInput,
 } from "@/lib/api/nmc-schemas";
+import { CreateCompetenciesInput, RequestSignoffInput, ReviewEntryInput } from "@/lib/api/logbook-schemas";
+import { getLogbookOverview, createCompetencies, deleteCompetency, requestSignoff, reviewEntry, LogbookError } from "./logbook";
 import {
   CbcsError,
   getCbcsOverview,
@@ -288,6 +290,8 @@ const reportFail = (e: ReportError) =>
   err(e.status, e.status === 404 ? "not_found" : e.status === 403 ? "forbidden" : e.status === 409 ? "conflict" : "invalid_body", e.message);
 const hospitalFail = (e: HospitalError) =>
   err(e.status, e.status === 404 ? "not_found" : e.status === 403 ? "forbidden" : e.status === 409 ? "conflict" : "invalid_body", e.message);
+const logbookFail = (e: LogbookError) =>
+  err(e.status, e.status === 404 ? "not_found" : e.status === 403 ? "forbidden" : e.status === 409 ? "conflict" : "invalid_body", e.message);
 const nmcFail = (e: NmcError) =>
   err(e.status, e.status === 404 ? "not_found" : e.status === 403 ? "forbidden" : e.status === 409 ? "conflict" : "invalid_body", e.message);
 const supportFail = (e: SupportError) =>
@@ -402,6 +406,11 @@ export const PATTERNS = [
   "PUT nmc-compliance/profile",
   "PUT nmc-compliance/departments",
   "POST nmc-compliance/committees/seed",
+  "GET competency-logbook",
+  "POST competency-logbook/competencies",
+  "DELETE competency-logbook/competencies/:id",
+  "POST competency-logbook/requests",
+  "PATCH competency-logbook/entries/:id",
   "GET cbcs-electives",
   "POST cbcs-electives/courses",
   "PATCH cbcs-electives/courses/:id/seats",
@@ -857,6 +866,41 @@ export async function dispatch(method: string, segs: string[], rawBody: unknown,
         }
       } catch (e) {
         if (e instanceof NmcError) return nmcFail(e);
+        throw e;
+      }
+    }
+    case "GET competency-logbook":
+    case "POST competency-logbook/competencies":
+    case "DELETE competency-logbook/competencies/:id":
+    case "POST competency-logbook/requests":
+    case "PATCH competency-logbook/entries/:id": {
+      const readOnlyViewer = session.role === "admin" || session.role === "institution";
+      if (session.role !== "student" && session.role !== "faculty" && session.role !== "hod" && !(readOnlyViewer && found.route === "GET competency-logbook")) return forbidden();
+      const bad = (m: string, d: string) => err(400, "invalid_body", m || d);
+      try {
+        switch (found.route) {
+          case "GET competency-logbook":
+            return ok(await getLogbookOverview(session));
+          case "POST competency-logbook/competencies": {
+            const parsed = CreateCompetenciesInput.safeParse(rawBody);
+            if (!parsed.success) return bad(parsed.error.issues[0]?.message ?? "", "Invalid competency payload.");
+            return ok(await createCompetencies(session, parsed.data));
+          }
+          case "DELETE competency-logbook/competencies/:id":
+            return ok(await deleteCompetency(session, found.id ?? segs[2] ?? ""));
+          case "POST competency-logbook/requests": {
+            const parsed = RequestSignoffInput.safeParse(rawBody);
+            if (!parsed.success) return bad(parsed.error.issues[0]?.message ?? "", "Invalid request.");
+            return ok(await requestSignoff(session, parsed.data));
+          }
+          default: {
+            const parsed = ReviewEntryInput.safeParse(rawBody);
+            if (!parsed.success) return bad(parsed.error.issues[0]?.message ?? "", "Invalid review.");
+            return ok(await reviewEntry(session, found.id ?? segs[2] ?? "", parsed.data));
+          }
+        }
+      } catch (e) {
+        if (e instanceof LogbookError) return logbookFail(e);
         throw e;
       }
     }

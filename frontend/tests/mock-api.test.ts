@@ -1386,6 +1386,95 @@ describe("NMC / Council Compliance (/institution/nmc-compliance)", () => {
   });
 });
 
+describe("Competency logbook (/student/competency-logbook)", () => {
+  const faculty = { ...session("faculty"), college: "COL-1006" };
+  const hod = { ...session("hod"), college: "COL-1006" };
+  const student = { ...session("student"), college: "COL-1006" };
+  const other = { ...session("student"), sub: "demo-student-2", college: "COL-1006" };
+  const call = (method: string, segs: string[], body: unknown, sess: SessionPayload) => dispatch(method, segs, body, sess, new URLSearchParams());
+  type Row = { competencyId: string; entryId: string; code: string; status: string; attempts: number; studentSub: string; remarks: string };
+  type Ov = { mode: string; competencies: Array<{ id: string; code: string }>; rows: Row[]; summary: { total: number; certified: number; pending: number; notAttempted: number; returned: number } };
+  const ov = async (sess: SessionPayload) => (await call("GET", ["competency-logbook"], undefined, sess)).body as Ov;
+
+  it("starts empty - no generated competencies", async () => {
+    const d = await ov(student);
+    expect(d.mode).toBe("student");
+    expect(d.competencies.length).toBe(0);
+    expect(d.rows.length).toBe(0);
+  });
+
+  it("limits who can see and edit the catalogue", async () => {
+    const principal = { ...session("institution"), college: "COL-1006" };
+    const view = await call("GET", ["competency-logbook"], undefined, principal);
+    expect(view.status).toBe(200);
+    expect((view.body as { permissions: { manage: boolean; certify: boolean } }).permissions).toMatchObject({ manage: false, certify: false });
+    expect((await call("POST", ["competency-logbook", "competencies"], { items: [{ code: "PA 1.1", description: "Define", department: "Pathology", level: "K" }] }, principal)).status).toBe(403);
+    expect((await call("GET", ["competency-logbook"], undefined, { ...session("placement"), college: "COL-1006" })).status).toBe(403);
+    const forbidden = await call("POST", ["competency-logbook", "competencies"], { items: [{ code: "PA 7.1", description: "Define neoplasia", department: "Pathology", level: "K" }] }, student);
+    expect(forbidden.status).toBe(403);
+    const bad = await call("POST", ["competency-logbook", "competencies"], { items: [{ code: "PA 7.1", description: "Define neoplasia", department: "Pathology", level: "Z" }] }, faculty);
+    expect(bad.status).toBe(400);
+  });
+
+  it("runs the sign-off flow: add, request, return, re-request, certify", async () => {
+    const add = await call("POST", ["competency-logbook", "competencies"], {
+      items: [
+        { code: "PA 7.1", description: "Define and classify neoplasia", department: "Pathology", level: "K" },
+        { code: "SU 5.2", description: "Perform wound dressing under supervision", department: "General Surgery", level: "P" },
+      ],
+    }, faculty);
+    expect(add.status).toBe(200);
+    expect((add.body as { added: number }).added).toBe(2);
+    const dup = await call("POST", ["competency-logbook", "competencies"], { items: [{ code: "pa 7.1", description: "Again", department: "Pathology", level: "K" }] }, hod);
+    expect((dup.body as { added: number; skipped: number }).skipped).toBe(1);
+
+    let mine = await ov(student);
+    expect(mine.rows.length).toBe(2);
+    expect(mine.rows.every((r) => r.status === "Not attempted")).toBe(true);
+    const target = mine.rows.find((r) => r.code === "PA 7.1")!;
+
+    expect((await call("POST", ["competency-logbook", "requests"], { competencyId: target.competencyId, notes: "Ward 4" }, faculty)).status).toBe(403);
+    expect((await call("POST", ["competency-logbook", "requests"], { competencyId: "00000000-0000-0000-0000-000000000000", notes: "" }, student)).status).toBe(404);
+    expect((await call("POST", ["competency-logbook", "requests"], { competencyId: target.competencyId, notes: "Ward 4" }, student)).status).toBe(200);
+    expect((await call("POST", ["competency-logbook", "requests"], { competencyId: target.competencyId, notes: "again" }, student)).status).toBe(409);
+
+    const queue = await ov(faculty);
+    expect(queue.mode).toBe("reviewer");
+    expect(queue.summary.pending).toBe(1);
+    const entry = queue.rows[0]!;
+    expect((await call("PATCH", ["competency-logbook", "entries", entry.entryId], { decision: "Returned", remarks: "" }, faculty)).status).toBe(400);
+    expect((await call("PATCH", ["competency-logbook", "entries", entry.entryId], { decision: "Certified", remarks: "" }, student)).status).toBe(403);
+    expect((await call("PATCH", ["competency-logbook", "entries", entry.entryId], { decision: "Returned", remarks: "Redo the sterile technique" }, faculty)).status).toBe(200);
+    expect((await call("PATCH", ["competency-logbook", "entries", entry.entryId], { decision: "Certified", remarks: "" }, hod)).status).toBe(409);
+
+    mine = await ov(student);
+    const returned = mine.rows.find((r) => r.code === "PA 7.1")!;
+    expect(returned.status).toBe("Returned");
+    expect(returned.remarks).toBe("Redo the sterile technique");
+
+    expect((await call("POST", ["competency-logbook", "requests"], { competencyId: target.competencyId, notes: "Redone" }, student)).status).toBe(200);
+    expect((await ov(student)).rows.find((r) => r.code === "PA 7.1")!.attempts).toBe(2);
+    expect((await call("PATCH", ["competency-logbook", "entries", entry.entryId], { decision: "Certified", remarks: "" }, hod)).status).toBe(200);
+
+    mine = await ov(student);
+    expect(mine.summary.certified).toBe(1);
+    expect(mine.summary.notAttempted).toBe(1);
+    expect((await call("POST", ["competency-logbook", "requests"], { competencyId: target.competencyId, notes: "" }, student)).status).toBe(409);
+
+    // another student's logbook is separate
+    expect((await ov(other)).summary.certified).toBe(0);
+  });
+
+  it("removing a competency removes its sign-offs", async () => {
+    const d = await ov(faculty);
+    const comp = d.competencies.find((c) => c.code === "PA 7.1")!;
+    expect((await call("DELETE", ["competency-logbook", "competencies", comp.id], undefined, student)).status).toBe(403);
+    expect((await call("DELETE", ["competency-logbook", "competencies", comp.id], undefined, faculty)).status).toBe(200);
+    expect((await ov(faculty)).rows.length).toBe(0);
+    expect((await call("DELETE", ["competency-logbook", "competencies", comp.id], undefined, faculty)).status).toBe(404);
+  });
+});
+
 describe("CBCS & Electives (/institution/cbcs-electives)", () => {
   const artsSession: SessionPayload = {
     sub: "demo-institution",

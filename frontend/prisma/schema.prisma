@@ -2411,3 +2411,34 @@ model SkillIntervention {
 
   @@map("skill_interventions")
 }
+model LogbookCompetency {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  collegeId   String   @map("college_id") @db.Uuid
+  code        String
+  description String
+  department  String
+  level       String
+  createdBySub String  @default("") @map("created_by_sub")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@map("logbook_competencies")
+}
+
+model LogbookEntry {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  collegeId    String    @map("college_id") @db.Uuid
+  competencyId String    @map("competency_id") @db.Uuid
+  studentSub   String    @map("student_sub")
+  studentName  String    @default("") @map("student_name")
+  rollNo       String    @default("") @map("roll_no")
+  attempts     Int       @default(1)
+  status       String    @default("Pending review")
+  notes        String    @default("")
+  remarks      String    @default("")
+  certifiedBy  String    @default("") @map("certified_by")
+  certifiedAt  DateTime? @map("certified_at") @db.Timestamptz(6)
+  updatedAt    DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([competencyId, studentSub])
+  @@map("logbook_entries")
+}
