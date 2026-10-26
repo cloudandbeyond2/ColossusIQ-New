@@ -158,6 +158,18 @@ function admissionInsights(_collegeScope: string, live: ScopeData): DashboardDat
   }
   const byCategory = new Map<string, number>();
   for (const r of rows) byCategory.set(String(r.category), (byCategory.get(String(r.category)) ?? 0) + 1);
+  // Applications received per week over the last 6 weeks, bucketed by the record's creation time (oldest first).
+  const WEEK = 7 * 86_400_000;
+  const now = Date.now();
+  const weekly = Array.from({ length: 6 }, (_, i) => {
+    const from = now - (6 - i) * WEEK;
+    const to = from + WEEK;
+    const n = rows.filter((r) => {
+      const t = Date.parse(String(r.createdAt));
+      return t >= from && t < to;
+    }).length;
+    return { name: i === 5 ? "This week" : `${5 - i}w ago`, Applications: n };
+  });
   return dashboard(
     [
       k("Applications", String(rows.length), "Current cycle", "brand"),
@@ -169,7 +181,7 @@ function admissionInsights(_collegeScope: string, live: ScopeData): DashboardDat
       chart("bar", "Admission funnel", ADMISSION_FLOW.map((s) => ({ name: s.replace("Documents verified", "Docs verified"), Applicants: reached(s) })), ["Applicants"]),
       chart("donut", "Community / category mix", [...byCategory].map(([name, value]) => ({ name, value })), ["value"]),
       chart("bar", "Demand by programme", [...byProgram].sort((a, b) => b[1] - a[1]).map(([name, v]) => ({ name: name.split(" ").slice(0, 2).join(" "), Applications: v })), ["Applications"]),
-      chart("line", "Applications per week", trend("adm-w", ["Applications"], 40, 20, ["W1", "W2", "W3", "W4", "W5", "W6"]), ["Applications"]),
+      chart("line", "Applications per week", weekly, ["Applications"]),
     ],
     [
       ins("Document verification is the bottleneck", "Applicants stall most between Applied and Documents verified. Consider a verification help desk.", `${reached("Applied") - reached("Documents verified")} of ${reached("Applied")} applicants not yet verified`, "amber"),
