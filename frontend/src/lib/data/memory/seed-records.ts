@@ -149,6 +149,34 @@ export function scopedRows(key: string, college: ResourceRecord, seedBase: numbe
         };
       });
     case "staff":
+      if (stream === "medical" && college.status !== "Onboarding") {
+        const medicalDoctors = [
+          { name: "Dr. R. Meenakshi, MD", dept: "General Medicine", desig: "Dean & Professor", qual: "MD (General Medicine)" },
+          { name: "Dr. R. Prakash, MS", dept: "General Surgery", desig: "Professor", qual: "MS (General Surgery)" },
+          { name: "Dr. S. Anbarasu", dept: "General Surgery", desig: "Senior Resident", qual: "MS (General Surgery)" },
+          { name: "Dr. T. Arul, MD", dept: "General Medicine", desig: "Professor", qual: "MD (General Medicine)" },
+          { name: "Dr. K. Meenakshi", dept: "Obstetrics & Gynaecology", desig: "Associate Professor", qual: "MD (OBG)" },
+          { name: "Dr. S. Ramesh", dept: "Paediatrics", desig: "Assistant Professor", qual: "MD (Paediatrics)" },
+          { name: "Dr. M. Soundararajan", dept: "Orthopaedics", desig: "Associate Professor", qual: "MS (Orthopaedics)" },
+          { name: "Dr. V. Karthik", dept: "Emergency Medicine", desig: "Assistant Professor", qual: "MD (Emergency)" },
+          { name: "Dr. P. Kalaivani", dept: "Anatomy", desig: "Professor", qual: "MS (Anatomy)" },
+        ];
+        return medicalDoctors.map((doc, idx) => ({
+          fullName: doc.name,
+          email: `${doc.name.toLowerCase().replace(/[^a-z]+/g, ".").replace(/^\.|\.$/g, "")}@${domain}`,
+          phone: phone(r),
+          qualification: doc.qual,
+          department: doc.dept,
+          designation: doc.desig,
+          staffType: "Teaching",
+          employment: "Permanent",
+          joiningDate: `201${idx}-06-01`,
+          experienceYears: 6 + idx * 2,
+          status: "Active",
+          platformAccess: true,
+          notes: "NMC verified clinical faculty",
+        }));
+      }
       return Array.from({ length: n(stream === "medical" ? 6 : 4) }, (_, i) => {
         const base = personName(seedBase * 17 + i + 20);
         const teaching = i < (stream === "medical" ? 5 : 3);
@@ -257,7 +285,30 @@ export function scopedRows(key: string, college: ResourceRecord, seedBase: numbe
         }));
     case "rotations":
       if (stream !== "medical" || college.status !== "Active") return [];
-      return Array.from({ length: college.type === "Medical College & Hospital" ? 8 : 4 }, (_, i) => {
+      if (college.type === "Medical College & Hospital") {
+        const medStudents = [
+          { name: "Keerthana S.", regNo: "21MB1042", dept: "General Surgery", unit: "Unit II · Ward 14", supervisor: "Dr. R. Prakash, MS", att: 92, signed: 7, status: "Ongoing" },
+          { name: "Divya Ramesh", regNo: "51211001", dept: "General Surgery", unit: "Unit II · Ward 14", supervisor: "Dr. R. Prakash, MS", att: 88, signed: 6, status: "Ongoing" },
+          { name: "Karthik Raja", regNo: "51211002", dept: "General Medicine", unit: "Unit I · Medical Ward 4", supervisor: "Dr. T. Arul, MD", att: 94, signed: 8, status: "Ongoing" },
+          { name: "Pooja Sundaram", regNo: "51211003", dept: "Obstetrics & Gynaecology", unit: "Unit III · Labour Ward", supervisor: "Dr. K. Meenakshi", att: 86, signed: 5, status: "Ongoing" },
+          { name: "Manoj Kumar V.", regNo: "51211004", dept: "Paediatrics", unit: "Unit I · Child Ward", supervisor: "Dr. S. Ramesh", att: 90, signed: 6, status: "Ongoing" },
+        ];
+        return medStudents.map((s) => ({
+          student: s.name,
+          regNo: s.regNo,
+          phase: "Phase III Part 1",
+          department: s.dept,
+          unit: s.unit,
+          startDate: "2026-10-01",
+          endDate: "2026-10-28",
+          supervisor: s.supervisor,
+          attendance: s.att,
+          competenciesSigned: s.signed,
+          status: s.status,
+          remarks: "NMC CBME Bedside Posting",
+        }));
+      }
+      return Array.from({ length: 4 }, (_, i) => {
         const start = 1 + i * 2;
         return {
           student: personName(seedBase * 23 + i + 5),

@@ -30,6 +30,9 @@ export default async function ModulePage({ params }: { params: Promise<{ role: s
   if (!isModuleEnabled(mod, ctx)) notFound();
 
   const def = { ...mod, roles: [...mod.roles] };
+  if (mod.slug === "clinical-rotations") {
+    return <BespokeModule mod={def} role={role} />;
+  }
   if (hasBespoke(mod.slug) || mod.template === "bespoke") return <BespokeModule mod={def} role={role} />;
   if (mod.template === "crud") {
     const resource = findResource(mod.resource);

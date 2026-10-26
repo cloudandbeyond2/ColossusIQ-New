@@ -16,7 +16,15 @@ export type LoginResult = { ok: true; sub: string; name: string } | { ok: false;
 
 export async function authenticate(input: { email: string; password: string; role: Role; college: string | null }): Promise<LoginResult> {
   if (dataBackend() === "memory") {
-    return { ok: true, sub: `demo-${input.role}-${input.college ?? "all"}`, name: ROLE_META[input.role].persona.split(" · ")[0] ?? "User" };
+    const isMedical = input.college === "COL-1006" || input.college === "COL-1007" || input.email.includes("mmch") || input.email.includes("cinahs");
+    let name = ROLE_META[input.role].persona.split(" · ")[0] ?? "User";
+    if (isMedical) {
+      if (input.role === "student") name = "Keerthana S.";
+      if (input.role === "faculty") name = "Dr. R. Prakash, MD";
+      if (input.role === "hod") name = "Dr. S. K. Narayanan, MS";
+      if (input.role === "institution") name = "Dr. R. Meenakshi, MD";
+    }
+    return { ok: true, sub: `demo-${input.role}-${input.college ?? "all"}`, name };
   }
   const r = await withRequestContext({ scope: "all" }, () => pgAuthenticate(input));
   return r.ok ? r : { ok: false, locked: r.reason === "locked" };
