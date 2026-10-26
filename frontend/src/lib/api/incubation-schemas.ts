@@ -75,7 +75,7 @@ export const CreateVentureInput = z.object({
   name: z.string().min(3, "Name must be at least 3 characters"),
   tagline: z.string().min(5, "Tagline must be at least 5 characters"),
   domain: z.string(),
-  cohort: z.string(),
+  cohort: z.string().default(""),
   stage: z.enum(INCUBATION_STAGES).default("Idea"),
   leadFounder: z.string().min(2, "Founder name required"),
   leadEmail: z.string().email("Valid email required"),

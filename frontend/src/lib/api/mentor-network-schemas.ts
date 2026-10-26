@@ -40,7 +40,7 @@ export const MentorItem = z.object({
   activeVenturesCount: z.number(),
   assignedVentures: z.array(VentureAssignment).default([]),
   sessionsCompleted: z.number().default(0),
-  rating: z.number().default(5.0),
+  rating: z.number().nullable().default(null),
   joinedDate: z.string(),
   status: z.enum(["Active", "Pending Invitation", "Inactive"]).default("Active"),
 });
@@ -52,7 +52,7 @@ export const MentorNetworkOverview = z.object({
   availableCount: z.number(),
   activeAssignmentsCount: z.number(),
   totalSessionsConducted: z.number(),
-  averageRating: z.number(),
+  averageRating: z.number().nullable(),
   mentors: z.array(MentorItem),
 });
 

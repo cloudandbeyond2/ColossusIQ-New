@@ -242,6 +242,7 @@ import { dispatchResume } from "./resume";
 import { dispatchDrives } from "./drives";
 import { dispatchRolesPermissions } from "./roles-permissions";
 import { dispatchEmployers } from "./employers";
+import { IncubationError } from "./incubation-common";
 import { dispatchJobs } from "./jobs";
 import { dispatchAlumni } from "./alumni";
 import { dispatchInterview } from "./interview";
@@ -296,6 +297,10 @@ const nmcFail = (e: NmcError) =>
   err(e.status, e.status === 404 ? "not_found" : e.status === 403 ? "forbidden" : e.status === 409 ? "conflict" : "invalid_body", e.message);
 const supportFail = (e: SupportError) =>
   err(e.status, e.status === 404 ? "not_found" : e.status === 403 ? "forbidden" : e.status === 409 ? "conflict" : "invalid_body", e.message);
+const incubationFail = (e: unknown) => {
+  if (!(e instanceof IncubationError) && !(e instanceof SupportError)) throw e;
+  return err(e.status, e.status === 404 ? "not_found" : e.status === 403 ? "forbidden" : e.status === 409 ? "conflict" : "invalid_body", e.message);
+};
 const cbcsFail = (e: CbcsError) =>
   err(e.status, e.status === 404 ? "not_found" : e.status === 403 ? "forbidden" : e.status === 409 ? "conflict" : "invalid_body", e.message);
 
@@ -1524,7 +1529,11 @@ export async function dispatch(method: string, segs: string[], rawBody: unknown,
     case "GET incubation-pipeline": {
       if (session.role !== "incubation" && session.role !== "institution" && session.role !== "admin") return forbidden();
       const qCohort = query.get("cohort") || undefined;
-      return ok(await getIncubationPipelineOverview(session, qCohort));
+      try {
+        return ok(await getIncubationPipelineOverview(session, qCohort));
+      } catch (e) {
+        return incubationFail(e);
+      }
     }
 
     case "POST incubation-pipeline/ventures": {
@@ -1536,7 +1545,11 @@ export async function dispatch(method: string, segs: string[], rawBody: unknown,
       const data = (body as { data?: unknown })?.data ?? body;
       const parsed = CreateVentureInput.safeParse(data);
       if (!parsed.success) return err(400, "invalid_body", parsed.error.issues[0]?.message ?? "Invalid venture payload.");
-      return ok(await createPipelineVenture(session, parsed.data));
+      try {
+        return ok(await createPipelineVenture(session, parsed.data));
+      } catch (e) {
+        return incubationFail(e);
+      }
     }
 
     case "PATCH incubation-pipeline/ventures/:id/stage": {
@@ -1549,7 +1562,12 @@ export async function dispatch(method: string, segs: string[], rawBody: unknown,
       const data = (body as { data?: unknown })?.data ?? body;
       const parsed = UpdateVentureStageInput.safeParse(data);
       if (!parsed.success) return err(400, "invalid_body", parsed.error.issues[0]?.message ?? "Invalid stage payload.");
-      const updated = await updatePipelineVentureStage(session, b, parsed.data.stage);
+      let updated;
+      try {
+        updated = await updatePipelineVentureStage(session, b, parsed.data.stage);
+      } catch (e) {
+        return incubationFail(e);
+      }
       if (!updated) return notFound();
       return ok(updated);
     }
@@ -1564,7 +1582,12 @@ export async function dispatch(method: string, segs: string[], rawBody: unknown,
       const data = (body as { data?: unknown })?.data ?? body;
       const parsed = ReviewVentureInput.safeParse(data);
       if (!parsed.success) return err(400, "invalid_body", parsed.error.issues[0]?.message ?? "Invalid review payload.");
-      const updated = await reviewPipelineVenture(session, b, parsed.data);
+      let updated;
+      try {
+        updated = await reviewPipelineVenture(session, b, parsed.data);
+      } catch (e) {
+        return incubationFail(e);
+      }
       if (!updated) return notFound();
       return ok(updated);
     }
@@ -1572,7 +1595,12 @@ export async function dispatch(method: string, segs: string[], rawBody: unknown,
     case "DELETE incubation-pipeline/ventures/:id": {
       if (session.role !== "incubation" && session.role !== "institution" && session.role !== "admin") return forbidden();
       if (!b) return notFound();
-      const deleted = await deletePipelineVenture(session, b);
+      let deleted;
+      try {
+        deleted = await deletePipelineVenture(session, b);
+      } catch (e) {
+        return incubationFail(e);
+      }
       if (!deleted) return notFound();
       return ok({ ok: true, deleted: b });
     }
@@ -1580,7 +1608,11 @@ export async function dispatch(method: string, segs: string[], rawBody: unknown,
     /* ── Incubation Mentor Network ── */
     case "GET incubation/mentors": {
       if (session.role !== "incubation" && session.role !== "institution" && session.role !== "admin") return forbidden();
-      return ok(await getMentorNetworkOverview(session));
+      try {
+        return ok(await getMentorNetworkOverview(session));
+      } catch (e) {
+        return incubationFail(e);
+      }
     }
 
     case "POST incubation/mentors": {
@@ -1592,7 +1624,11 @@ export async function dispatch(method: string, segs: string[], rawBody: unknown,
       const data = (body as { data?: unknown })?.data ?? body;
       const parsed = InviteMentorInput.safeParse(data);
       if (!parsed.success) return err(400, "invalid_body", parsed.error.issues[0]?.message ?? "Invalid mentor payload.");
-      return ok(await inviteMentor(session, parsed.data));
+      try {
+        return ok(await inviteMentor(session, parsed.data));
+      } catch (e) {
+        return incubationFail(e);
+      }
     }
 
     case "PATCH incubation/mentors/:id": {
@@ -1603,7 +1639,12 @@ export async function dispatch(method: string, segs: string[], rawBody: unknown,
         try { body = JSON.parse(body); } catch {}
       }
       const data = (body as { data?: unknown })?.data ?? body;
-      const updated = await updateMentor(session, b, (data as Record<string, unknown>) || {});
+      let updated;
+      try {
+        updated = await updateMentor(session, b, (data as Record<string, unknown>) || {});
+      } catch (e) {
+        return incubationFail(e);
+      }
       if (!updated) return notFound();
       return ok(updated);
     }
@@ -1618,7 +1659,12 @@ export async function dispatch(method: string, segs: string[], rawBody: unknown,
       const data = (body as { data?: unknown })?.data ?? body;
       const parsed = AssignMentorInput.safeParse(data);
       if (!parsed.success) return err(400, "invalid_body", parsed.error.issues[0]?.message ?? "Invalid assignment payload.");
-      const updated = await assignMentorToVenture(session, b, parsed.data);
+      let updated;
+      try {
+        updated = await assignMentorToVenture(session, b, parsed.data);
+      } catch (e) {
+        return incubationFail(e);
+      }
       if (!updated) return notFound();
       return ok(updated);
     }
@@ -1632,7 +1678,12 @@ export async function dispatch(method: string, segs: string[], rawBody: unknown,
       }
       const data = (body as { ventureId?: string }) ?? {};
       const ventureId = data.ventureId || "";
-      const updated = await unassignMentorFromVenture(session, b, ventureId);
+      let updated;
+      try {
+        updated = await unassignMentorFromVenture(session, b, ventureId);
+      } catch (e) {
+        return incubationFail(e);
+      }
       if (!updated) return notFound();
       return ok(updated);
     }
@@ -1647,7 +1698,12 @@ export async function dispatch(method: string, segs: string[], rawBody: unknown,
       const data = (body as { data?: unknown })?.data ?? body;
       const parsed = LogSessionInput.safeParse(data);
       if (!parsed.success) return err(400, "invalid_body", parsed.error.issues[0]?.message ?? "Invalid session payload.");
-      const updated = await logMentorshipSession(session, b, parsed.data);
+      let updated;
+      try {
+        updated = await logMentorshipSession(session, b, parsed.data);
+      } catch (e) {
+        return incubationFail(e);
+      }
       if (!updated) return notFound();
       return ok(updated);
     }
@@ -1655,7 +1711,12 @@ export async function dispatch(method: string, segs: string[], rawBody: unknown,
     case "DELETE incubation/mentors/:id": {
       if (session.role !== "incubation" && session.role !== "institution" && session.role !== "admin") return forbidden();
       if (!b) return notFound();
-      const deleted = await deleteMentor(session, b);
+      let deleted;
+      try {
+        deleted = await deleteMentor(session, b);
+      } catch (e) {
+        return incubationFail(e);
+      }
       if (!deleted) return notFound();
       return ok({ ok: true, deleted: b });
     }
@@ -1663,7 +1724,11 @@ export async function dispatch(method: string, segs: string[], rawBody: unknown,
     /* ── Incubation Startups ── */
     case "GET incubation/startups": {
       if (session.role !== "incubation" && session.role !== "institution" && session.role !== "admin") return forbidden();
-      return ok(await getStartupPortfolioOverview(session));
+      try {
+        return ok(await getStartupPortfolioOverview(session));
+      } catch (e) {
+        return incubationFail(e);
+      }
     }
 
     case "POST incubation/startups": {
@@ -1675,7 +1740,12 @@ export async function dispatch(method: string, segs: string[], rawBody: unknown,
       const data = (body as { data?: unknown })?.data ?? body;
       const parsed = CreateStartupInput.safeParse(data);
       if (!parsed.success) return err(400, "invalid_body", parsed.error.issues[0]?.message ?? "Invalid startup payload.");
-      const created = await createStartup(session, parsed.data);
+      let created;
+      try {
+        created = await createStartup(session, parsed.data);
+      } catch (e) {
+        return incubationFail(e);
+      }
       return ok(created);
     }
 
@@ -1689,7 +1759,12 @@ export async function dispatch(method: string, segs: string[], rawBody: unknown,
       const data = (body as { data?: unknown })?.data ?? body;
       const parsed = UpdateStartupInput.safeParse(data);
       if (!parsed.success) return err(400, "invalid_body", parsed.error.issues[0]?.message ?? "Invalid startup payload.");
-      const updated = await updateStartup(session, b, parsed.data);
+      let updated;
+      try {
+        updated = await updateStartup(session, b, parsed.data);
+      } catch (e) {
+        return incubationFail(e);
+      }
       if (!updated) return notFound();
       return ok(updated);
     }
@@ -1697,7 +1772,12 @@ export async function dispatch(method: string, segs: string[], rawBody: unknown,
     case "DELETE incubation/startups/:id": {
       if (session.role !== "incubation" && session.role !== "institution" && session.role !== "admin") return forbidden();
       if (!b) return notFound();
-      const deleted = await deleteStartup(session, b);
+      let deleted;
+      try {
+        deleted = await deleteStartup(session, b);
+      } catch (e) {
+        return incubationFail(e);
+      }
       if (!deleted) return notFound();
       return ok({ ok: true, deleted: b });
     }
@@ -1706,7 +1786,11 @@ export async function dispatch(method: string, segs: string[], rawBody: unknown,
     case "GET incubation/funding-readiness": {
       if (session.role !== "incubation" && session.role !== "institution" && session.role !== "admin") return forbidden();
       const qVenture = query.get("ventureId") || undefined;
-      return ok(await getFundingReadinessOverview(session, qVenture));
+      try {
+        return ok(await getFundingReadinessOverview(session, qVenture));
+      } catch (e) {
+        return incubationFail(e);
+      }
     }
 
     case "PATCH incubation/funding-readiness/:id": {
@@ -1719,7 +1803,12 @@ export async function dispatch(method: string, segs: string[], rawBody: unknown,
       const data = (body as { data?: unknown })?.data ?? body;
       const parsed = UpdateReadinessInput.safeParse(data);
       if (!parsed.success) return err(400, "invalid_body", parsed.error.issues[0]?.message ?? "Invalid readiness payload.");
-      const updated = await updateVentureReadiness(session, b, parsed.data);
+      let updated;
+      try {
+        updated = await updateVentureReadiness(session, b, parsed.data);
+      } catch (e) {
+        return incubationFail(e);
+      }
       if (!updated) return notFound();
       return ok(updated);
     }

@@ -337,6 +337,12 @@ model College {
   assignmentSubmissions AssignmentSubmission[]
   studentExperiences    StudentExperience[]
   placementDrives       PlacementDrive[]
+  placementEmployers    PlacementEmployer[]
+  incubationVentures    IncubationVenture[]
+  incubationStartups    IncubationStartup[]
+  incubationMentors     IncubationMentor[]
+  incubationAssignments IncubationMentorAssignment[]
+  incubationSessions    IncubationMentorSession[]
   currentAffairs        CurrentAffair[]
   prepAttempts          PrepAttempt[]
   prepContent           PrepContent[]
@@ -2441,4 +2447,145 @@ model LogbookEntry {
 
   @@unique([competencyId, studentSub])
   @@map("logbook_entries")
+}
+
+model PlacementEmployer {
+  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  collegeId          String   @map("college_id") @db.Uuid
+  company            String
+  sector             String
+  tier               String   @default("Active")
+  website            String   @default("")
+  location           String
+  contactName        String   @map("contact_name")
+  contactDesignation String   @map("contact_designation")
+  contactEmail       String   @map("contact_email")
+  contactPhone       String   @default("") @map("contact_phone")
+  contactLinkedin    String   @default("") @map("contact_linkedin")
+  mouStatus          String   @default("None") @map("mou_status")
+  mouValidUntil      String   @default("") @map("mou_valid_until")
+  totalHires         Int      @default(0) @map("total_hires")
+  averagePackage     Float    @default(0) @map("average_package")
+  highestPackage     Float    @default(0) @map("highest_package")
+  lastDriveDate      String   @default("") @map("last_drive_date")
+  nextDriveDate      String   @default("") @map("next_drive_date")
+  notes              String   @default("")
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+  college            College  @relation(fields: [collegeId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([collegeId])
+  @@map("placement_employers")
+}
+
+model IncubationVenture {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  collegeId String @map("college_id") @db.Uuid
+  name String
+  tagline String
+  domain String
+  cohort String
+  stage String
+  founders String[] @default([])
+  leadFounder String @map("lead_founder")
+  leadEmail String @map("lead_email")
+  department String
+  readinessScore Int @default(0) @map("readiness_score")
+  mentorName String @default("Unassigned") @map("mentor_name")
+  grantAmount String @default("—") @map("grant_amount")
+  pitchDeckUrl String @default("") @map("pitch_deck_url")
+  demoUrl String @default("") @map("demo_url")
+  reviewVerdict String @default("Pending Review") @map("review_verdict")
+  reviewScore Int? @map("review_score")
+  reviewNotes String @default("") @map("review_notes")
+  submittedAt DateTime @default(now()) @map("submitted_at") @db.Timestamptz(6)
+  updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+  college College @relation(fields: [collegeId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  assignments IncubationMentorAssignment[]
+
+  @@index([collegeId, cohort])
+  @@map("incubation_ventures")
+}
+
+model IncubationStartup {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  collegeId String @map("college_id") @db.Uuid
+  name String
+  tagline String
+  registrationNumber String @default("") @map("registration_number")
+  domain String
+  incorporationStatus String @map("incorporation_status")
+  stage String
+  founders Json @default("[]")
+  leadFounder String @map("lead_founder")
+  leadEmail String @map("lead_email")
+  department String
+  cohort String
+  assignedMentor String @default("Unassigned") @map("assigned_mentor")
+  readinessScore Int @default(0) @map("readiness_score")
+  fundingRaised String @default("Bootstrapped") @map("funding_raised")
+  revenue String @default("Pre-revenue")
+  activePilots Int @default(0) @map("active_pilots")
+  patentStatus String @default("Not Applicable") @map("patent_status")
+  websiteUrl String @default("") @map("website_url")
+  pitchDeckUrl String @default("") @map("pitch_deck_url")
+  demoUrl String @default("") @map("demo_url")
+  status String @default("Active")
+  evaluation Json?
+  incubatedAt DateTime @default(now()) @map("incubated_at") @db.Timestamptz(6)
+  updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+  college College @relation(fields: [collegeId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@map("incubation_startups")
+}
+
+model IncubationMentor {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  collegeId String @map("college_id") @db.Uuid
+  name String
+  designation String
+  company String
+  type String
+  expertise String[] @default([])
+  email String
+  phone String @default("")
+  linkedinUrl String @default("") @map("linkedin_url")
+  availability String @default("Available")
+  status String @default("Active")
+  joinedAt DateTime @default(now()) @map("joined_at") @db.Timestamptz(6)
+  college College @relation(fields: [collegeId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  assignments IncubationMentorAssignment[]
+  sessions IncubationMentorSession[]
+
+  @@map("incubation_mentors")
+}
+
+model IncubationMentorAssignment {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  collegeId String @map("college_id") @db.Uuid
+  mentorId String @map("mentor_id") @db.Uuid
+  ventureId String @map("venture_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  college College @relation(fields: [collegeId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  mentor IncubationMentor @relation(fields: [mentorId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  venture IncubationVenture @relation(fields: [ventureId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([mentorId, ventureId])
+  @@map("incubation_mentor_assignments")
+}
+
+model IncubationMentorSession {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  collegeId String @map("college_id") @db.Uuid
+  mentorId String @map("mentor_id") @db.Uuid
+  ventureName String @map("venture_name")
+  topic String
+  notes String
+  durationMinutes Int @default(60) @map("duration_minutes")
+  loggedBySub String @default("") @map("logged_by_sub")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  college College @relation(fields: [collegeId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  mentor IncubationMentor @relation(fields: [mentorId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@map("incubation_mentor_sessions")
 }

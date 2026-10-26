@@ -886,9 +886,9 @@ export function StartupsPortfolioModule({ role: _role }: { role?: Role }) {
                   leadFounder: String(fd.get("leadFounder")),
                   leadEmail: String(fd.get("leadEmail")),
                   department: String(fd.get("department")),
-                  cohort: String(fd.get("cohort") || "2026 Innovation Cohort"),
+                  cohort: String(fd.get("cohort") || ""),
                   assignedMentor: String(fd.get("assignedMentor") || "Unassigned"),
-                  readinessScore: Number(fd.get("readinessScore") || 70),
+                  readinessScore: Number(fd.get("readinessScore") || 0),
                   fundingRaised: String(fd.get("fundingRaised") || "Bootstrapped"),
                   revenue: String(fd.get("revenue") || "Pre-revenue"),
                   activePilotsCount: Number(fd.get("activePilotsCount") || 0),
@@ -1025,7 +1025,7 @@ export function StartupsPortfolioModule({ role: _role }: { role?: Role }) {
                   <label className="block font-semibold text-ink">Cohort</label>
                   <input
                     name="cohort"
-                    defaultValue="2026 Innovation Cohort"
+                    placeholder="Leave blank for this year's cohort"
                     className={cn(inputClass, "mt-1")}
                   />
                 </div>
@@ -1048,7 +1048,7 @@ export function StartupsPortfolioModule({ role: _role }: { role?: Role }) {
                     name="readinessScore"
                     min={0}
                     max={100}
-                    defaultValue={75}
+                    defaultValue={0}
                     className={cn(inputClass, "mt-1")}
                   />
                 </div>
@@ -1060,7 +1060,6 @@ export function StartupsPortfolioModule({ role: _role }: { role?: Role }) {
                   <label className="block font-semibold text-ink">Funding Mobilized</label>
                   <input
                     name="fundingRaised"
-                    defaultValue="₹50,000 (Campus Grant)"
                     placeholder="e.g. ₹5,00,000"
                     className={cn(inputClass, "mt-1")}
                   />

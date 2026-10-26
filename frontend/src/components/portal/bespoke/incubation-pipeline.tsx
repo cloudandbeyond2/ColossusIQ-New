@@ -76,7 +76,7 @@ const STAGE_COLORS: Record<IncubationStage, { badge: "neutral" | "sky" | "amber"
 
 export function IncubationPipelineModule({ role: _role }: { role?: Role }) {
   const qc = useQueryClient();
-  const [selectedCohort, setSelectedCohort] = useState<string>("2026 Innovation Cohort");
+  const [pickedCohort, setPickedCohort] = useState<string>("");
   const [search, setSearch] = useState("");
   const [domainFilter, setDomainFilter] = useState<string>("All");
   const [stageFilter, setStageFilter] = useState<string>("All");
@@ -87,16 +87,18 @@ export function IncubationPipelineModule({ role: _role }: { role?: Role }) {
   const [reviewingVenture, setReviewingVenture] = useState<PipelineVenture | null>(null);
   const [toast, setToast] = useState<string | null>(null);
 
-  const queryKey = ["incubation-pipeline", selectedCohort];
+  const queryKey = ["incubation-pipeline", pickedCohort];
 
   const query = useQuery({
     queryKey,
     queryFn: () =>
       apiFetch(
-        `/api/v1/incubation-pipeline?cohort=${encodeURIComponent(selectedCohort)}`,
+        `/api/v1/incubation-pipeline?cohort=${encodeURIComponent(pickedCohort)}`,
         IncubationPipelineOverview
       ),
   });
+  // The server picks the cohort when none is chosen yet (the newest one with ventures).
+  const selectedCohort = query.data?.cohort ?? pickedCohort;
 
   const showToast = (msg: string) => {
     setToast(msg);
@@ -447,7 +449,7 @@ export function IncubationPipelineModule({ role: _role }: { role?: Role }) {
           {/* Cohort Selector */}
           <select
             value={selectedCohort}
-            onChange={(e) => setSelectedCohort(e.target.value)}
+            onChange={(e) => setPickedCohort(e.target.value)}
             className={cn(inputClass, "h-9 w-full sm:w-48 text-xs font-medium")}
           >
             {availableCohorts.map((c) => (

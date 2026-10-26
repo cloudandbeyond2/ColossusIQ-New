@@ -122,9 +122,9 @@ export function FundingReadinessModule({ role: _role }: { role?: Role }) {
   // Compute live local average score
   const computedLiveScore = useMemo(() => {
     const scores = Object.values(localScores);
-    if (!scores.length) return data?.currentEvaluation.readinessScore ?? 75;
+    if (!scores.length) return data?.currentEvaluation?.readinessScore ?? 0;
     return Math.round(scores.reduce((a, b) => a + b, 0) / scores.length);
-  }, [localScores, data?.currentEvaluation.readinessScore]);
+  }, [localScores, data?.currentEvaluation?.readinessScore]);
 
   const computedLiveTier: ReadinessTier = useMemo(() => {
     if (computedLiveScore >= 90) return "Institutional VC Ready";
@@ -178,26 +178,6 @@ export function FundingReadinessModule({ role: _role }: { role?: Role }) {
     );
   };
 
-  // Auto Recalibrate with AI Insights
-  const handleAiRecalibrate = () => {
-    if (!data?.currentEvaluation) return;
-    const stage = data.currentEvaluation.stage;
-    let boost = 0;
-    if (stage === "Growth & Scaling") boost = 12;
-    else if (stage === "Commercial Pilot") boost = 8;
-    else if (stage === "MVP Live") boost = 4;
-
-    setLocalScores((prev) => {
-      const next: Record<string, number> = {};
-      for (const [k, v] of Object.entries(prev)) {
-        // slight heuristic adjustment
-        next[k] = Math.min(98, Math.max(50, v + Math.floor(Math.random() * 5) - 1 + boost / 3));
-      }
-      return next;
-    });
-    showToast("AI model recalibrated dimensional readiness against peer seed benchmarks.");
-  };
-
   // Export Diligence Summary (CSV / One-pager)
   const handleExportBrief = () => {
     if (!data?.currentEvaluation) return;
@@ -244,6 +224,14 @@ export function FundingReadinessModule({ role: _role }: { role?: Role }) {
   if (isError || !data) return <LoadError error={error} onRetry={() => { refetch(); }} />;
 
   const currentEval = data.currentEvaluation;
+  if (!currentEval) {
+    return (
+      <EmptyState
+        title="No startups to evaluate yet"
+        body="Funding readiness is scored per startup. Add a startup in the Startups portfolio and it will appear here for evaluation."
+      />
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -275,7 +263,7 @@ export function FundingReadinessModule({ role: _role }: { role?: Role }) {
               Campus Benchmark
             </Badge>
           </div>
-          <p className="mt-1 text-[11px] text-ink-3">Across all 7 incubated ventures</p>
+          <p className="mt-1 text-[11px] text-ink-3">Across ventures that have been evaluated</p>
         </Card>
 
         {/* KPI 2: Angel / VC Ready */}
@@ -445,15 +433,6 @@ export function FundingReadinessModule({ role: _role }: { role?: Role }) {
 
             {/* Quick Actions */}
             <div className="flex flex-wrap items-center gap-2">
-              <Button
-                variant="secondary"
-                onClick={handleAiRecalibrate}
-                className="h-10 px-3 text-xs gap-1.5"
-                title="AI recalibrate dimensional scoring based on milestones"
-              >
-                <RefreshCw className="size-3.5" />
-                <span className="hidden sm:inline">AI Recalibrate</span>
-              </Button>
               <Button
                 variant="secondary"
                 onClick={handleExportBrief}

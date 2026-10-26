@@ -1111,6 +1111,7 @@ const DATA: Record<string, (collegeScope: string, live: ScopeData) => ModuleData
     const session = live.session ?? { college: scope, sub: "demo-incubation", role: "incubation" as const, name: "Incubation Head", tenant: "TNTU", mfa: true, exp: 0 };
     const ov = await getFundingReadinessOverview(session);
     const curr = ov.currentEvaluation;
+    if (!curr) return score("Funding Readiness — no startups yet", [["Not evaluated", 0, 75]], [], [], []);
     return score(
       `${curr.ventureName} — Funding Readiness`,
       curr.dimensions.map((d) => [d.name, d.score, d.benchmark]),

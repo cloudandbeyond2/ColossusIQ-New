@@ -38,7 +38,7 @@ export const VentureFundingReadiness = z.object({
   stage: z.string(),
   leadFounder: z.string(),
   department: z.string(),
-  fundingTarget: z.string().default("₹25,00,000 (Seed Round)"),
+  fundingTarget: z.string().default("Not set"),
   currentFunding: z.string().default("Bootstrapped"),
   readinessScore: z.number(),
   readinessTier: z.enum(READINESS_TIERS),
@@ -69,7 +69,7 @@ export const FundingReadinessOverview = z.object({
       readinessTier: z.enum(READINESS_TIERS),
     })
   ),
-  currentEvaluation: VentureFundingReadiness,
+  currentEvaluation: VentureFundingReadiness.nullable(),
 });
 
 export type FundingReadinessOverview = z.infer<typeof FundingReadinessOverview>;

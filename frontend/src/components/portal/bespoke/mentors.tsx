@@ -237,7 +237,7 @@ export function MentorNetworkModule({ role: _role }: { role?: Role }) {
       `"${m.availability}"`,
       `"${m.assignedVentures.map((v) => v.ventureName).join(", ")}"`,
       m.sessionsCompleted,
-      m.rating,
+      m.rating ?? "",
     ]);
     const csvContent =
       "data:text/csv;charset=utf-8," +
@@ -322,7 +322,7 @@ export function MentorNetworkModule({ role: _role }: { role?: Role }) {
             <span className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-ink-3">Mentor Rating</span>
             <Star className="size-3.5 sm:size-4 text-gold fill-gold" />
           </div>
-          <p className="mt-1.5 sm:mt-2 text-xl sm:text-2xl font-bold tracking-tight text-ink">★ {averageRating}</p>
+          <p className="mt-1.5 sm:mt-2 text-xl sm:text-2xl font-bold tracking-tight text-ink">★ {averageRating ?? "—"}</p>
           <span className="text-[10px] sm:text-xs text-ink-3">Founder satisfaction score</span>
         </Card>
       </div>
@@ -468,7 +468,7 @@ export function MentorNetworkModule({ role: _role }: { role?: Role }) {
                   </div>
 
                   <span className="flex items-center gap-1 text-xs font-bold text-ink shrink-0">
-                    <Star className="size-3.5 text-gold fill-gold" /> {m.rating}
+                    <Star className="size-3.5 text-gold fill-gold" /> {m.rating ?? "—"}
                   </span>
                 </div>
 
@@ -686,7 +686,7 @@ export function MentorNetworkModule({ role: _role }: { role?: Role }) {
                     </td>
                     <td className="px-4 py-3 font-semibold text-ink">{m.sessionsCompleted}</td>
                     <td className="px-4 py-3">
-                      <span className="font-bold text-amber">★ {m.rating}</span>
+                      <span className="font-bold text-amber">★ {m.rating ?? "—"}</span>
                     </td>
                     <td className="px-4 py-3 text-right whitespace-nowrap">
                       <div className="flex items-center justify-end gap-1.5">

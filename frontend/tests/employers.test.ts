@@ -54,6 +54,12 @@ beforeEach(() => {
 });
 
 describe("Employers & Recruiter Relationships API", () => {
+  it("starts empty with no invented employers", async () => {
+    const o = (await call(who("COL-1001"), "GET", "employers")).body as EmployerOverview;
+    expect(o.items).toHaveLength(0);
+    expect(o.summary.averagePackage).toBeNull();
+  });
+
   it("creates and lists corporate employers with summary metrics", async () => {
     const s = who("COL-1001");
     const res1 = await call(s, "POST", "employers", draft({ company: "Alpha Systems", totalHires: 10, averagePackage: 9 }));
