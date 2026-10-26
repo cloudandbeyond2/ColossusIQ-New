@@ -243,6 +243,7 @@ import { dispatchDrives } from "./drives";
 import { dispatchRolesPermissions } from "./roles-permissions";
 import { dispatchEmployers } from "./employers";
 import { IncubationError } from "./incubation-common";
+import { dynamicIncubationHome } from "./incubation-home";
 import { dispatchJobs } from "./jobs";
 import { dispatchAlumni } from "./alumni";
 import { dispatchInterview } from "./interview";
@@ -1064,6 +1065,13 @@ export async function dispatch(method: string, segs: string[], rawBody: unknown,
       if (role === "institution") {
         return ok(await dynamicInstitutionHome(session));
       }
+      if (role === "incubation") {
+        try {
+          return ok(await dynamicIncubationHome(session));
+        } catch (e) {
+          return incubationFail(e);
+        }
+      }
       const inCollege = session.college !== ALL_COLLEGES;
       const staticHome = ROLE_HOMES[role as Exclude<typeof session.role, "student">];
       // Placement works from live readiness and drive data; the other roles still show their sample home.
@@ -1088,8 +1096,6 @@ export async function dispatch(method: string, segs: string[], rawBody: unknown,
           res.greeting = `${greet}, ${session.name} · Department Intelligence`;
         } else if (role === "placement") {
           res.greeting = `${greet}, ${session.name} · Training & Placement`;
-        } else if (role === "incubation") {
-          res.greeting = `${greet}, ${session.name} · Innovation & Incubation`;
         } else if (role === "recruiter") {
           res.greeting = `Welcome, ${session.name} — Talent Workspace`;
         } else if (role === "admin") {
