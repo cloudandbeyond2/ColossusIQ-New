@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/primitives";
 import { apiFetch } from "@/lib/api/client";
 import { listenForLogout, signOut } from "@/lib/auth/client";
 
-const IDLE_MS = 30 * 60_000; // matches the tenant's "idle session timeout" policy
+const DEFAULT_IDLE_MS = 30 * 60_000; // used until the college's saved "idle session timeout" loads
 const WARN_MS = 2 * 60_000;
 
 /** Signs the user out after inactivity (shared/lab computers are common on campuses) and syncs logout across tabs. */
@@ -15,6 +15,16 @@ export function IdleGuard({ loginPath = "/login" }: { loginPath?: string }) {
   const { t } = usePrefs();
   const [warning, setWarning] = useState(false);
   const last = useRef(0);
+  const idleMs = useRef(DEFAULT_IDLE_MS);
+
+  // The college's own idle sign-out time (Security Settings).
+  useEffect(() => {
+    apiFetch("/api/v1/security/policy", z.object({ idleMinutes: z.number() }))
+      .then((p) => {
+        idleMs.current = p.idleMinutes * 60_000;
+      })
+      .catch(() => undefined);
+  }, []);
 
   const bump = useCallback(() => {
     last.current = Date.now();
@@ -26,8 +36,8 @@ export function IdleGuard({ loginPath = "/login" }: { loginPath?: string }) {
     events.forEach((e) => window.addEventListener(e, bump, { passive: true }));
     const timer = setInterval(() => {
       const idle = Date.now() - last.current;
-      if (idle >= IDLE_MS) void signOut("idle", loginPath);
-      else setWarning(idle >= IDLE_MS - WARN_MS);
+      if (idle >= idleMs.current) void signOut("idle", loginPath);
+      else setWarning(idle >= idleMs.current - WARN_MS);
     }, 15_000);
     const stop = listenForLogout(() => window.location.replace(`${loginPath}?reason=signed-out`));
     return () => {

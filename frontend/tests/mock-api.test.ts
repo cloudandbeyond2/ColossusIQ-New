@@ -742,8 +742,12 @@ describe("Security settings and runtime actions", () => {
   it("allows institution to trigger session revocation and security scan", async () => {
     const instSession = session("institution");
     const revokeRes = await dispatch("POST", ["security", "revoke-sessions"], undefined, instSession, new URLSearchParams());
-    expect(revokeRes.status).toBe(200);
-    expect((revokeRes.body as { ok: boolean }).ok).toBe(true);
+    // This app cannot end other people's sessions, so it says so rather than inventing a count.
+    expect(revokeRes.status).toBe(501);
+
+    const policy = await dispatch("GET", ["security", "policy"], undefined, instSession, new URLSearchParams());
+    expect(policy.status).toBe(200);
+    expect((policy.body as { idleMinutes: number }).idleMinutes).toBeGreaterThanOrEqual(5);
 
     const scanRes = await dispatch("POST", ["security", "scan"], undefined, instSession, new URLSearchParams());
     expect(scanRes.status).toBe(200);

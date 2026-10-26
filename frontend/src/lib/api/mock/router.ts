@@ -471,6 +471,7 @@ export const PATTERNS = [
   "PUT faculty/:id",
   "DELETE faculty/:id",
   "POST academic-calendar/sync-events",
+  "GET security/policy",
   "POST security/revoke-sessions",
   "POST security/scan",
   "GET students/me/profile",
@@ -1354,16 +1355,19 @@ export async function dispatch(method: string, segs: string[], rawBody: unknown,
     }
 
     /* ── security actions ── */
+    case "GET security/policy": {
+      // The college's saved security settings that the app itself applies (today: the idle sign-out time).
+      const cfg = (await getStore().settings.get(session.college, "security-settings"))
+        ?? (session.college !== "all" ? await getStore().settings.get("all", "security-settings") : undefined) ?? {};
+      const m = /^(\d+)\s*minutes?$/.exec(String(cfg["session"] ?? ""));
+      const idleMinutes = m?.[1] ? Math.min(240, Math.max(5, Number(m[1]))) : 30;
+      return ok({ idleMinutes });
+    }
     case "POST security/revoke-sessions": {
       if (session.role !== "institution" && session.role !== "admin") return forbidden();
-      await getStore().audit.add({
-        actor: session.name,
-        action: "Revoked all active user sessions and rotated auth tokens",
-        target: "Tenant sessions",
-        collegeId: session.college === "all" ? null : session.college,
-        actorSub: session.sub,
-      });
-      return ok({ ok: true, count: 48, message: "All active sessions have been invalidated." });
+      // Sign-in cookies are stateless and issued by the auth backend, so this app cannot end other people's sessions.
+      // Say so instead of reporting a count that was never real.
+      return err(501, "not_supported", "Ending other users' sessions needs server-side session tracking in the auth backend, which is not connected. Nothing was revoked.");
     }
     case "POST security/scan": {
       if (session.role !== "institution" && session.role !== "admin") return forbidden();
