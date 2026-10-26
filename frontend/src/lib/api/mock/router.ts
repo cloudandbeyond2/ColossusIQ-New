@@ -19,7 +19,7 @@ import { dynamicInstitutionHome } from "./institution-home";
 import { placementHome, placementSnapshot } from "./placement-stats";
 import { dynamicBiAnalytics } from "./bi-analytics";
 import { moduleData } from "./module-data";
-import { createClub, deleteClub, getClubsOverview, toggleJoinClub, updateClub } from "./clubs";
+import { ClubError, canCreateClubs, canRemoveClubs, createClub, deleteClub, getClubsOverview, toggleJoinClub, updateClub } from "./clubs";
 import { createSport, deleteSport, getSportsOverview, toggleRegisterTrial, updateSport } from "./sports";
 import { deleteHackathonTeam, getHackathonsOverview, listHackathonTeams, registerHackathonTeam } from "./hackathons";
 import { RegisterHackathonTeamInput } from "@/lib/api/hackathon-schemas";
@@ -126,8 +126,19 @@ import {
   updateAicteCommittee,
   updateAicteProfile,
 } from "./aicte-compliance";
-import { getHospitalOverview, updateHospitalCensus, certifyClinicalRotation } from "./teaching-hospital";
-import { UpdateHospitalCensusInput, CertifyRotationInput } from "@/lib/api/hospital-schemas";
+import {
+  HospitalError,
+  canCertifyRotations,
+  canManageHospital,
+  certifyClinicalRotation,
+  createHospitalDepartment,
+  getHospitalOverview,
+  removeHospitalDepartment,
+  updateHospitalCensus,
+  updateHospitalDepartment,
+  updateHospitalProfile,
+} from "./teaching-hospital";
+import { CertifyRotationInput, CreateHospitalDepartmentInput, UpdateHospitalCensusInput, UpdateHospitalProfileInput } from "@/lib/api/hospital-schemas";
 import {
   getNmcComplianceOverview,
   createNmcAction,
@@ -165,6 +176,11 @@ import {
   updateBookingStatus,
   gradeStudentOsce,
   toggleStationStatus,
+  updateSessionStatus,
+  createOsceEquipment,
+  updateOsceEquipment,
+  OsceError,
+  canManageOsce,
 } from "./osce-store";
 import {
   CreateOsceStationInput,
@@ -172,6 +188,9 @@ import {
   CreateSkillsLabBookingInput,
   UpdateBookingStatusInput,
   GradeStudentOsceInput,
+  UpdateSessionStatusInput,
+  CreateOsceEquipmentInput,
+  UpdateOsceEquipmentInput,
 } from "@/lib/api/osce-schemas";
 import { dispatchRecords } from "./records-router";
 import { dispatchLearning } from "./learning";
@@ -248,6 +267,12 @@ const ok = (body: unknown): MockResult => ({ status: 200, body });
 const err = (status: number, code: string, message: string): MockResult => ({ status, body: { error: { code, message } } });
 const notFound = () => err(404, "not_found", "Resource not found.");
 const forbidden = () => err(403, "forbidden", "You do not have permission to perform this action.");
+const osceFail = (e: OsceError) =>
+  err(e.status, e.status === 404 ? "not_found" : e.status === 403 ? "forbidden" : e.status === 409 ? "conflict" : "invalid_body", e.message);
+const clubFail = (e: ClubError) =>
+  err(e.status, e.status === 404 ? "not_found" : e.status === 403 ? "forbidden" : e.status === 409 ? "conflict" : "invalid_body", e.message);
+const hospitalFail = (e: HospitalError) =>
+  err(e.status, e.status === 404 ? "not_found" : e.status === 403 ? "forbidden" : e.status === 409 ? "conflict" : "invalid_body", e.message);
 const cbcsFail = (e: CbcsError) =>
   err(e.status, e.status === 404 ? "not_found" : e.status === 403 ? "forbidden" : e.status === 409 ? "conflict" : "invalid_body", e.message);
 
@@ -345,6 +370,10 @@ export const PATTERNS = [
   "PUT aicte-compliance/profile",
   "GET hospital/overview",
   "POST hospital/census",
+  "POST hospital/departments",
+  "PUT hospital/departments/:id",
+  "DELETE hospital/departments/:id",
+  "PUT hospital/profile",
   "POST hospital/rotations/:id/certify",
   "GET nmc-compliance",
   "POST nmc-compliance/actions",
@@ -362,6 +391,9 @@ export const PATTERNS = [
   "POST osce/stations",
   "POST osce/stations/:id/toggle",
   "POST osce/sessions",
+  "PATCH osce/sessions/:id/status",
+  "POST osce/equipment",
+  "PATCH osce/equipment/:id",
   "POST osce/bookings",
   "PATCH osce/bookings/:id/status",
   "POST osce/grade",
@@ -693,21 +725,53 @@ export async function dispatch(method: string, segs: string[], rawBody: unknown,
       if (!parsed.success) return err(400, "invalid_body", parsed.error.issues[0]?.message ?? "Invalid AICTE id.");
       return ok(await updateAicteProfile(session, parsed.data));
     }
-    case "GET hospital/overview": {
-      return ok(await getHospitalOverview(session));
-    }
-    case "POST hospital/census": {
-      if (session.role !== "institution" && session.role !== "hod" && session.role !== "admin") return forbidden();
-      const parsed = UpdateHospitalCensusInput.safeParse(rawBody);
-      if (!parsed.success) return err(400, "invalid_body", parsed.error.issues[0]?.message ?? "Invalid hospital census payload.");
-      return ok(await updateHospitalCensus(session, parsed.data));
-    }
+    case "GET hospital/overview":
+    case "POST hospital/census":
+    case "POST hospital/departments":
+    case "PUT hospital/departments/:id":
+    case "DELETE hospital/departments/:id":
+    case "PUT hospital/profile":
     case "POST hospital/rotations/:id/certify": {
-      if (session.role !== "institution" && session.role !== "hod" && session.role !== "faculty" && session.role !== "admin") return forbidden();
-      const rotationId = found.id ?? segs[2] ?? "";
-      const parsed = CertifyRotationInput.safeParse({ ...(typeof rawBody === "object" && rawBody !== null ? rawBody : {}), rotationId });
-      if (!parsed.success) return err(400, "invalid_body", parsed.error.issues[0]?.message ?? "Invalid rotation certification payload.");
-      return ok(await certifyClinicalRotation(session, parsed.data));
+      const id = found.id ?? segs[2] ?? "";
+      const bad = (e: { issues: { message: string }[] }, fallback: string) => err(400, "invalid_body", e.issues[0]?.message ?? fallback);
+      try {
+        if (found.route === "POST hospital/rotations/:id/certify") {
+          if (!canCertifyRotations(session.role)) return forbidden();
+          const parsed = CertifyRotationInput.safeParse({ ...(typeof rawBody === "object" && rawBody !== null ? rawBody : {}), rotationId: id });
+          if (!parsed.success) return bad(parsed.error, "Invalid rotation certification payload.");
+          return ok(await certifyClinicalRotation(session, parsed.data));
+        }
+        if (found.route !== "GET hospital/overview" && !canManageHospital(session.role)) return forbidden();
+        switch (found.route) {
+          case "GET hospital/overview":
+            return ok(await getHospitalOverview(session));
+          case "POST hospital/census": {
+            const parsed = UpdateHospitalCensusInput.safeParse(rawBody);
+            if (!parsed.success) return bad(parsed.error, "Invalid hospital census payload.");
+            return ok(await updateHospitalCensus(session, parsed.data));
+          }
+          case "POST hospital/departments": {
+            const parsed = CreateHospitalDepartmentInput.safeParse(rawBody);
+            if (!parsed.success) return bad(parsed.error, "Invalid department payload.");
+            return ok(await createHospitalDepartment(session, parsed.data));
+          }
+          case "PUT hospital/departments/:id": {
+            const parsed = CreateHospitalDepartmentInput.partial().safeParse(rawBody);
+            if (!parsed.success) return bad(parsed.error, "Invalid department payload.");
+            return ok(await updateHospitalDepartment(session, id, parsed.data));
+          }
+          case "DELETE hospital/departments/:id":
+            return ok(await removeHospitalDepartment(session, id));
+          default: {
+            const parsed = UpdateHospitalProfileInput.safeParse(rawBody);
+            if (!parsed.success) return bad(parsed.error, "Invalid hospital profile payload.");
+            return ok(await updateHospitalProfile(session, parsed.data));
+          }
+        }
+      } catch (e) {
+        if (e instanceof HospitalError) return hospitalFail(e);
+        throw e;
+      }
     }
     case "GET nmc-compliance": {
       if (session.role !== "institution" && session.role !== "admin") return forbidden();
@@ -802,44 +866,72 @@ export async function dispatch(method: string, segs: string[], rawBody: unknown,
       }
     }
 
-    case "GET osce": {
-      return ok(await getOsceOverview(session));
-    }
-    case "POST osce/stations": {
-      if (session.role !== "hod" && session.role !== "faculty" && session.role !== "admin") return forbidden();
-      const parsed = CreateOsceStationInput.safeParse(rawBody);
-      if (!parsed.success) return err(400, "invalid_body", parsed.error.issues[0]?.message ?? "Invalid station payload.");
-      return ok(await createOsceStation(session, parsed.data));
-    }
-    case "POST osce/stations/:id/toggle": {
-      if (session.role !== "hod" && session.role !== "faculty" && session.role !== "admin") return forbidden();
-      return ok(await toggleStationStatus(session, found.id ?? segs[2] ?? ""));
-    }
-    case "POST osce/sessions": {
-      if (session.role !== "hod" && session.role !== "faculty" && session.role !== "admin") return forbidden();
-      const parsed = CreateOsceSessionInput.safeParse(rawBody);
-      if (!parsed.success) return err(400, "invalid_body", parsed.error.issues[0]?.message ?? "Invalid session payload.");
-      return ok(await createOsceSession(session, parsed.data));
-    }
-    case "POST osce/bookings": {
-      const parsed = CreateSkillsLabBookingInput.safeParse(rawBody);
-      if (!parsed.success) return err(400, "invalid_body", parsed.error.issues[0]?.message ?? "Invalid booking payload.");
-      return ok(await createSkillsLabBooking(session, parsed.data));
-    }
-    case "PATCH osce/bookings/:id/status": {
-      if (session.role !== "hod" && session.role !== "faculty" && session.role !== "admin") return forbidden();
-      const parsed = UpdateBookingStatusInput.safeParse(rawBody);
-      if (!parsed.success) return err(400, "invalid_body", parsed.error.issues[0]?.message ?? "Invalid booking status payload.");
-      return ok(await updateBookingStatus(session, found.id ?? segs[2] ?? "", parsed.data));
-    }
-    case "POST osce/grade": {
-      if (session.role !== "hod" && session.role !== "faculty" && session.role !== "admin") return forbidden();
-      const parsed = GradeStudentOsceInput.safeParse(rawBody);
-      if (!parsed.success) return err(400, "invalid_body", parsed.error.issues[0]?.message ?? "Invalid grading payload.");
-      return ok(await gradeStudentOsce(session, parsed.data));
+    case "GET osce":
+    case "POST osce/stations":
+    case "POST osce/stations/:id/toggle":
+    case "POST osce/sessions":
+    case "PATCH osce/sessions/:id/status":
+    case "POST osce/bookings":
+    case "PATCH osce/bookings/:id/status":
+    case "POST osce/grade":
+    case "POST osce/equipment":
+    case "PATCH osce/equipment/:id": {
+      const id = found.id ?? segs[2] ?? "";
+      const bad = (e: { issues: { message: string }[] }, fallback: string) => err(400, "invalid_body", e.issues[0]?.message ?? fallback);
+      try {
+        if (found.route !== "GET osce" && found.route !== "POST osce/bookings" && !canManageOsce(session.role)) return forbidden();
+        switch (found.route) {
+          case "GET osce":
+            return ok(await getOsceOverview(session));
+          case "POST osce/stations": {
+            const parsed = CreateOsceStationInput.safeParse(rawBody);
+            if (!parsed.success) return bad(parsed.error, "Invalid station payload.");
+            return ok(await createOsceStation(session, parsed.data));
+          }
+          case "POST osce/stations/:id/toggle":
+            return ok(await toggleStationStatus(session, id));
+          case "POST osce/sessions": {
+            const parsed = CreateOsceSessionInput.safeParse(rawBody);
+            if (!parsed.success) return bad(parsed.error, "Invalid session payload.");
+            return ok(await createOsceSession(session, parsed.data));
+          }
+          case "PATCH osce/sessions/:id/status": {
+            const parsed = UpdateSessionStatusInput.safeParse(rawBody);
+            if (!parsed.success) return bad(parsed.error, "Invalid session status.");
+            return ok(await updateSessionStatus(session, id, parsed.data));
+          }
+          case "POST osce/bookings": {
+            const parsed = CreateSkillsLabBookingInput.safeParse(rawBody);
+            if (!parsed.success) return bad(parsed.error, "Invalid booking payload.");
+            return ok(await createSkillsLabBooking(session, parsed.data));
+          }
+          case "PATCH osce/bookings/:id/status": {
+            const parsed = UpdateBookingStatusInput.safeParse(rawBody);
+            if (!parsed.success) return bad(parsed.error, "Invalid booking status payload.");
+            return ok(await updateBookingStatus(session, id, parsed.data));
+          }
+          case "POST osce/grade": {
+            const parsed = GradeStudentOsceInput.safeParse(rawBody);
+            if (!parsed.success) return bad(parsed.error, "Invalid grading payload.");
+            return ok(await gradeStudentOsce(session, parsed.data));
+          }
+          case "POST osce/equipment": {
+            const parsed = CreateOsceEquipmentInput.safeParse(rawBody);
+            if (!parsed.success) return bad(parsed.error, "Invalid equipment payload.");
+            return ok(await createOsceEquipment(session, parsed.data));
+          }
+          default: {
+            const parsed = UpdateOsceEquipmentInput.safeParse(rawBody);
+            if (!parsed.success) return bad(parsed.error, "Invalid equipment payload.");
+            return ok(await updateOsceEquipment(session, id, parsed.data));
+          }
+        }
+      } catch (e) {
+        if (e instanceof OsceError) return osceFail(e);
+        throw e;
+      }
     }
 
-    /* ── session & shell ── */
     case "GET notifications":
     case "POST notifications/:id/read":
     case "POST notifications/read-all":
@@ -963,31 +1055,40 @@ export async function dispatch(method: string, segs: string[], rawBody: unknown,
 
     /* ── campus clubs ── */
     case "GET clubs":
-      return ok(await getClubsOverview(session));
-    case "POST clubs": {
-      if (session.role === "recruiter") return forbidden();
-      const parsed = CreateClubInput.safeParse(rawBody);
-      if (!parsed.success) return err(400, "invalid_body", parsed.error.issues[0]?.message ?? "Invalid club payload.");
-      return ok(await createClub(session, parsed.data));
-    }
-    case "PUT clubs/:id": {
-      if (session.role === "recruiter") return forbidden();
-      if (!b) return notFound();
-      const parsed = CreateClubInput.partial().safeParse(rawBody);
-      if (!parsed.success) return err(400, "invalid_body", "Invalid club payload.");
-      const updated = await updateClub(session, b, parsed.data);
-      return updated ? ok(updated) : notFound();
-    }
-    case "POST clubs/:id/join": {
-      if (!b) return notFound();
-      const res = await toggleJoinClub(session, b);
-      return res ? ok(res) : notFound();
-    }
+    case "POST clubs":
+    case "PUT clubs/:id":
+    case "POST clubs/:id/join":
     case "DELETE clubs/:id": {
-      if (session.role !== "institution" && session.role !== "admin") return forbidden();
-      if (!b) return notFound();
-      const success = await deleteClub(session, b);
-      return success ? ok({ ok: true }) : notFound();
+      try {
+        switch (found.route) {
+          case "GET clubs":
+            return ok(await getClubsOverview(session));
+          case "POST clubs": {
+            if (!canCreateClubs(session.role)) return forbidden();
+            const parsed = CreateClubInput.safeParse(rawBody);
+            if (!parsed.success) return err(400, "invalid_body", parsed.error.issues[0]?.message ?? "Invalid club payload.");
+            return ok(await createClub(session, parsed.data));
+          }
+          case "PUT clubs/:id": {
+            if (!canCreateClubs(session.role)) return forbidden();
+            if (!b) return notFound();
+            const parsed = CreateClubInput.partial().safeParse(rawBody);
+            if (!parsed.success) return err(400, "invalid_body", parsed.error.issues[0]?.message ?? "Invalid club payload.");
+            return ok(await updateClub(session, b, parsed.data));
+          }
+          case "POST clubs/:id/join":
+            if (!b) return notFound();
+            return ok(await toggleJoinClub(session, b));
+          default:
+            if (!canRemoveClubs(session.role)) return forbidden();
+            if (!b) return notFound();
+            await deleteClub(session, b);
+            return ok({ ok: true });
+        }
+      } catch (e) {
+        if (e instanceof ClubError) return clubFail(e);
+        throw e;
+      }
     }
 
     /* ── campus sports ── */

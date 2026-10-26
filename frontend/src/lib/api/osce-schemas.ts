@@ -68,6 +68,8 @@ export const StudentOsceResultSchema = z.object({
   studentName: z.string(),
   batch: z.string(),
   stationId: z.string(),
+  /** The exam session this grade belongs to ("" when graded outside a scheduled session). */
+  sessionId: z.string(),
   stationName: z.string(),
   score: z.number(),
   total: z.number(),
@@ -115,6 +117,12 @@ export const OsceOverviewSchema = z.object({
   results: z.array(StudentOsceResultSchema),
   equipment: z.array(SkillsLabEquipmentSchema),
   departments: z.array(z.string()),
+  /** Batches already used by sessions and results, offered as suggestions when typing a batch. */
+  batches: z.array(z.string()),
+  /** What the signed-in user may do, decided by the server. */
+  permissions: z.object({ manage: z.boolean() }),
+  /** The signed-in user, to prefill their own booking. */
+  viewer: z.object({ name: z.string(), role: z.enum(["Student", "Resident", "Faculty"]), rollNo: z.string() }),
 });
 export type OsceOverview = z.infer<typeof OsceOverviewSchema>;
 
@@ -177,9 +185,40 @@ export const GradeStudentOsceInput = z.object({
   rollNo: z.string().min(2, "Roll number required"),
   batch: z.string().min(2, "Batch required"),
   stationId: z.string().min(1, "Station ID required"),
+  /** The exam session being graded (optional). */
+  sessionId: z.string().optional().default(""),
   score: z.number().min(0),
   criticalStepMet: z.boolean(),
   evaluatorRemarks: z.string().optional().default(""),
   cbmeCertified: z.boolean().default(true),
 });
 export type GradeStudentOsceInput = z.infer<typeof GradeStudentOsceInput>;
+
+
+export const UpdateSessionStatusInput = z.object({
+  status: z.enum(["Scheduled", "In Progress", "Completed", "Results Published"]),
+});
+export type UpdateSessionStatusInput = z.infer<typeof UpdateSessionStatusInput>;
+
+const IsoDay = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use a date like 2026-11-20");
+
+export const CreateOsceEquipmentInput = z.object({
+  name: z.string().min(2, "Equipment name is required").max(160),
+  serialNo: z.string().min(1, "Serial number is required").max(60),
+  category: z.string().min(2, "Category is required").max(120),
+  room: z.string().min(2, "Room is required").max(120),
+  status: z.enum(["Operational", "Calibration Due", "Maintenance"]).default("Operational"),
+  lastInspection: IsoDay.or(z.literal("")).default(""),
+  nextMaintenance: IsoDay.or(z.literal("")).default(""),
+  utilizationHoursWeek: z.number().min(0).max(168).default(0),
+});
+export type CreateOsceEquipmentInput = z.infer<typeof CreateOsceEquipmentInput>;
+
+export const UpdateOsceEquipmentInput = z.object({
+  status: z.enum(["Operational", "Calibration Due", "Maintenance"]).optional(),
+  room: z.string().min(2).max(120).optional(),
+  lastInspection: IsoDay.or(z.literal("")).optional(),
+  nextMaintenance: IsoDay.or(z.literal("")).optional(),
+  utilizationHoursWeek: z.number().min(0).max(168).optional(),
+});
+export type UpdateOsceEquipmentInput = z.infer<typeof UpdateOsceEquipmentInput>;

@@ -39,6 +39,8 @@ type TabKey = "stations" | "sessions" | "bookings" | "results" | "equipment";
 
 export function OsceModule({ role }: { role: Role }) {
   const qc = useQueryClient();
+  const [today] = useState(() => new Date(Date.now() + 5.5 * 3_600_000).toISOString().slice(0, 10));
+  const [nextWeek] = useState(() => new Date(Date.now() + 5.5 * 3_600_000 + 7 * 86_400_000).toISOString().slice(0, 10));
   const [activeTab, setActiveTab] = useState<TabKey>("stations");
   const [domainFilter, setDomainFilter] = useState<string>("All Domains");
   const [deptFilter, setDeptFilter] = useState<string>("All Departments");
@@ -54,7 +56,7 @@ export function OsceModule({ role }: { role: Role }) {
 
   // Form states - Add Station
   const [stationTitle, setStationTitle] = useState("");
-  const [stationDept, setStationDept] = useState("General Medicine");
+  const [stationDept, setStationDept] = useState("");
   const [stationDomain, setStationDomain] = useState<"Procedure" | "Communication" | "Emergency" | "Data interpretation" | "Physical Exam">("Procedure");
   const [stationDuration, setStationDuration] = useState(8);
   const [stationTotalMarks, setStationTotalMarks] = useState(20);
@@ -72,20 +74,20 @@ export function OsceModule({ role }: { role: Role }) {
 
   // Form states - Add Session
   const [sessionTitle, setSessionTitle] = useState("");
-  const [sessionBatch, setSessionBatch] = useState("MBBS 2022 (Phase 3 Part 2)");
-  const [sessionDept, setSessionDept] = useState("Multidisciplinary Clinical Board");
-  const [sessionDate, setSessionDate] = useState("2026-11-20");
+  const [sessionBatch, setSessionBatch] = useState("");
+  const [sessionDept, setSessionDept] = useState("");
+  const [sessionDate, setSessionDate] = useState(nextWeek);
   const [sessionTime, setSessionTime] = useState("09:00 AM - 01:00 PM");
-  const [sessionVenue, setSessionVenue] = useState("Central Clinical Skills Simulation Center - Block C");
+  const [sessionVenue, setSessionVenue] = useState("");
   const [sessionCandidates, setSessionCandidates] = useState(50);
-  const [sessionExaminer, setSessionExaminer] = useState("Dr. S. Venkatesh (HOD)");
+  const [sessionExaminer, setSessionExaminer] = useState("");
 
   // Form states - Book Lab
-  const [bookApplicantName, setBookApplicantName] = useState(role === "student" ? "Sneha Varma (MBBS Intern)" : "Dr. S. Venkatesh (Faculty)");
+  const [bookApplicantName, setBookApplicantName] = useState("");
   const [bookApplicantRole, setBookApplicantRole] = useState<"Student" | "Resident" | "Faculty">(role === "student" ? "Student" : "Faculty");
-  const [bookRoom, setBookRoom] = useState("Surgical Skills Cubicle 2");
-  const [bookEquipment, setBookEquipment] = useState("Suture Training Pad & Instrument Kit");
-  const [bookDate, setBookDate] = useState("2026-10-25");
+  const [bookRoom, setBookRoom] = useState("");
+  const [bookEquipment, setBookEquipment] = useState("");
+  const [bookDate, setBookDate] = useState(today);
   const [bookTime, setBookTime] = useState("14:00 - 15:30");
   const [bookPurpose, setBookPurpose] = useState<"Independent Practice" | "Faculty-Guided Demo" | "Remediation Training">("Independent Practice");
   const [bookNotes, setBookNotes] = useState("");
@@ -93,12 +95,24 @@ export function OsceModule({ role }: { role: Role }) {
   // Form states - Grade Student
   const [gradeStudentName, setGradeStudentName] = useState("");
   const [gradeRollNo, setGradeRollNo] = useState("");
-  const [gradeBatch, setGradeBatch] = useState("MBBS 2022");
+  const [gradeBatch, setGradeBatch] = useState("");
   const [gradeStationId, setGradeStationId] = useState("");
-  const [gradeScore, setGradeScore] = useState(16);
+  const [gradeScore, setGradeScore] = useState(0);
   const [gradeCriticalMet, setGradeCriticalMet] = useState(true);
   const [gradeRemarks, setGradeRemarks] = useState("");
   const [gradeCbmeCertified, setGradeCbmeCertified] = useState(true);
+  const [gradeSessionId, setGradeSessionId] = useState("");
+
+  // add-equipment form
+  const [showEquipmentModal, setShowEquipmentModal] = useState(false);
+  const [eqName, setEqName] = useState("");
+  const [eqSerial, setEqSerial] = useState("");
+  const [eqCategory, setEqCategory] = useState("");
+  const [eqRoom, setEqRoom] = useState("");
+  const [eqStatus, setEqStatus] = useState<"Operational" | "Calibration Due" | "Maintenance">("Operational");
+  const [eqInspected, setEqInspected] = useState(today);
+  const [eqNextService, setEqNextService] = useState("");
+  const [eqHours, setEqHours] = useState(0);
 
   const flash = (msg: string) => {
     setFlashMessage(msg);
@@ -119,7 +133,7 @@ export function OsceModule({ role }: { role: Role }) {
       setShowAddStationModal(false);
       flash("New OSCE Clinical Station & Rubric registered successfully!");
     },
-    onError: (err: any) => flash(`Error creating station: ${err.message}`),
+    onError: (err: Error) => flash(`Error creating station: ${err.message}`),
   });
 
   const toggleStationMutation = useMutation({
@@ -127,8 +141,9 @@ export function OsceModule({ role }: { role: Role }) {
       apiFetch(`/api/v1/osce/stations/${stationId}/toggle`, z.any(), { method: "POST" }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["osce-overview"] });
-      flash("Station status toggled!");
+      flash("Station status updated.");
     },
+    onError: (err: Error) => flash(`Error: ${err.message}`),
   });
 
   const createSessionMutation = useMutation({
@@ -139,7 +154,7 @@ export function OsceModule({ role }: { role: Role }) {
       setShowAddSessionModal(false);
       flash("OSCE Examination Circuit scheduled successfully!");
     },
-    onError: (err: any) => flash(`Error scheduling session: ${err.message}`),
+    onError: (err: Error) => flash(`Error scheduling session: ${err.message}`),
   });
 
   const createBookingMutation = useMutation({
@@ -150,7 +165,7 @@ export function OsceModule({ role }: { role: Role }) {
       setShowBookingModal(false);
       flash("Skills Lab practice slot request submitted!");
     },
-    onError: (err: any) => flash(`Error booking slot: ${err.message}`),
+    onError: (err: Error) => flash(`Error booking slot: ${err.message}`),
   });
 
   const updateBookingStatusMutation = useMutation({
@@ -158,8 +173,9 @@ export function OsceModule({ role }: { role: Role }) {
       apiFetch(`/api/v1/osce/bookings/${bookingId}/status`, z.any(), { method: "PATCH", body: { status } }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["osce-overview"] });
-      flash("Booking status updated!");
+      flash("Booking status updated.");
     },
+    onError: (err: Error) => flash(`Error: ${err.message}`),
   });
 
   const gradeStudentMutation = useMutation({
@@ -168,14 +184,52 @@ export function OsceModule({ role }: { role: Role }) {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["osce-overview"] });
       setShowGradeModal(false);
-      flash("Student clinical evaluation recorded & synced to NMC Competency Logbook!");
+      setGradeStudentName("");
+      setGradeRollNo("");
+      setGradeRemarks("");
+      flash("Student clinical evaluation recorded.");
     },
-    onError: (err: any) => flash(`Error grading student: ${err.message}`),
+    onError: (err: Error) => flash(`Error grading student: ${err.message}`),
   });
 
+  const sessionStatusMutation = useMutation({
+    mutationFn: ({ id, status }: { id: string; status: string }) =>
+      apiFetch(`/api/v1/osce/sessions/${id}/status`, z.any(), { method: "PATCH", body: { status } }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["osce-overview"] });
+      flash("Exam circuit status updated.");
+    },
+    onError: (err: Error) => flash(`Error: ${err.message}`),
+  });
+
+  const createEquipmentMutation = useMutation({
+    mutationFn: (input: Record<string, unknown>) =>
+      apiFetch("/api/v1/osce/equipment", z.any(), { method: "POST", body: input }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["osce-overview"] });
+      setShowEquipmentModal(false);
+      setEqName("");
+      setEqSerial("");
+      flash("Equipment added to the inventory.");
+    },
+    onError: (err: Error) => flash(`Error adding equipment: ${err.message}`),
+  });
+
+  const updateEquipmentMutation = useMutation({
+    mutationFn: ({ id, ...body }: { id: string } & Record<string, unknown>) =>
+      apiFetch(`/api/v1/osce/equipment/${id}`, z.any(), { method: "PATCH", body }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["osce-overview"] });
+      flash("Equipment updated.");
+    },
+    onError: (err: Error) => flash(`Error: ${err.message}`),
+  });
+
+  const stationList = data?.stations;
+  const resultList = data?.results;
   const filteredStations = useMemo(() => {
-    if (!data?.stations) return [];
-    return data.stations.filter((st) => {
+    if (!stationList) return [];
+    return stationList.filter((st) => {
       const matchDomain = domainFilter === "All Domains" || st.domain === domainFilter;
       const matchDept = deptFilter === "All Departments" || st.department === deptFilter;
       const matchQuery =
@@ -186,18 +240,18 @@ export function OsceModule({ role }: { role: Role }) {
         st.manikinEquipment.toLowerCase().includes(searchQuery.toLowerCase());
       return matchDomain && matchDept && matchQuery;
     });
-  }, [data?.stations, domainFilter, deptFilter, searchQuery]);
+  }, [stationList, domainFilter, deptFilter, searchQuery]);
 
   const filteredResults = useMemo(() => {
-    if (!data?.results) return [];
-    if (!searchQuery.trim()) return data.results;
-    return data.results.filter(
+    if (!resultList) return [];
+    if (!searchQuery.trim()) return resultList;
+    return resultList.filter(
       (r) =>
         r.studentName.toLowerCase().includes(searchQuery.toLowerCase()) ||
         r.rollNo.toLowerCase().includes(searchQuery.toLowerCase()) ||
         r.stationName.toLowerCase().includes(searchQuery.toLowerCase())
     );
-  }, [data?.results, searchQuery]);
+  }, [resultList, searchQuery]);
 
   const triggerDownload = (filename: string, csvContent: string) => {
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
@@ -250,6 +304,7 @@ export function OsceModule({ role }: { role: Role }) {
   }
 
   const { kpis } = data;
+  const canManage = data.permissions.manage;
 
   return (
     <div className="space-y-6 p-4 md:p-6 max-w-7xl mx-auto">
@@ -302,7 +357,7 @@ export function OsceModule({ role }: { role: Role }) {
             >
               <Fi name="download" className="text-teal-300" /> Export CSV
             </button>
-            {(role === "hod" || role === "faculty" || role === "admin") && (
+            {canManage && (
               <>
                 <button
                   type="button"
@@ -561,7 +616,7 @@ export function OsceModule({ role }: { role: Role }) {
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className={`${inputClass} text-xs md:w-72`}
               />
-              {(role === "hod" || role === "faculty" || role === "admin") && (
+              {canManage && (
                 <Button size="sm" onClick={() => setShowAddStationModal(true)} className="bg-teal-600 text-white shrink-0">
                   <Fi name="plus" className="mr-1" /> New Station
                 </Button>
@@ -636,7 +691,7 @@ export function OsceModule({ role }: { role: Role }) {
                       >
                         Rubric ({station.checklistCount}) ↗
                       </Button>
-                      {(role === "hod" || role === "faculty" || role === "admin") && (
+                      {canManage && (
                         <Button
                           size="sm"
                           variant="secondary"
@@ -680,7 +735,7 @@ export function OsceModule({ role }: { role: Role }) {
             <p className="text-sm text-muted-foreground">
               Objective Structured Clinical Examination circuits and timed station track rotations.
             </p>
-            {(role === "hod" || role === "faculty" || role === "admin") && (
+            {canManage && (
               <Button size="sm" onClick={() => setShowAddSessionModal(true)} className="bg-teal-600 text-white">
                 <Fi name="plus" className="mr-1" /> Schedule Exam Circuit
               </Button>
@@ -688,6 +743,11 @@ export function OsceModule({ role }: { role: Role }) {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {data.sessions.length === 0 && (
+              <div className="md:col-span-2 lg:col-span-3">
+                <EmptyState title="No exam circuits scheduled" body={canManage ? "Schedule the first OSCE circuit for a batch." : "Nothing is scheduled yet."} />
+              </div>
+            )}
             {data.sessions.map((sess) => (
               <Card key={sess.id} className="border-line">
                 <CardBody className="p-4 space-y-3">
@@ -734,7 +794,19 @@ export function OsceModule({ role }: { role: Role }) {
                     <Progress value={(sess.evaluatedCount / (sess.totalCandidates || 1)) * 100} />
                   </div>
 
-                  <div className="pt-2 border-t border-line flex justify-end gap-2 text-xs">
+                  <div className="pt-2 border-t border-line flex justify-end items-center gap-2 text-xs">
+                    {canManage && (
+                      <select
+                        value={sess.status}
+                        onChange={(e) => sessionStatusMutation.mutate({ id: sess.id, status: e.target.value })}
+                        className="rounded border border-line bg-surface px-2 py-1 text-xs text-ink"
+                        aria-label="Circuit status"
+                      >
+                        {["Scheduled", "In Progress", "Completed", "Results Published"].map((st) => (
+                          <option key={st} value={st}>{st}</option>
+                        ))}
+                      </select>
+                    )}
                     <Link
                       href={`/${role}/competency-logbook`}
                       className="px-2.5 py-1 rounded bg-surface-2 hover:bg-surface border border-line text-ink transition-colors font-medium flex items-center gap-1"
@@ -774,7 +846,7 @@ export function OsceModule({ role }: { role: Role }) {
                   <th className="p-3">Date & Time</th>
                   <th className="p-3">Purpose</th>
                   <th className="p-3">Status</th>
-                  {(role === "hod" || role === "faculty" || role === "admin") && <th className="p-3 text-right">Actions</th>}
+                  {canManage && <th className="p-3 text-right">Actions</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-line">
@@ -798,7 +870,7 @@ export function OsceModule({ role }: { role: Role }) {
                         {booking.status}
                       </Badge>
                     </td>
-                    {(role === "hod" || role === "faculty" || role === "admin") && (
+                    {canManage && (
                       <td className="p-3 text-right space-x-1">
                         {booking.status === "Pending Review" && (
                           <>
@@ -858,7 +930,7 @@ export function OsceModule({ role }: { role: Role }) {
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className={`${inputClass} text-xs md:w-64`}
               />
-              {(role === "hod" || role === "faculty" || role === "admin") && (
+              {canManage && (
                 <Button
                   size="sm"
                   onClick={() => {
@@ -974,15 +1046,27 @@ export function OsceModule({ role }: { role: Role }) {
                 National Medical Commission (NMC) MSR compliance status, calibration logs, and manikin maintenance.
               </p>
             </div>
-            <Link
-              href="/institution/nmc-compliance"
-              className="text-xs px-3 py-1.5 rounded-lg bg-teal-600 hover:bg-teal-500 text-white font-medium flex items-center gap-1.5"
-            >
-              <span>🛡️</span> Council Compliance Report ↗
-            </Link>
+            <div className="flex items-center gap-2">
+              {canManage && (
+                <Button size="sm" onClick={() => setShowEquipmentModal(true)} className="bg-teal-600 text-white">
+                  <Fi name="plus" className="mr-1" /> Add Equipment
+                </Button>
+              )}
+              <Link
+                href="/institution/nmc-compliance"
+                className="text-xs px-3 py-1.5 rounded-lg bg-teal-600 hover:bg-teal-500 text-white font-medium flex items-center gap-1.5"
+              >
+                <span>🛡️</span> Council Compliance Report ↗
+              </Link>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {data.equipment.length === 0 && (
+              <div className="md:col-span-2 lg:col-span-3">
+                <EmptyState title="No simulators or equipment recorded" body={canManage ? "Add the manikins and trainers your skills lab owns." : "The inventory has not been set up yet."} />
+              </div>
+            )}
             {data.equipment.map((eq) => (
               <Card key={eq.id} className="border-line">
                 <CardBody className="p-4 space-y-3">
@@ -1019,6 +1103,21 @@ export function OsceModule({ role }: { role: Role }) {
                     </div>
                   </div>
 
+                  {canManage && (
+                    <div className="flex items-center justify-between gap-2 text-xs">
+                      <span className="text-ink-3">Condition:</span>
+                      <select
+                        value={eq.status}
+                        onChange={(e) => updateEquipmentMutation.mutate({ id: eq.id, status: e.target.value })}
+                        className="rounded border border-line bg-surface px-2 py-1 text-xs text-ink"
+                        aria-label="Equipment condition"
+                      >
+                        {["Operational", "Calibration Due", "Maintenance"].map((st) => (
+                          <option key={st} value={st}>{st}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
                   <div className="pt-2 border-t border-line flex justify-between items-center text-xs">
                     <span className="text-ink-3">NMC Norm Status:</span>
                     <span
@@ -1034,6 +1133,96 @@ export function OsceModule({ role }: { role: Role }) {
                 </CardBody>
               </Card>
             ))}
+          </div>
+        </div>
+      )}
+
+      <datalist id="osce-depts">
+        {data.departments.map((d) => (
+          <option key={d} value={d} />
+        ))}
+      </datalist>
+      <datalist id="osce-batches">
+        {data.batches.map((b) => (
+          <option key={b} value={b} />
+        ))}
+      </datalist>
+
+      {/* Add Equipment Modal */}
+      {showEquipmentModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-card border border-border rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4">
+            <div className="flex justify-between items-center">
+              <h3 className="text-lg font-bold">Add Simulator / Equipment</h3>
+              <button onClick={() => setShowEquipmentModal(false)} className="text-muted-foreground text-xl">✕</button>
+            </div>
+            <div className="space-y-3 text-xs">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="font-semibold block mb-1">Name</label>
+                  <input value={eqName} onChange={(e) => setEqName(e.target.value)} className={inputClass} placeholder="e.g. Resusci Anne QCPR" />
+                </div>
+                <div>
+                  <label className="font-semibold block mb-1">Serial No.</label>
+                  <input value={eqSerial} onChange={(e) => setEqSerial(e.target.value)} className={inputClass} />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="font-semibold block mb-1">Category</label>
+                  <input value={eqCategory} onChange={(e) => setEqCategory(e.target.value)} className={inputClass} placeholder="e.g. High Fidelity Manikin" />
+                </div>
+                <div>
+                  <label className="font-semibold block mb-1">Room</label>
+                  <input value={eqRoom} onChange={(e) => setEqRoom(e.target.value)} className={inputClass} />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="font-semibold block mb-1">Condition</label>
+                  <select value={eqStatus} onChange={(e) => setEqStatus(e.target.value as typeof eqStatus)} className={inputClass}>
+                    <option>Operational</option>
+                    <option>Calibration Due</option>
+                    <option>Maintenance</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="font-semibold block mb-1">Weekly use (hrs)</label>
+                  <input type="number" min={0} value={eqHours} onChange={(e) => setEqHours(Number(e.target.value))} className={inputClass} />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="font-semibold block mb-1">Last inspection</label>
+                  <input type="date" value={eqInspected} onChange={(e) => setEqInspected(e.target.value)} className={inputClass} />
+                </div>
+                <div>
+                  <label className="font-semibold block mb-1">Next service</label>
+                  <input type="date" value={eqNextService} onChange={(e) => setEqNextService(e.target.value)} className={inputClass} />
+                </div>
+              </div>
+            </div>
+            <div className="pt-3 border-t border-border flex justify-end gap-2">
+              <Button variant="secondary" onClick={() => setShowEquipmentModal(false)}>Cancel</Button>
+              <Button
+                onClick={() =>
+                  createEquipmentMutation.mutate({
+                    name: eqName,
+                    serialNo: eqSerial,
+                    category: eqCategory,
+                    room: eqRoom,
+                    status: eqStatus,
+                    lastInspection: eqInspected,
+                    nextMaintenance: eqNextService,
+                    utilizationHoursWeek: eqHours,
+                  })
+                }
+                disabled={!eqName || !eqSerial || !eqCategory || !eqRoom || createEquipmentMutation.isPending}
+                className="bg-teal-600 text-white"
+              >
+                {createEquipmentMutation.isPending ? "Adding..." : "Add Equipment"}
+              </Button>
+            </div>
           </div>
         </div>
       )}
@@ -1142,17 +1331,13 @@ export function OsceModule({ role }: { role: Role }) {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="font-semibold text-ink-2 block mb-1">Clinical Department</label>
-                  <select value={stationDept} onChange={(e) => setStationDept(e.target.value)} className={inputClass}>
-                    {data.departments.map((d) => (
-                      <option key={d} value={d}>{d}</option>
-                    ))}
-                  </select>
+                  <input list="osce-depts" value={stationDept} onChange={(e) => setStationDept(e.target.value)} className={inputClass} placeholder="e.g. General Medicine" />
                 </div>
                 <div>
                   <label className="font-semibold text-ink-2 block mb-1">Domain</label>
                   <select
                     value={stationDomain}
-                    onChange={(e) => setStationDomain(e.target.value as any)}
+                    onChange={(e) => setStationDomain(e.target.value as typeof stationDomain)}
                     className={inputClass}
                   >
                     <option value="Procedure">Procedure</option>
@@ -1372,8 +1557,10 @@ export function OsceModule({ role }: { role: Role }) {
                   <label className="font-semibold text-ink-2 block mb-1">Target Batch</label>
                   <input
                     type="text"
+                    list="osce-batches"
                     value={sessionBatch}
                     onChange={(e) => setSessionBatch(e.target.value)}
+                    placeholder="e.g. MBBS 2024 Batch"
                     className={inputClass}
                   />
                 </div>
@@ -1381,6 +1568,7 @@ export function OsceModule({ role }: { role: Role }) {
                   <label className="font-semibold text-ink-2 block mb-1">Department / Board</label>
                   <input
                     type="text"
+                    list="osce-depts"
                     value={sessionDept}
                     onChange={(e) => setSessionDept(e.target.value)}
                     className={inputClass}
@@ -1458,7 +1646,7 @@ export function OsceModule({ role }: { role: Role }) {
                     leadExaminer: sessionExaminer,
                   })
                 }
-                disabled={!sessionTitle || createSessionMutation.isPending}
+                disabled={!sessionTitle || !sessionBatch || !sessionDept || !sessionVenue || !sessionExaminer || createSessionMutation.isPending}
                 className="bg-teal-600 text-white font-medium"
               >
                 {createSessionMutation.isPending ? "Scheduling..." : "Schedule Circuit"}
@@ -1492,8 +1680,10 @@ export function OsceModule({ role }: { role: Role }) {
                   <label className="font-semibold text-ink-2 block mb-1">Applicant Name</label>
                   <input
                     type="text"
-                    value={bookApplicantName}
+                    value={role === "student" ? data.viewer.name : bookApplicantName}
+                    disabled={role === "student"}
                     onChange={(e) => setBookApplicantName(e.target.value)}
+                    placeholder={data.viewer.name}
                     className={inputClass}
                   />
                 </div>
@@ -1501,7 +1691,7 @@ export function OsceModule({ role }: { role: Role }) {
                   <label className="font-semibold text-ink-2 block mb-1">Role</label>
                   <select
                     value={bookApplicantRole}
-                    onChange={(e) => setBookApplicantRole(e.target.value as any)}
+                    onChange={(e) => setBookApplicantRole(e.target.value as typeof bookApplicantRole)}
                     className={inputClass}
                   >
                     <option value="Student">Student</option>
@@ -1558,7 +1748,7 @@ export function OsceModule({ role }: { role: Role }) {
                 <label className="font-semibold text-ink-2 block mb-1">Practice Purpose</label>
                 <select
                   value={bookPurpose}
-                  onChange={(e) => setBookPurpose(e.target.value as any)}
+                  onChange={(e) => setBookPurpose(e.target.value as typeof bookPurpose)}
                   className={inputClass}
                 >
                   <option value="Independent Practice">Independent Practice</option>
@@ -1586,7 +1776,7 @@ export function OsceModule({ role }: { role: Role }) {
               <Button
                 onClick={() =>
                   createBookingMutation.mutate({
-                    applicantName: bookApplicantName,
+                    applicantName: bookApplicantName || data.viewer.name,
                     applicantRole: bookApplicantRole,
                     stationOrRoom: bookRoom,
                     equipment: bookEquipment,
@@ -1596,7 +1786,7 @@ export function OsceModule({ role }: { role: Role }) {
                     notes: bookNotes,
                   })
                 }
-                disabled={!bookApplicantName || createBookingMutation.isPending}
+                disabled={!bookRoom || !bookEquipment || !bookTime || createBookingMutation.isPending}
                 className="bg-sky-600 hover:bg-sky-500 text-white font-medium"
               >
                 {createBookingMutation.isPending ? "Submitting..." : "Submit Reservation"}
@@ -1653,6 +1843,7 @@ export function OsceModule({ role }: { role: Role }) {
                   <label className="font-semibold text-ink-2 block mb-1">MBBS Batch</label>
                   <input
                     type="text"
+                    list="osce-batches"
                     value={gradeBatch}
                     onChange={(e) => setGradeBatch(e.target.value)}
                     className={inputClass}
@@ -1672,6 +1863,16 @@ export function OsceModule({ role }: { role: Role }) {
                     ))}
                   </select>
                 </div>
+              </div>
+
+              <div>
+                <label className="font-semibold text-ink-2 block mb-1">Exam Circuit (optional)</label>
+                <select value={gradeSessionId} onChange={(e) => setGradeSessionId(e.target.value)} className={inputClass}>
+                  <option value="">Not part of a scheduled circuit</option>
+                  {data.sessions.map((sx) => (
+                    <option key={sx.id} value={sx.id}>{sx.title} ({sx.date})</option>
+                  ))}
+                </select>
               </div>
 
               <div>
@@ -1736,13 +1937,14 @@ export function OsceModule({ role }: { role: Role }) {
                     rollNo: gradeRollNo,
                     batch: gradeBatch,
                     stationId: gradeStationId || (data.stations[0]?.id || ""),
+                    sessionId: gradeSessionId,
                     score: gradeScore,
                     criticalStepMet: gradeCriticalMet,
                     evaluatorRemarks: gradeRemarks,
                     cbmeCertified: gradeCbmeCertified,
                   })
                 }
-                disabled={!gradeStudentName || !gradeRollNo || gradeStudentMutation.isPending}
+                disabled={!gradeStudentName || !gradeRollNo || !gradeBatch || data.stations.length === 0 || gradeStudentMutation.isPending}
                 className="bg-emerald-600 text-white font-medium"
               >
                 {gradeStudentMutation.isPending ? "Recording..." : "Save Evaluation"}
