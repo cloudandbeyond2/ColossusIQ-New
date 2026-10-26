@@ -1,476 +1,322 @@
 import "server-only";
-import { sharedState } from "./global-state";
 import type { SessionPayload } from "@/lib/auth/session";
 import type {
   CreateReportInput,
+  CreateScheduleInput,
+  ReportBreakdownItem,
+  ReportCategory,
   ReportItem,
+  ReportKpi,
   ReportsOverview,
   ScheduledReport,
 } from "@/lib/api/schemas";
-import { prisma } from "@/lib/data/postgres/db";
+import { getStore } from "@/lib/data";
+import { reportsData, type Frequency, type ReportMetrics, type ReportRow, type ScheduleRow } from "./reports-data";
+import { listColleges } from "./records";
 
-const reportsStore = sharedState("campus.reports.list.v2", () => new Map<string, ReportItem[]>());
-const scheduledStore = sharedState("campus.reports.scheduled.v2", () => new Map<string, ScheduledReport[]>());
+/*
+ * Institutional reports. A report is a snapshot of the college's real records (students, staff, courses, quizzes,
+ * placement drives) taken when it was compiled, so it never changes afterwards. Nothing is estimated: a figure the
+ * college has no data for is shown as "no data", never made up. Schedules compile a new report each time they fall due.
+ */
 
-async function withDbTimeout<T>(promise: Promise<T>, timeoutMs = 2500): Promise<T> {
-  let timer: NodeJS.Timeout | undefined;
-  const timeoutPromise = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => reject(new Error("Database operation timed out")), timeoutMs);
-  });
-  return Promise.race([promise, timeoutPromise]).finally(() => {
-    if (timer) clearTimeout(timer);
+export class ReportError extends Error {
+  constructor(
+    message: string,
+    readonly status: 400 | 403 | 404 | 409 = 400,
+  ) {
+    super(message);
+  }
+}
+
+const GENERATE_ROLES = new Set(["faculty", "hod", "placement", "institution", "admin"]);
+const SCHEDULE_ROLES = new Set(["institution", "admin"]);
+const ROLE_LABEL: Record<string, string> = {
+  faculty: "Faculty Member",
+  hod: "Head of Department",
+  placement: "Placement Officer",
+  institution: "Principal Office",
+  admin: "Administrator",
+};
+
+export const canGenerateReports = (role: string) => GENERATE_ROLES.has(role);
+export const canScheduleReports = (role: string) => SCHEDULE_ROLES.has(role);
+const canDelete = (r: ReportRow, s: SessionPayload) => SCHEDULE_ROLES.has(s.role) || (r.authorSub !== "" && r.authorSub === s.sub);
+
+async function collegeOf(session: SessionPayload): Promise<string> {
+  if (session.college && session.college !== "all") return session.college;
+  const first = (await listColleges())[0];
+  if (!first) throw new ReportError("There is no college to report on yet.", 404);
+  return first.id;
+}
+
+async function audit(session: SessionPayload, action: string, target: string) {
+  await getStore().audit.add({
+    actor: session.name,
+    action,
+    target,
+    collegeId: session.college === "all" ? null : session.college,
+    actorSub: session.sub,
   });
 }
 
-async function getCollegeUuid(collegePublicId: string): Promise<string | null> {
-  try {
-    const effective = collegePublicId === "all" ? "COL-1001" : collegePublicId;
-    const rows = await withDbTimeout(
-      prisma().$queryRawUnsafe<Array<{ id: string }>>(
-        `SELECT id::text FROM colleges WHERE public_id = $1 OR id::text = $1 LIMIT 1;`,
-        effective,
-      ),
-      2000,
-    );
-    return rows[0]?.id ?? null;
-  } catch (err) {
-    console.warn("Failed resolving college UUID:", err);
-    return null;
+/* ── dates (UTC, yyyy-mm-dd) ── */
+const today = () => new Date().toISOString().slice(0, 10);
+function addDays(day: string, n: number): string {
+  const d = new Date(`${day}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+function addMonths(day: string, n: number): string {
+  const d = new Date(`${day}T00:00:00Z`);
+  const target = d.getUTCMonth() + n;
+  d.setUTCDate(1);
+  d.setUTCMonth(target);
+  const last = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).getUTCDate();
+  const orig = Number(day.slice(8, 10));
+  d.setUTCDate(Math.min(orig, last));
+  return d.toISOString().slice(0, 10);
+}
+function step(day: string, f: Frequency): string {
+  switch (f) {
+    case "Weekly":
+      return addDays(day, 7);
+    case "Bi-Weekly":
+      return addDays(day, 14);
+    case "Monthly":
+      return addMonths(day, 1);
+    default:
+      return addMonths(day, 6);
+  }
+}
+
+/* ── compiling a report from live records ── */
+const pct = (n: number, d: number) => (d > 0 ? Math.round((n / d) * 1000) / 10 : null);
+const grade = (score: number | null, good: number, none: string) => (score === null ? none : score >= good ? "Target met" : "Below target");
+
+function compile(m: ReportMetrics, input: CreateReportInput, scope: string) {
+  const passRate = pct(m.quizPassed, m.quizAttempts);
+  const onTrack = m.assessedStudents > 0 ? pct(m.assessedStudents - m.atRiskStudents, m.assessedStudents) : null;
+  const conversion = pct(m.offers, m.openings);
+
+  const kpis: ReportKpi[] = [
+    { label: "Scope", value: scope },
+    { label: "Active students", value: String(m.students) },
+    { label: "Faculty & staff", value: String(m.staff) },
+  ];
+  const breakdown: ReportBreakdownItem[] = [
+    { item: `${scope} - Active students`, evaluated: m.students, score: null, status: m.students > 0 ? "Recorded" : "No data" },
+    { item: `${scope} - Active faculty & staff`, evaluated: m.staff, score: null, status: m.staff > 0 ? "Recorded" : "No data" },
+    { item: `${scope} - Courses offered`, evaluated: m.courses, score: null, status: m.courses > 0 ? "Recorded" : "No data" },
+  ];
+  const parts = [`${m.students} active students`, `${m.staff} faculty and staff`, `${m.courses} courses`];
+
+  if (input.includeGrades) {
+    kpis.push({ label: "Quiz pass rate (50%+)", value: passRate === null ? "No attempts yet" : `${passRate}%` });
+    breakdown.push({ item: `${scope} - Quiz pass rate (50% or above)`, evaluated: m.quizAttempts, score: passRate, status: grade(passRate, 80, "No attempts yet") });
+    parts.push(`${m.quizAttempts} graded quiz attempts`);
+  }
+  if (input.includeRisk) {
+    kpis.push({ label: "Students at risk", value: m.assessedStudents > 0 ? `${m.atRiskStudents} of ${m.assessedStudents}` : "No attempts yet" });
+    breakdown.push({ item: `${scope} - Students averaging 60% or above`, evaluated: m.assessedStudents, score: onTrack, status: grade(onTrack, 80, "No attempts yet") });
+  }
+  if (input.includePlacements) {
+    kpis.push({ label: "Offers recorded", value: m.drives > 0 ? `${m.offers} from ${m.drives} drives` : "No drives yet" });
+    breakdown.push({ item: "Placement drives - Offers against openings", evaluated: m.drives, score: conversion, status: grade(conversion, 50, "No drives yet") });
+    parts.push(`${m.drives} placement drives`);
+  }
+  const summary = `${input.category} report for ${m.collegeName || "the college"} (${scope}, ${input.period || "current term"}), compiled from live records on ${today()}: ${parts.join(", ")}.`;
+  return { kpis, breakdown, summary };
+}
+
+function toItem(r: ReportRow, session: SessionPayload): ReportItem {
+  const size = Buffer.byteLength(JSON.stringify({ k: r.kpis, b: r.breakdown, s: r.summary }));
+  return {
+    id: r.id,
+    report: r.title,
+    category: r.category,
+    scope: r.scope,
+    period: r.period,
+    formats: ["PDF", "CSV"],
+    generated: r.createdAt.slice(0, 10),
+    fileSize: size < 1024 ? `${size} B` : `${(size / 1024).toFixed(1)} KB`,
+    generatedBy: r.generatedBy,
+    summary: r.summary,
+    kpis: r.kpis,
+    breakdown: r.breakdown,
+    collegeId: r.college,
+    authorRole: r.authorRole,
+    createdAt: r.createdAt,
+    canDelete: canDelete(r, session),
+  };
+}
+
+function toSchedule(s: ScheduleRow): ScheduledReport {
+  return {
+    id: s.id,
+    name: s.name,
+    category: s.category,
+    frequency: s.frequency,
+    scope: s.scope,
+    recipients: s.recipients,
+    nextRun: s.nextRun,
+    lastRun: s.lastRunAt,
+    enabled: s.enabled,
+  };
+}
+
+async function compileAndSave(opts: {
+  college: string;
+  title: string;
+  category: ReportCategory;
+  scope: string;
+  period: string;
+  flags: Pick<CreateReportInput, "includeGrades" | "includeRisk" | "includePlacements">;
+  generatedBy: string;
+  authorSub: string;
+  authorRole: string;
+  scheduleId: string | null;
+}): Promise<ReportRow> {
+  const metrics = await reportsData().metrics(opts.college, opts.scope);
+  const { kpis, breakdown, summary } = compile(
+    metrics,
+    { report: opts.title, category: opts.category, scope: opts.scope, period: opts.period, ...opts.flags },
+    opts.scope,
+  );
+  const saved = await reportsData().addReport({
+    college: opts.college,
+    title: opts.title,
+    category: opts.category,
+    scope: opts.scope,
+    period: opts.period,
+    summary,
+    kpis,
+    breakdown,
+    generatedBy: opts.generatedBy,
+    authorSub: opts.authorSub,
+    authorRole: opts.authorRole,
+    scheduleId: opts.scheduleId,
+  });
+  if (!saved) throw new ReportError("Could not save the report.", 404);
+  return saved;
+}
+
+const dateLabel = (day: string) => day;
+
+/** Compiles a report for every schedule that has fallen due, once each, then moves it forward. */
+async function runDueSchedules(college: string): Promise<void> {
+  const data = reportsData();
+  const now = today();
+  for (const s of await data.schedules(college)) {
+    if (!s.enabled || s.nextRun > now) continue;
+    let next = step(s.nextRun, s.frequency);
+    while (next <= now) next = step(next, s.frequency);
+    if (!(await data.advance(s.id, s.nextRun, next))) continue; // another request already ran it
+    await compileAndSave({
+      college,
+      title: `${s.name} - ${dateLabel(now)}`,
+      category: s.category,
+      scope: s.scope,
+      period: `Scheduled ${s.frequency.toLowerCase()} run`,
+      flags: { includeGrades: true, includeRisk: true, includePlacements: s.category === "Placement" || s.category === "Institution" },
+      generatedBy: "Scheduled run",
+      authorSub: "",
+      authorRole: "system",
+      scheduleId: s.id,
+    });
   }
 }
 
 export async function getReportsOverview(session: SessionPayload): Promise<ReportsOverview> {
-  const collegePublicId = session.college === "all" ? "COL-1001" : session.college;
-  const collegeUuid = await getCollegeUuid(collegePublicId);
-
-  let dbReports: ReportItem[] = [];
-  let dbScheduled: ScheduledReport[] = [];
-
-  if (collegeUuid) {
-    try {
-      const repRows = await withDbTimeout(
-        prisma().$queryRawUnsafe<Array<any>>(
-          `SELECT id, report, category, scope, period, formats, file_size, generated_by, author_role, summary, kpis, breakdown, created_at
-           FROM institutional_reports
-           WHERE college_id = $1::uuid
-           ORDER BY created_at DESC;`,
-          collegeUuid,
-        ),
-        2500,
-      );
-
-      if (repRows && repRows.length > 0) {
-        dbReports = repRows.map((r) => ({
-          id: r.id,
-          report: r.report,
-          category: r.category,
-          scope: r.scope,
-          period: r.period,
-          formats: typeof r.formats === "string" ? JSON.parse(r.formats) : (r.formats || ["PDF", "Excel", "CSV"]),
-          generated: "Archived",
-          fileSize: r.file_size || "3.2 MB",
-          generatedBy: r.generated_by,
-          summary: r.summary || "",
-          kpis: typeof r.kpis === "string" ? JSON.parse(r.kpis) : (r.kpis || []),
-          breakdown: typeof r.breakdown === "string" ? JSON.parse(r.breakdown) : (r.breakdown || []),
-          collegeId: collegePublicId,
-          authorRole: r.author_role,
-          createdAt: r.created_at ? new Date(r.created_at).toISOString() : new Date().toISOString(),
-        }));
-      }
-
-      const schRows = await withDbTimeout(
-        prisma().$queryRawUnsafe<Array<any>>(
-          `SELECT id, name, frequency, scope, recipients, next_run, enabled
-           FROM scheduled_reports
-           WHERE college_id = $1::uuid
-           ORDER BY created_at ASC;`,
-          collegeUuid,
-        ),
-        2500,
-      );
-
-      if (schRows && schRows.length > 0) {
-        dbScheduled = schRows.map((s) => ({
-          id: s.id,
-          name: s.name,
-          frequency: s.frequency,
-          scope: s.scope,
-          recipients: s.recipients,
-          nextRun: s.next_run,
-          enabled: Boolean(s.enabled),
-        }));
-      }
-    } catch (err) {
-      console.warn("Error querying database for reports, falling back to memory store:", err);
-    }
-  }
-
-  // If DB returned records, sync memory store with DB
-  if (dbReports.length > 0) {
-    reportsStore.set(collegePublicId, dbReports);
-  }
-  if (dbScheduled.length > 0) {
-    scheduledStore.set(collegePublicId, dbScheduled);
-  }
-
-  const reports = reportsStore.get(collegePublicId) ?? dbReports;
-  const scheduledReports = scheduledStore.get(collegePublicId) ?? dbScheduled;
-
+  const college = await collegeOf(session);
+  await runDueSchedules(college);
+  const [reports, schedules, scopes] = await Promise.all([reportsData().reports(college), reportsData().schedules(college), reportsData().scopes(college)]);
   return {
-    collegeId: collegePublicId,
-    reports,
-    scheduledReports,
+    collegeId: college,
+    reports: reports.map((r) => toItem(r, session)),
+    scheduledReports: schedules.map(toSchedule),
+    permissions: { generate: canGenerateReports(session.role), schedule: canScheduleReports(session.role) },
+    scopes,
   };
 }
 
-interface DynamicMetrics {
-  collegeName: string;
-  studentCount: number;
-  facultyCount: number;
-  labsCount: number;
-  studentAttainment: number;
-  facultyBenchmark: number;
-  infraScore: number;
-  overallRating: number;
-  deltaStr: string;
-}
-
-export async function computeDynamicReportMetrics(
-  collegeUuid: string | null,
-  collegePublicId: string,
-  scope: string,
-): Promise<DynamicMetrics> {
-  let collegeName = "Institution";
-  let studentCount = 120;
-  let facultyCount = 24;
-  let labsCount = 8;
-  let studentAttainment = 91.2;
-  let facultyBenchmark = 94.0;
-  let infraScore = 96.0;
-
-  try {
-    const college = await withDbTimeout(
-      prisma().college.findFirst({
-        where: collegeUuid ? { id: collegeUuid } : { publicId: collegePublicId },
-        include: {
-          collegeDepartments: {
-            include: { department: true },
-          },
-        },
-      }),
-      2500,
-    );
-
-    if (college) {
-      collegeName = college.name;
-      const isAll = scope === "Institution" || scope === "All" || scope === "All departments";
-      const matchedDept = !isAll
-        ? college.collegeDepartments.find(
-            (cd) =>
-              cd.department.name.toLowerCase().includes(scope.toLowerCase()) ||
-              (scope === "CSE" && cd.department.name.toLowerCase().includes("computer")) ||
-              (scope === "IT" && cd.department.name.toLowerCase().includes("information")) ||
-              (scope === "ECE" && cd.department.name.toLowerCase().includes("electronics")) ||
-              (scope === "Mechanical" && cd.department.name.toLowerCase().includes("mechanical")) ||
-              (scope === "Civil" && cd.department.name.toLowerCase().includes("civil")) ||
-              (scope === "MBA" && cd.department.name.toLowerCase().includes("management")),
-          )
-        : null;
-
-      // Real student count in DB for this college & department/scope
-      const dbStudents = await withDbTimeout(
-        prisma().student.count({
-          where: {
-            collegeId: college.id,
-            ...(matchedDept ? { departmentId: matchedDept.departmentId } : {}),
-            status: "Active",
-          },
-        }),
-        1500,
-      ).catch(() => 0);
-
-      // Real staff count in DB for this college & scope
-      const dbStaff = await withDbTimeout(
-        prisma().staff.count({
-          where: {
-            collegeId: college.id,
-            ...(matchedDept ? { departmentId: matchedDept.departmentId } : {}),
-            status: "Active",
-          },
-        }),
-        1500,
-      ).catch(() => 0);
-
-      // Real courses/labs count
-      const dbCourses = await withDbTimeout(
-        prisma().course.count({
-          where: {
-            collegeId: college.id,
-            ...(matchedDept ? { departmentId: matchedDept.departmentId } : {}),
-          },
-        }),
-        1500,
-      ).catch(() => 0);
-
-      // Real quiz attempts to calculate live student attainment score
-      const quizAttempts = await withDbTimeout(
-        prisma().quizAttempt.findMany({
-          where: { collegeId: college.id },
-          select: { percentage: true },
-        }),
-        1500,
-      ).catch(() => []);
-
-      if (dbStudents > 0) {
-        studentCount = dbStudents;
-      } else {
-        const roleStudents = await withDbTimeout(
-          prisma().user.count({
-            where: {
-              roleAssignments: {
-                some: { role: "student", collegeId: college.id },
-              },
-            },
-          }),
-          1000,
-        ).catch(() => 0);
-        studentCount = roleStudents > 0 ? roleStudents : Math.max(1, Math.round((college.studentCapacity || 600) / (college.collegeDepartments.length || 6)));
-      }
-
-      if (dbStaff > 0) {
-        facultyCount = dbStaff;
-      } else {
-        const roleStaff = await withDbTimeout(
-          prisma().user.count({
-            where: {
-              roleAssignments: {
-                some: { role: { in: ["faculty", "hod"] }, collegeId: college.id },
-              },
-            },
-          }),
-          1000,
-        ).catch(() => 0);
-        facultyCount = roleStaff > 0 ? roleStaff : 12;
-      }
-
-      if (dbCourses > 0) {
-        labsCount = dbCourses;
-      } else {
-        labsCount = matchedDept ? 6 : (college.collegeDepartments.length || 8);
-      }
-
-      if (quizAttempts.length > 0) {
-        const passed = quizAttempts.filter((q) => Number(q.percentage) >= 50).length;
-        studentAttainment = Math.round((passed / quizAttempts.length) * 1000) / 10;
-      } else {
-        studentAttainment = 88.5;
-      }
-
-      facultyBenchmark = Math.min(98.5, Math.max(82.0, Math.round((92.0 + (facultyCount % 7) * 0.8) * 10) / 10));
-      infraScore = Math.min(99.0, Math.max(85.0, Math.round((94.0 + (labsCount % 5) * 0.9) * 10) / 10));
-    }
-  } catch (err) {
-    console.warn("Error calculating dynamic report metrics:", err);
-  }
-
-  const overallRating = Math.round(((facultyBenchmark * 0.3) + (studentAttainment * 0.5) + (infraScore * 0.2)) * 10) / 10;
-  const delta = Math.round((overallRating - 85.0) * 10) / 10;
-  const deltaStr = delta >= 0 ? "+" + delta + "% vs benchmark" : delta + "% vs benchmark";
-
-  return {
-    collegeName,
-    studentCount,
-    facultyCount,
-    labsCount,
-    studentAttainment,
-    facultyBenchmark,
-    infraScore,
-    overallRating,
-    deltaStr,
-  };
-}
-
-export async function createReport(
-  session: SessionPayload,
-  input: CreateReportInput,
-): Promise<ReportItem> {
-  const collegePublicId = session.college === "all" ? "COL-1001" : session.college;
-  const collegeUuid = await getCollegeUuid(collegePublicId);
-
-  const authorRoleName =
-    session.role === "faculty"
-      ? "Faculty Member"
-      : session.role === "hod"
-      ? "Head of Department"
-      : session.role === "placement"
-      ? "Placement Officer"
-      : session.role === "institution"
-      ? "Principal Office"
-      : "Administrator";
-
-  const authorName = session.name ? `${session.name} (${authorRoleName})` : authorRoleName;
-  const reportId = `rep-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 6)}`;
-  const fileSize = `${(Math.random() * 2 + 1.8).toFixed(1)} MB`;
-  const nowIso = new Date().toISOString();
-
-  const metrics = await computeDynamicReportMetrics(collegeUuid, collegePublicId, input.scope.trim());
-
-  const kpis = [
-    { label: "Target Scope", value: input.scope },
-    { label: "Overall Rating", value: `${metrics.overallRating}%`, delta: metrics.deltaStr },
-    { label: "Cohorts Assessed", value: `${metrics.studentCount} student${metrics.studentCount === 1 ? "" : "s"}` },
-    { label: "Status", value: metrics.overallRating >= 80 ? "Verified & Certified" : "Review Recommended" },
-  ];
-
-  const breakdown = [
-    {
-      item: `${input.scope} - Core Faculty Benchmark`,
-      evaluated: metrics.facultyCount,
-      score: metrics.facultyBenchmark,
-      status: metrics.facultyBenchmark >= 90 ? "Excellent" : "Satisfactory",
-    },
-    {
-      item: `${input.scope} - Student Attainment`,
-      evaluated: metrics.studentCount,
-      score: metrics.studentAttainment,
-      status: metrics.studentAttainment >= 80 ? "Target Met" : "Remedial Scheduled",
-    },
-    {
-      item: `${input.scope} - Infrastructure & Labs`,
-      evaluated: metrics.labsCount,
-      score: metrics.infraScore,
-      status: metrics.infraScore >= 90 ? "Operational" : "Maintenance Needed",
-    },
-  ];
-
-  const summary = `Custom compiled ${input.category.toLowerCase()} report for ${metrics.collegeName} (${input.scope}, ${input.period}) synthesizing live attendance, outcome attainment across ${metrics.studentCount} students, ${metrics.facultyCount} faculty, and ${metrics.labsCount} lab facilities.`;
-
-  // 1. Insert into PostgreSQL institutional_reports table
-  if (collegeUuid) {
-    try {
-      await withDbTimeout(
-        prisma().$executeRawUnsafe(
-          `INSERT INTO institutional_reports (id, college_id, report, category, scope, period, formats, file_size, generated_by, author_role, summary, kpis, breakdown, created_at, updated_at)
-           VALUES ($1, $2::uuid, $3, $4, $5, $6, $7::jsonb, $8, $9, $10, $11, $12::jsonb, $13::jsonb, now(), now());`,
-          reportId,
-          collegeUuid,
-          input.report.trim(),
-          input.category,
-          input.scope.trim(),
-          input.period.trim(),
-          JSON.stringify(["PDF", "Excel", "CSV"]),
-          fileSize,
-          authorName,
-          session.role,
-          summary,
-          JSON.stringify(kpis),
-          JSON.stringify(breakdown),
-        ),
-        2500,
-      );
-    } catch (err) {
-      console.warn("Failed inserting report to database:", err);
-    }
-  }
-
-  const newReport: ReportItem = {
-    id: reportId,
-    report: input.report.trim(),
+export async function createReport(session: SessionPayload, input: CreateReportInput): Promise<ReportItem> {
+  if (!canGenerateReports(session.role)) throw new ReportError("Your role can't compile reports.", 403);
+  const college = await collegeOf(session);
+  const scope = input.scope.trim();
+  if (!(await reportsData().scopes(college)).includes(scope)) throw new ReportError(`"${scope}" isn't a department of this college.`, 400);
+  const label = ROLE_LABEL[session.role] ?? session.role;
+  const saved = await compileAndSave({
+    college,
+    title: input.report.trim(),
     category: input.category,
-    scope: input.scope.trim(),
+    scope,
     period: input.period.trim(),
-    formats: ["PDF", "Excel", "CSV"],
-    generated: "Just now",
-    fileSize,
-    generatedBy: authorName,
-    summary,
-    kpis,
-    breakdown,
-    collegeId: collegePublicId,
+    flags: input,
+    generatedBy: session.name ? `${session.name} (${label})` : label,
+    authorSub: session.sub,
     authorRole: session.role,
-    createdAt: nowIso,
-  };
-
-  const currentList = reportsStore.get(collegePublicId) || [];
-  reportsStore.set(collegePublicId, [newReport, ...currentList]);
-
-  return newReport;
+    scheduleId: null,
+  });
+  await audit(session, `Compiled report "${saved.title}" (${saved.category}, ${saved.scope})`, saved.id);
+  return toItem(saved, session);
 }
 
-export async function deleteReport(session: SessionPayload, reportId: string): Promise<boolean> {
-  const collegePublicId = session.college === "all" ? "COL-1001" : session.college;
-
-  // 1. Delete from PostgreSQL by primary key ID
-  try {
-    await withDbTimeout(
-      prisma().$executeRawUnsafe(
-        `DELETE FROM institutional_reports WHERE id = $1;`,
-        reportId,
-      ),
-      2500,
-    );
-  } catch (err) {
-    console.warn("Failed deleting report from database:", err);
-  }
-
-  // 2. Remove from all memory store caches
-  for (const [key, items] of reportsStore.entries()) {
-    reportsStore.set(
-      key,
-      items.filter((r) => r.id !== reportId),
-    );
-  }
-
-  return true;
+export async function deleteReport(session: SessionPayload, reportId: string): Promise<void> {
+  const college = await collegeOf(session);
+  const report = await reportsData().report(reportId);
+  if (!report || report.college !== college) throw new ReportError("Report not found.", 404);
+  if (!canDelete(report, session)) throw new ReportError("Only the person who compiled this report, or the principal's office, can delete it.", 403);
+  await reportsData().removeReport(report.id);
+  await audit(session, `Deleted report "${report.title}"`, report.id);
 }
 
-export async function toggleScheduledReport(
-  session: SessionPayload,
-  scheduleId: string,
-): Promise<ScheduledReport | null> {
-  const collegePublicId = session.college === "all" ? "COL-1001" : session.college;
-  const collegeUuid = await getCollegeUuid(collegePublicId);
+async function ownSchedule(session: SessionPayload, id: string): Promise<ScheduleRow> {
+  const college = await collegeOf(session);
+  const s = await reportsData().schedule(id);
+  if (!s || s.college !== college) throw new ReportError("Schedule not found.", 404);
+  return s;
+}
 
-  if (collegeUuid) {
-    try {
-      await withDbTimeout(
-        prisma().$executeRawUnsafe(
-          `UPDATE scheduled_reports SET enabled = NOT enabled, updated_at = now() 
-           WHERE id = $1 AND college_id = $2::uuid;`,
-          scheduleId,
-          collegeUuid,
-        ),
-        2500,
-      );
+function requireSchedule(session: SessionPayload) {
+  if (!canScheduleReports(session.role)) throw new ReportError("Only the principal's office can manage report schedules.", 403);
+}
 
-      const rows = await withDbTimeout(
-        prisma().$queryRawUnsafe<Array<any>>(
-          `SELECT id, name, frequency, scope, recipients, next_run, enabled 
-           FROM scheduled_reports WHERE id = $1 LIMIT 1;`,
-          scheduleId,
-        ),
-        2500,
-      );
-      if (rows && rows[0]) {
-        return {
-          id: rows[0].id,
-          name: rows[0].name,
-          frequency: rows[0].frequency,
-          scope: rows[0].scope,
-          recipients: rows[0].recipients,
-          nextRun: rows[0].next_run,
-          enabled: Boolean(rows[0].enabled),
-        };
-      }
-    } catch (err) {
-      console.warn("Failed toggling schedule in database:", err);
-    }
-  }
+export async function createSchedule(session: SessionPayload, input: CreateScheduleInput): Promise<ScheduledReport> {
+  requireSchedule(session);
+  const college = await collegeOf(session);
+  const scope = input.scope.trim();
+  if (!(await reportsData().scopes(college)).includes(scope)) throw new ReportError(`"${scope}" isn't a department of this college.`, 400);
+  const first = input.startDate ?? step(today(), input.frequency);
+  if (first < today()) throw new ReportError("The first run can't be in the past.", 400);
+  const created = await reportsData().addSchedule({
+    college,
+    name: input.name.trim(),
+    category: input.category,
+    scope,
+    frequency: input.frequency,
+    recipients: input.recipients.trim(),
+    enabled: true,
+    nextRun: first,
+    createdBySub: session.sub,
+  });
+  if (!created) throw new ReportError(`There is already a schedule called "${input.name.trim()}".`, 409);
+  await audit(session, `Scheduled ${created.frequency.toLowerCase()} report "${created.name}"`, created.id);
+  return toSchedule(created);
+}
 
-  const items = scheduledStore.get(collegePublicId) || [];
-  const target = items.find((s) => s.id === scheduleId);
-  if (!target) return null;
-  target.enabled = !target.enabled;
-  return target;
+export async function toggleScheduledReport(session: SessionPayload, scheduleId: string): Promise<ScheduledReport> {
+  requireSchedule(session);
+  const s = await ownSchedule(session, scheduleId);
+  const updated = await reportsData().setEnabled(s.id, !s.enabled);
+  if (!updated) throw new ReportError("Schedule not found.", 404);
+  await audit(session, `${updated.enabled ? "Resumed" : "Paused"} report schedule "${updated.name}"`, updated.id);
+  return toSchedule(updated);
+}
+
+export async function deleteSchedule(session: SessionPayload, scheduleId: string): Promise<void> {
+  requireSchedule(session);
+  const s = await ownSchedule(session, scheduleId);
+  await reportsData().removeSchedule(s.id);
+  await audit(session, `Removed report schedule "${s.name}"`, s.id);
 }

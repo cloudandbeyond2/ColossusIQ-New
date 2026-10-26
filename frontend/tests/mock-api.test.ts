@@ -496,6 +496,56 @@ describe("Campus sports API and live management", () => {
   });
 });
 
+describe("Reports archive and schedules", () => {
+  const payload = { report: "Dept snapshot", category: "Academic", scope: "Institution", period: "AY test", includeGrades: true, includeRisk: true, includePlacements: true };
+
+  it("compiles a report from live records, with no invented figures", async () => {
+    const res = await dispatch("POST", ["reports"], payload, session("faculty"), new URLSearchParams());
+    expect(res.status).toBe(200);
+    const r = res.body as { id: string; kpis: Array<{ label: string; value: string }>; breakdown: Array<{ score: number | null; evaluated: number }>; canDelete: boolean };
+    expect(r.canDelete).toBe(true);
+    // memory backend has no records, so scored rows have no score instead of a made-up one
+    expect(r.breakdown.filter((b) => b.score !== null)).toEqual([]);
+    expect(r.kpis.find((k) => k.label === "Active students")?.value).toBe("0");
+  });
+
+  it("only staff compile reports, and only for the college's own scopes", async () => {
+    expect((await dispatch("POST", ["reports"], payload, session("student"), new URLSearchParams())).status).toBe(403);
+    expect((await dispatch("POST", ["reports"], { ...payload, scope: "Nonexistent Dept" }, session("faculty"), new URLSearchParams())).status).toBe(400);
+  });
+
+  it("lets the author or the principal office delete a report, nobody else", async () => {
+    const author = { ...session("faculty"), sub: "author-1" };
+    const other = { ...session("faculty"), sub: "other-2" };
+    const made = (await dispatch("POST", ["reports"], payload, author, new URLSearchParams())).body as { id: string };
+    expect((await dispatch("DELETE", ["reports", made.id], undefined, other, new URLSearchParams())).status).toBe(403);
+    expect((await dispatch("DELETE", ["reports", made.id], undefined, author, new URLSearchParams())).status).toBe(200);
+    const made2 = (await dispatch("POST", ["reports"], payload, author, new URLSearchParams())).body as { id: string };
+    expect((await dispatch("DELETE", ["reports", made2.id], undefined, session("institution"), new URLSearchParams())).status).toBe(200);
+  });
+
+  it("runs a due schedule once, then moves it forward", async () => {
+    const inst = session("institution");
+    const today = new Date().toISOString().slice(0, 10);
+    expect((await dispatch("POST", ["reports", "scheduled"], { name: "Nope", category: "Academic", scope: "Institution", frequency: "Weekly" }, session("faculty"), new URLSearchParams())).status).toBe(403);
+    const made = await dispatch("POST", ["reports", "scheduled"], { name: "Weekly digest", category: "Institution", scope: "Institution", frequency: "Weekly", startDate: today }, inst, new URLSearchParams());
+    expect(made.status).toBe(200);
+    expect((await dispatch("POST", ["reports", "scheduled"], { name: "weekly digest", category: "Institution", scope: "Institution", frequency: "Weekly" }, inst, new URLSearchParams())).status).toBe(409);
+
+    const first = (await dispatch("GET", ["reports"], undefined, inst, new URLSearchParams())).body as {
+      reports: Array<{ report: string; generatedBy: string }>;
+      scheduledReports: Array<{ name: string; nextRun: string; lastRun: string | null }>;
+    };
+    expect(first.reports.filter((r) => r.report.startsWith("Weekly digest")).length).toBe(1);
+    const sch = first.scheduledReports.find((s) => s.name === "Weekly digest")!;
+    expect(sch.nextRun > today).toBe(true);
+    expect(sch.lastRun).not.toBeNull();
+
+    const second = (await dispatch("GET", ["reports"], undefined, inst, new URLSearchParams())).body as { reports: Array<{ report: string }> };
+    expect(second.reports.filter((r) => r.report.startsWith("Weekly digest")).length).toBe(1);
+  });
+});
+
 describe("Campus hackathons API and team registration", () => {
   it("fetches hackathons overview with seeded hackathons and KPIs", async () => {
     const studentSession = session("student");

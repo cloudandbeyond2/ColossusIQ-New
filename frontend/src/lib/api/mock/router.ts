@@ -108,11 +108,17 @@ import {
   UpdateAicteProfileInput,
   UpdateReviewStatusInput,
   CreateReportInputSchema,
+  CreateScheduleInputSchema,
   Notification,
 } from "@/lib/api/schemas";
 import {
+  ReportError,
+  canGenerateReports,
+  canScheduleReports,
   createReport,
+  createSchedule,
   deleteReport,
+  deleteSchedule,
   getReportsOverview,
   toggleScheduledReport,
 } from "./reports";
@@ -274,6 +280,8 @@ const clubFail = (e: ClubError) =>
   err(e.status, e.status === 404 ? "not_found" : e.status === 403 ? "forbidden" : e.status === 409 ? "conflict" : "invalid_body", e.message);
 const sportFail = (e: SportError) =>
   err(e.status, e.status === 404 ? "not_found" : e.status === 403 ? "forbidden" : e.status === 409 ? "conflict" : "invalid_body", e.message);
+const reportFail = (e: ReportError) =>
+  err(e.status, e.status === 404 ? "not_found" : e.status === 403 ? "forbidden" : e.status === 409 ? "conflict" : "invalid_body", e.message);
 const hospitalFail = (e: HospitalError) =>
   err(e.status, e.status === 404 ? "not_found" : e.status === 403 ? "forbidden" : e.status === 409 ? "conflict" : "invalid_body", e.message);
 const cbcsFail = (e: CbcsError) =>
@@ -422,7 +430,9 @@ export const PATTERNS = [
   "GET reports",
   "POST reports",
   "DELETE reports/:id",
+  "POST reports/scheduled",
   "POST reports/scheduled/:id/toggle",
+  "DELETE reports/scheduled/:id",
   "GET hackathons",
   "POST hackathons/register",
   "POST hackathons/teams",
@@ -1137,24 +1147,45 @@ export async function dispatch(method: string, segs: string[], rawBody: unknown,
 
     /* ── institutional reports ── */
     case "GET reports":
-      return ok(await getReportsOverview(session));
-    case "POST reports": {
-      if (session.role === "recruiter") return forbidden();
-      const parsed = CreateReportInputSchema.safeParse(rawBody);
-      if (!parsed.success) return err(400, "invalid_body", parsed.error.issues[0]?.message ?? "Invalid report payload.");
-      return ok(await createReport(session, parsed.data));
-    }
-    case "DELETE reports/:id": {
-      if (session.role === "recruiter") return forbidden();
-      if (!b) return notFound();
-      const success = await deleteReport(session, b);
-      return success ? ok({ ok: true }) : notFound();
-    }
-    case "POST reports/scheduled/:id/toggle": {
-      if (session.role === "recruiter") return forbidden();
-      if (!b) return notFound();
-      const res = await toggleScheduledReport(session, b);
-      return res ? ok(res) : notFound();
+    case "POST reports":
+    case "DELETE reports/:id":
+    case "POST reports/scheduled":
+    case "POST reports/scheduled/:id/toggle":
+    case "DELETE reports/scheduled/:id": {
+      try {
+        switch (found.route) {
+          case "GET reports":
+            return ok(await getReportsOverview(session));
+          case "POST reports": {
+            if (!canGenerateReports(session.role)) return forbidden();
+            const parsed = CreateReportInputSchema.safeParse(rawBody);
+            if (!parsed.success) return err(400, "invalid_body", parsed.error.issues[0]?.message ?? "Invalid report payload.");
+            return ok(await createReport(session, parsed.data));
+          }
+          case "DELETE reports/:id":
+            if (!b) return notFound();
+            await deleteReport(session, b);
+            return ok({ ok: true });
+          case "POST reports/scheduled": {
+            if (!canScheduleReports(session.role)) return forbidden();
+            const parsed = CreateScheduleInputSchema.safeParse(rawBody);
+            if (!parsed.success) return err(400, "invalid_body", parsed.error.issues[0]?.message ?? "Invalid schedule payload.");
+            return ok(await createSchedule(session, parsed.data));
+          }
+          case "POST reports/scheduled/:id/toggle":
+            if (!canScheduleReports(session.role)) return forbidden();
+            if (!b) return notFound();
+            return ok(await toggleScheduledReport(session, b));
+          default:
+            if (!canScheduleReports(session.role)) return forbidden();
+            if (!b) return notFound();
+            await deleteSchedule(session, b);
+            return ok({ ok: true });
+        }
+      } catch (e) {
+        if (e instanceof ReportError) return reportFail(e);
+        throw e;
+      }
     }
 
     /* ── hackathons & team registration ── */
