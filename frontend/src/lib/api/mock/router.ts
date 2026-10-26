@@ -20,7 +20,7 @@ import { placementHome, placementSnapshot } from "./placement-stats";
 import { dynamicBiAnalytics } from "./bi-analytics";
 import { moduleData } from "./module-data";
 import { ClubError, canCreateClubs, canRemoveClubs, createClub, deleteClub, getClubsOverview, toggleJoinClub, updateClub } from "./clubs";
-import { createSport, deleteSport, getSportsOverview, toggleRegisterTrial, updateSport } from "./sports";
+import { SportError, canManageSports, createSport, deleteSport, getSportsOverview, toggleRegisterTrial, updateSport } from "./sports";
 import { deleteHackathonTeam, getHackathonsOverview, listHackathonTeams, registerHackathonTeam } from "./hackathons";
 import { RegisterHackathonTeamInput } from "@/lib/api/hackathon-schemas";
 import { createProject, deleteProject, listProjects, reviewProject, updateProjectStage } from "./projects";
@@ -100,6 +100,7 @@ import {
   CreateClubInput,
   CreateInterventionInput,
   CreateSportInput,
+  SportRegisterInput,
   CreateSupportActionInput,
   EvaluationQueueItem,
   UpdateAicteActionStatusInput,
@@ -107,11 +108,17 @@ import {
   UpdateAicteProfileInput,
   UpdateReviewStatusInput,
   CreateReportInputSchema,
+  CreateScheduleInputSchema,
   Notification,
 } from "@/lib/api/schemas";
 import {
+  ReportError,
+  canGenerateReports,
+  canScheduleReports,
   createReport,
+  createSchedule,
   deleteReport,
+  deleteSchedule,
   getReportsOverview,
   toggleScheduledReport,
 } from "./reports";
@@ -146,12 +153,16 @@ import {
   deleteNmcAction,
   updateNmcCommittee,
   updateNmcProfile,
+  updateNmcDepartmentNorm,
+  seedStandardCommittees,
+  NmcError,
 } from "./nmc-compliance";
 import {
   CreateNmcActionInput,
   UpdateNmcActionStatusInput,
   UpdateNmcCommitteeInput,
   UpdateNmcProfileInput,
+  UpdateNmcDepartmentNormInput,
 } from "@/lib/api/nmc-schemas";
 import {
   CbcsError,
@@ -271,7 +282,13 @@ const osceFail = (e: OsceError) =>
   err(e.status, e.status === 404 ? "not_found" : e.status === 403 ? "forbidden" : e.status === 409 ? "conflict" : "invalid_body", e.message);
 const clubFail = (e: ClubError) =>
   err(e.status, e.status === 404 ? "not_found" : e.status === 403 ? "forbidden" : e.status === 409 ? "conflict" : "invalid_body", e.message);
+const sportFail = (e: SportError) =>
+  err(e.status, e.status === 404 ? "not_found" : e.status === 403 ? "forbidden" : e.status === 409 ? "conflict" : "invalid_body", e.message);
+const reportFail = (e: ReportError) =>
+  err(e.status, e.status === 404 ? "not_found" : e.status === 403 ? "forbidden" : e.status === 409 ? "conflict" : "invalid_body", e.message);
 const hospitalFail = (e: HospitalError) =>
+  err(e.status, e.status === 404 ? "not_found" : e.status === 403 ? "forbidden" : e.status === 409 ? "conflict" : "invalid_body", e.message);
+const nmcFail = (e: NmcError) =>
   err(e.status, e.status === 404 ? "not_found" : e.status === 403 ? "forbidden" : e.status === 409 ? "conflict" : "invalid_body", e.message);
 const cbcsFail = (e: CbcsError) =>
   err(e.status, e.status === 404 ? "not_found" : e.status === 403 ? "forbidden" : e.status === 409 ? "conflict" : "invalid_body", e.message);
@@ -381,6 +398,8 @@ export const PATTERNS = [
   "DELETE nmc-compliance/actions/:id",
   "PATCH nmc-compliance/committees/:id",
   "PUT nmc-compliance/profile",
+  "PUT nmc-compliance/departments",
+  "POST nmc-compliance/committees/seed",
   "GET cbcs-electives",
   "POST cbcs-electives/courses",
   "PATCH cbcs-electives/courses/:id/seats",
@@ -419,7 +438,9 @@ export const PATTERNS = [
   "GET reports",
   "POST reports",
   "DELETE reports/:id",
+  "POST reports/scheduled",
   "POST reports/scheduled/:id/toggle",
+  "DELETE reports/scheduled/:id",
   "GET hackathons",
   "POST hackathons/register",
   "POST hackathons/teams",
@@ -773,37 +794,54 @@ export async function dispatch(method: string, segs: string[], rawBody: unknown,
         throw e;
       }
     }
-    case "GET nmc-compliance": {
+    case "GET nmc-compliance":
+    case "POST nmc-compliance/actions":
+    case "PATCH nmc-compliance/actions/:id":
+    case "DELETE nmc-compliance/actions/:id":
+    case "PATCH nmc-compliance/committees/:id":
+    case "PUT nmc-compliance/profile":
+    case "PUT nmc-compliance/departments":
+    case "POST nmc-compliance/committees/seed": {
       if (session.role !== "institution" && session.role !== "admin") return forbidden();
-      return ok(await getNmcComplianceOverview(session));
-    }
-    case "POST nmc-compliance/actions": {
-      if (session.role !== "institution" && session.role !== "admin") return forbidden();
-      const parsed = CreateNmcActionInput.safeParse(rawBody);
-      if (!parsed.success) return err(400, "invalid_body", parsed.error.issues[0]?.message ?? "Invalid action payload.");
-      return ok(await createNmcAction(session, parsed.data));
-    }
-    case "PATCH nmc-compliance/actions/:id": {
-      if (session.role !== "institution" && session.role !== "admin") return forbidden();
-      const parsed = UpdateNmcActionStatusInput.safeParse(rawBody);
-      if (!parsed.success) return err(400, "invalid_body", parsed.error.issues[0]?.message ?? "Invalid status payload.");
-      return ok(await updateNmcActionStatus(session, found.id ?? segs[2] ?? "", parsed.data));
-    }
-    case "DELETE nmc-compliance/actions/:id": {
-      if (session.role !== "institution" && session.role !== "admin") return forbidden();
-      return ok(await deleteNmcAction(session, found.id ?? segs[2] ?? ""));
-    }
-    case "PATCH nmc-compliance/committees/:id": {
-      if (session.role !== "institution" && session.role !== "admin") return forbidden();
-      const parsed = UpdateNmcCommitteeInput.safeParse(rawBody);
-      if (!parsed.success) return err(400, "invalid_body", parsed.error.issues[0]?.message ?? "Invalid committee payload.");
-      return ok(await updateNmcCommittee(session, found.id ?? segs[2] ?? "", parsed.data));
-    }
-    case "PUT nmc-compliance/profile": {
-      if (session.role !== "institution" && session.role !== "admin") return forbidden();
-      const parsed = UpdateNmcProfileInput.safeParse(rawBody);
-      if (!parsed.success) return err(400, "invalid_body", parsed.error.issues[0]?.message ?? "Invalid profile payload.");
-      return ok(await updateNmcProfile(session, parsed.data));
+      const bad = (m: string, d: string) => err(400, "invalid_body", m || d);
+      try {
+        switch (found.route) {
+          case "GET nmc-compliance":
+            return ok(await getNmcComplianceOverview(session));
+          case "POST nmc-compliance/actions": {
+            const parsed = CreateNmcActionInput.safeParse(rawBody);
+            if (!parsed.success) return bad(parsed.error.issues[0]?.message ?? "", "Invalid action payload.");
+            return ok(await createNmcAction(session, parsed.data));
+          }
+          case "PATCH nmc-compliance/actions/:id": {
+            const parsed = UpdateNmcActionStatusInput.safeParse(rawBody);
+            if (!parsed.success) return bad(parsed.error.issues[0]?.message ?? "", "Invalid status payload.");
+            return ok(await updateNmcActionStatus(session, found.id ?? segs[2] ?? "", parsed.data));
+          }
+          case "DELETE nmc-compliance/actions/:id":
+            return ok(await deleteNmcAction(session, found.id ?? segs[2] ?? ""));
+          case "PATCH nmc-compliance/committees/:id": {
+            const parsed = UpdateNmcCommitteeInput.safeParse(rawBody);
+            if (!parsed.success) return bad(parsed.error.issues[0]?.message ?? "", "Invalid committee payload.");
+            return ok(await updateNmcCommittee(session, found.id ?? segs[2] ?? "", parsed.data));
+          }
+          case "PUT nmc-compliance/profile": {
+            const parsed = UpdateNmcProfileInput.safeParse(rawBody);
+            if (!parsed.success) return bad(parsed.error.issues[0]?.message ?? "", "Invalid profile payload.");
+            return ok(await updateNmcProfile(session, parsed.data));
+          }
+          case "PUT nmc-compliance/departments": {
+            const parsed = UpdateNmcDepartmentNormInput.safeParse(rawBody);
+            if (!parsed.success) return bad(parsed.error.issues[0]?.message ?? "", "Invalid department payload.");
+            return ok(await updateNmcDepartmentNorm(session, parsed.data));
+          }
+          default:
+            return ok(await seedStandardCommittees(session));
+        }
+      } catch (e) {
+        if (e instanceof NmcError) return nmcFail(e);
+        throw e;
+      }
     }
     case "GET cbcs-electives": {
       try {
@@ -1093,53 +1131,86 @@ export async function dispatch(method: string, segs: string[], rawBody: unknown,
 
     /* ── campus sports ── */
     case "GET sports":
-      return ok(await getSportsOverview(session));
-    case "POST sports": {
-      if (session.role !== "institution" && session.role !== "admin") return forbidden();
-      const parsed = CreateSportInput.safeParse(rawBody);
-      if (!parsed.success) return err(400, "invalid_body", parsed.error.issues[0]?.message ?? "Invalid sport payload.");
-      return ok(await createSport(session, parsed.data));
-    }
-    case "PUT sports/:id": {
-      if (session.role !== "institution" && session.role !== "admin") return forbidden();
-      if (!b) return notFound();
-      const parsed = CreateSportInput.partial().safeParse(rawBody);
-      if (!parsed.success) return err(400, "invalid_body", "Invalid sport payload.");
-      const updated = await updateSport(session, b, parsed.data);
-      return updated ? ok(updated) : notFound();
-    }
-    case "POST sports/:id/register": {
-      if (!b) return notFound();
-      const res = await toggleRegisterTrial(session, b);
-      return res ? ok(res) : notFound();
-    }
+    case "POST sports":
+    case "PUT sports/:id":
+    case "POST sports/:id/register":
     case "DELETE sports/:id": {
-      if (session.role !== "institution" && session.role !== "admin") return forbidden();
-      if (!b) return notFound();
-      const success = await deleteSport(session, b);
-      return success ? ok({ ok: true }) : notFound();
+      try {
+        switch (found.route) {
+          case "GET sports":
+            return ok(await getSportsOverview(session));
+          case "POST sports": {
+            if (!canManageSports(session.role)) return forbidden();
+            const parsed = CreateSportInput.safeParse(rawBody);
+            if (!parsed.success) return err(400, "invalid_body", parsed.error.issues[0]?.message ?? "Invalid sport payload.");
+            return ok(await createSport(session, parsed.data));
+          }
+          case "PUT sports/:id": {
+            if (!canManageSports(session.role)) return forbidden();
+            if (!b) return notFound();
+            const parsed = CreateSportInput.partial().safeParse(rawBody);
+            if (!parsed.success) return err(400, "invalid_body", parsed.error.issues[0]?.message ?? "Invalid sport payload.");
+            return ok(await updateSport(session, b, parsed.data));
+          }
+          case "POST sports/:id/register": {
+            if (!b) return notFound();
+            const parsed = SportRegisterInput.safeParse(rawBody ?? {});
+            if (!parsed.success) return err(400, "invalid_body", parsed.error.issues[0]?.message ?? "Invalid registration.");
+            return ok(await toggleRegisterTrial(session, b, parsed.data));
+          }
+          default:
+            if (!canManageSports(session.role)) return forbidden();
+            if (!b) return notFound();
+            await deleteSport(session, b);
+            return ok({ ok: true });
+        }
+      } catch (e) {
+        if (e instanceof SportError) return sportFail(e);
+        throw e;
+      }
     }
 
     /* ── institutional reports ── */
     case "GET reports":
-      return ok(await getReportsOverview(session));
-    case "POST reports": {
-      if (session.role === "recruiter") return forbidden();
-      const parsed = CreateReportInputSchema.safeParse(rawBody);
-      if (!parsed.success) return err(400, "invalid_body", parsed.error.issues[0]?.message ?? "Invalid report payload.");
-      return ok(await createReport(session, parsed.data));
-    }
-    case "DELETE reports/:id": {
-      if (session.role === "recruiter") return forbidden();
-      if (!b) return notFound();
-      const success = await deleteReport(session, b);
-      return success ? ok({ ok: true }) : notFound();
-    }
-    case "POST reports/scheduled/:id/toggle": {
-      if (session.role === "recruiter") return forbidden();
-      if (!b) return notFound();
-      const res = await toggleScheduledReport(session, b);
-      return res ? ok(res) : notFound();
+    case "POST reports":
+    case "DELETE reports/:id":
+    case "POST reports/scheduled":
+    case "POST reports/scheduled/:id/toggle":
+    case "DELETE reports/scheduled/:id": {
+      try {
+        switch (found.route) {
+          case "GET reports":
+            return ok(await getReportsOverview(session));
+          case "POST reports": {
+            if (!canGenerateReports(session.role)) return forbidden();
+            const parsed = CreateReportInputSchema.safeParse(rawBody);
+            if (!parsed.success) return err(400, "invalid_body", parsed.error.issues[0]?.message ?? "Invalid report payload.");
+            return ok(await createReport(session, parsed.data));
+          }
+          case "DELETE reports/:id":
+            if (!b) return notFound();
+            await deleteReport(session, b);
+            return ok({ ok: true });
+          case "POST reports/scheduled": {
+            if (!canScheduleReports(session.role)) return forbidden();
+            const parsed = CreateScheduleInputSchema.safeParse(rawBody);
+            if (!parsed.success) return err(400, "invalid_body", parsed.error.issues[0]?.message ?? "Invalid schedule payload.");
+            return ok(await createSchedule(session, parsed.data));
+          }
+          case "POST reports/scheduled/:id/toggle":
+            if (!canScheduleReports(session.role)) return forbidden();
+            if (!b) return notFound();
+            return ok(await toggleScheduledReport(session, b));
+          default:
+            if (!canScheduleReports(session.role)) return forbidden();
+            if (!b) return notFound();
+            await deleteSchedule(session, b);
+            return ok({ ok: true });
+        }
+      } catch (e) {
+        if (e instanceof ReportError) return reportFail(e);
+        throw e;
+      }
     }
 
     /* ── hackathons & team registration ── */

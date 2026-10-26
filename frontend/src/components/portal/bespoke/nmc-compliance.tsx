@@ -6,13 +6,12 @@ import { apiFetch, ApiError } from "@/lib/api/client";
 import { z } from "zod";
 import {
   NmcComplianceDataSchema,
-  NmcComplianceData,
   NmcCommittee,
-  NmcActionItem,
   NmcDepartmentCompliance,
   CreateNmcActionInput,
   UpdateNmcCommitteeInput,
   UpdateNmcProfileInput,
+  UpdateNmcDepartmentNormInput,
 } from "@/lib/api/nmc-schemas";
 import { toCsv } from "@/lib/csv";
 import { TemplateSkeleton } from "@/components/modules/shared";
@@ -28,11 +27,10 @@ import {
   inputClass,
 } from "@/components/ui/primitives";
 import { cn } from "@/lib/utils";
-import type { Role } from "@/lib/auth/roles";
 
 type TabKey = "scorecard" | "departments" | "committees" | "actions" | "profile";
 
-export function NmcComplianceModule({ role }: { role: Role }) {
+export function NmcComplianceModule() {
   const qc = useQueryClient();
   const [activeTab, setActiveTab] = useState<TabKey>("scorecard");
   const [deptTypeFilter, setDeptTypeFilter] = useState<string>("All Types");
@@ -55,8 +53,8 @@ export function NmcComplianceModule({ role }: { role: Role }) {
   const [editingCommittee, setEditingCommittee] = useState<NmcCommittee | null>(null);
   const [commChairperson, setCommChairperson] = useState("");
   const [commConvener, setCommConvener] = useState("");
-  const [commMembers, setCommMembers] = useState(10);
-  const [commStatus, setCommStatus] = useState<"Constituted & Active" | "Pending Reconstitution" | "In Review">("Constituted & Active");
+  const [commMembers, setCommMembers] = useState(0);
+  const [commStatus, setCommStatus] = useState<NmcCommittee["status"]>("Constituted & Active");
   const [commLastMeeting, setCommLastMeeting] = useState("");
   const [commNotes, setCommNotes] = useState("");
   const [committeeFormError, setCommitteeFormError] = useState<string | null>(null);
@@ -64,15 +62,26 @@ export function NmcComplianceModule({ role }: { role: Role }) {
   // Edit Profile Modal State
   const [showEditProfileModal, setShowEditProfileModal] = useState<boolean>(false);
   const [profileNmcCode, setProfileNmcCode] = useState("");
-  const [profileMbbsSeats, setProfileMbbsSeats] = useState(250);
+  const [profileMbbsSeats, setProfileMbbsSeats] = useState(0);
   const [profileEthicsReg, setProfileEthicsReg] = useState("");
-  const [profileCctvStreams, setProfileCctvStreams] = useState(25);
+  const [profileCctvStreams, setProfileCctvStreams] = useState(0);
+  const [profileCctvTotal, setProfileCctvTotal] = useState(0);
+  const [profileLop, setProfileLop] = useState("");
+  const [profileLastInspection, setProfileLastInspection] = useState("");
+  const [profileNextWindow, setProfileNextWindow] = useState("");
+  const [profileAebas, setProfileAebas] = useState(false);
+  const [profileMeu, setProfileMeu] = useState(false);
+
+  // Faculty norm modal
+  const [normDept, setNormDept] = useState<NmcDepartmentCompliance | null>(null);
+  const [normRequired, setNormRequired] = useState("");
+  const [normAebas, setNormAebas] = useState("");
+  const [normFormError, setNormFormError] = useState<string | null>(null);
   const [profileFormError, setProfileFormError] = useState<string | null>(null);
 
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ["nmc-compliance"],
     queryFn: () => apiFetch("/api/v1/nmc-compliance", NmcComplianceDataSchema),
-    refetchInterval: 60_000,
   });
 
   const flash = (message: string) => {
@@ -160,6 +169,43 @@ export function NmcComplianceModule({ role }: { role: Role }) {
     },
   });
 
+  const seedCommitteesMutation = useMutation({
+    mutationFn: () => apiFetch("/api/v1/nmc-compliance/committees/seed", z.object({ added: z.number() }), { method: "POST", body: {} }),
+    onSuccess: (r) => {
+      void qc.invalidateQueries({ queryKey: ["nmc-compliance"] });
+      flash(r.added > 0 ? `Added ${r.added} statutory committees. Fill in their details.` : "All standard committees are already listed.");
+    },
+    onError: (err: unknown) => flash(err instanceof ApiError ? err.message : "Could not add the committees."),
+  });
+
+  const updateNormMutation = useMutation({
+    mutationFn: (input: UpdateNmcDepartmentNormInput) =>
+      apiFetch("/api/v1/nmc-compliance/departments", z.object({ ok: z.boolean() }), { method: "PUT", body: input }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["nmc-compliance"] });
+      setNormDept(null);
+      flash("Department norms saved.");
+    },
+    onError: (err: unknown) => setNormFormError(err instanceof ApiError ? err.message : "Could not save the norms."),
+  });
+
+  const openNorms = (d: NmcDepartmentCompliance) => {
+    setNormDept(d);
+    setNormRequired(d.requiredFaculty === null ? "" : String(d.requiredFaculty));
+    setNormAebas(d.aebasAttendance === null ? "" : String(d.aebasAttendance));
+    setNormFormError(null);
+  };
+
+  const handleNormSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!normDept) return;
+    updateNormMutation.mutate({
+      department: normDept.name,
+      requiredFaculty: normRequired.trim() === "" ? null : Number(normRequired),
+      aebasAttendance: normAebas.trim() === "" ? null : Number(normAebas),
+    });
+  };
+
   const openEditCommittee = (c: NmcCommittee) => {
     setEditingCommittee(c);
     setCommChairperson(c.chairperson);
@@ -177,6 +223,12 @@ export function NmcComplianceModule({ role }: { role: Role }) {
     setProfileMbbsSeats(data.profile.mbbsSeats);
     setProfileEthicsReg(data.profile.ethicsCommitteeRegNo);
     setProfileCctvStreams(data.profile.cctvStreamsOnline);
+    setProfileCctvTotal(data.profile.cctvStreamsTotal);
+    setProfileLop(data.profile.lopStatus);
+    setProfileLastInspection(data.profile.lastInspectionDate);
+    setProfileNextWindow(data.profile.nextInspectionWindow);
+    setProfileAebas(data.profile.aebasPortalActive);
+    setProfileMeu(data.profile.meuCertified);
     setProfileFormError(null);
     setShowEditProfileModal(true);
   };
@@ -208,7 +260,7 @@ export function NmcComplianceModule({ role }: { role: Role }) {
         membersCount: Number(commMembers),
         status: commStatus,
         lastMeetingDate: commLastMeeting,
-        momUploaded: true,
+        momUploaded: editingCommittee.momUploaded,
         notes: commNotes.trim() || undefined,
       },
     });
@@ -221,6 +273,12 @@ export function NmcComplianceModule({ role }: { role: Role }) {
       mbbsSeats: Number(profileMbbsSeats),
       ethicsCommitteeRegNo: profileEthicsReg.trim(),
       cctvStreamsOnline: Number(profileCctvStreams),
+      cctvStreamsTotal: Number(profileCctvTotal),
+      aebasPortalActive: profileAebas,
+      meuCertified: profileMeu,
+      lopStatus: profileLop.trim(),
+      lastInspectionDate: profileLastInspection,
+      nextInspectionWindow: profileNextWindow.trim(),
     });
   };
 
@@ -278,6 +336,8 @@ export function NmcComplianceModule({ role }: { role: Role }) {
   }
 
   const { kpis, norms, departments, committees, profile, strengths, deficiencies } = data;
+  const canManage = data.permissions.manage;
+  const activeCommittees = committees.filter((c) => c.status === "Constituted & Active").length;
 
   return (
     <div className="space-y-6">
@@ -306,11 +366,11 @@ export function NmcComplianceModule({ role }: { role: Role }) {
           <div className="flex items-center gap-2 flex-wrap">
             <h1 className="text-2xl font-bold tracking-tight text-[var(--ink)]">NMC / Council Compliance</h1>
             <Badge tone="teal">MSR 2023 Regulations</Badge>
-            <Badge tone="brand">{profile.lopStatus}</Badge>
-            <Badge tone="neutral" className="font-mono text-[11px]">{profile.nmcCode}</Badge>
+            {profile.lopStatus && <Badge tone="brand">{profile.lopStatus}</Badge>}
+            {profile.nmcCode && <Badge tone="neutral" className="font-mono text-[11px]">{profile.nmcCode}</Badge>}
           </div>
           <p className="text-sm text-[var(--ink-2)] mt-1">
-            {data.collegeName} &bull; Minimum Standard Requirements (MSR) audit, faculty biometric AEBAS, and CBME portfolio governance.
+            {data.collegeName} &bull; Minimum Standard Requirements (MSR) audit built from your own staff, hospital, skills-lab and committee records.
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
@@ -333,7 +393,7 @@ export function NmcComplianceModule({ role }: { role: Role }) {
             <Fi name="document" className="text-xs" />
             Download Dossier (CSV)
           </Button>
-          {(role === "institution" || role === "admin") && (
+          {canManage && (
             <Button
               variant="primary"
               size="sm"
@@ -385,17 +445,17 @@ export function NmcComplianceModule({ role }: { role: Role }) {
               <CardBody className="p-4 space-y-2">
                 <div className="flex items-center justify-between text-xs text-[var(--ink-2)]">
                   <span>Council Compliance Score</span>
-                  <Badge tone={kpis.overallCompliance >= 90 ? "teal" : "amber"}>
+                  <Badge tone={kpis.overallCompliance === null ? "neutral" : kpis.overallCompliance >= 90 ? "teal" : "amber"}>
                     {data.overallGrade.split(" ")[0]}
                   </Badge>
                 </div>
                 <div className="flex items-baseline gap-2">
-                  <span className="text-2xl font-bold text-[var(--ink)]">{kpis.overallCompliance}%</span>
+                  <span className="text-2xl font-bold text-[var(--ink)]">{kpis.overallCompliance === null ? "—" : `${kpis.overallCompliance}%`}</span>
                   <span className="text-xs text-[var(--ink-2)]">{data.overallStatus}</span>
                 </div>
-                <Progress value={kpis.overallCompliance} tone={kpis.overallCompliance >= 90 ? "teal" : "amber"} className="h-1.5" />
+                <Progress value={kpis.overallCompliance ?? 0} tone={kpis.overallCompliance === null ? "neutral" : kpis.overallCompliance >= 90 ? "teal" : "amber"} className="h-1.5" />
                 <p className="text-[11px] text-[var(--ink-3)]">
-                  Calculated against NMC MSR 2023 undergraduate regulations.
+                  Average across the norms below that have data recorded.
                 </p>
               </CardBody>
             </Card>
@@ -405,15 +465,15 @@ export function NmcComplianceModule({ role }: { role: Role }) {
               <CardBody className="p-4 space-y-2">
                 <div className="flex items-center justify-between text-xs text-[var(--ink-2)]">
                   <span>Faculty Adequacy</span>
-                  <Badge tone={kpis.facultyAdequacy >= 90 ? "teal" : "rose"}>Norm: 100%</Badge>
+                  <Badge tone={kpis.facultyAdequacy === null ? "neutral" : kpis.facultyAdequacy >= 90 ? "teal" : "rose"}>Norm: 100%</Badge>
                 </div>
                 <div className="flex items-baseline gap-2">
-                  <span className="text-2xl font-bold text-[var(--ink)]">{kpis.facultyAdequacy}%</span>
-                  <span className="text-xs text-[var(--ink-2)]">Sanctioned Posts</span>
+                  <span className="text-2xl font-bold text-[var(--ink)]">{kpis.facultyAdequacy === null ? "—" : `${kpis.facultyAdequacy}%`}</span>
+                  <span className="text-xs text-[var(--ink-2)]">Of required posts</span>
                 </div>
-                <Progress value={kpis.facultyAdequacy} tone={kpis.facultyAdequacy >= 90 ? "teal" : "rose"} className="h-1.5" />
+                <Progress value={kpis.facultyAdequacy ?? 0} tone={kpis.facultyAdequacy === null ? "neutral" : kpis.facultyAdequacy >= 90 ? "teal" : "rose"} className="h-1.5" />
                 <p className="text-[11px] text-[var(--ink-3)]">
-                  Pre-clinical, para-clinical and clinical teacher cadre mix.
+                  Staff in post against the required strength you set per department.
                 </p>
               </CardBody>
             </Card>
@@ -423,15 +483,15 @@ export function NmcComplianceModule({ role }: { role: Role }) {
               <CardBody className="p-4 space-y-2">
                 <div className="flex items-center justify-between text-xs text-[var(--ink-2)]">
                   <span>AEBAS Biometric Attendance</span>
-                  <Badge tone={kpis.aebasAverage >= 75 ? "teal" : "rose"}>Norm: ≥75%</Badge>
+                  <Badge tone={kpis.aebasAverage === null ? "neutral" : kpis.aebasAverage >= 75 ? "teal" : "rose"}>Norm: ≥75%</Badge>
                 </div>
                 <div className="flex items-baseline gap-2">
-                  <span className="text-2xl font-bold text-[var(--ink)]">{kpis.aebasAverage}%</span>
-                  <span className="text-xs text-emerald-600 font-medium">Daily Punching</span>
+                  <span className="text-2xl font-bold text-[var(--ink)]">{kpis.aebasAverage === null ? "—" : `${kpis.aebasAverage}%`}</span>
+                  <span className="text-xs text-[var(--ink-2)]">Average</span>
                 </div>
-                <Progress value={kpis.aebasAverage} tone={kpis.aebasAverage >= 75 ? "teal" : "rose"} className="h-1.5" />
+                <Progress value={kpis.aebasAverage ?? 0} tone={kpis.aebasAverage === null ? "neutral" : kpis.aebasAverage >= 75 ? "teal" : "rose"} className="h-1.5" />
                 <p className="text-[11px] text-[var(--ink-3)]">
-                  Aadhaar-enabled attendance sync with national council portal.
+                  Average of the attendance recorded per department.
                 </p>
               </CardBody>
             </Card>
@@ -441,15 +501,15 @@ export function NmcComplianceModule({ role }: { role: Role }) {
               <CardBody className="p-4 space-y-2">
                 <div className="flex items-center justify-between text-xs text-[var(--ink-2)]">
                   <span>Teaching Hospital Beds</span>
-                  <Badge tone={kpis.bedOccupancy >= 80 ? "teal" : "rose"}>Norm: ≥80%</Badge>
+                  <Badge tone={kpis.bedOccupancy === null ? "neutral" : kpis.bedOccupancy >= 80 ? "teal" : "rose"}>Norm: ≥80%</Badge>
                 </div>
                 <div className="flex items-baseline gap-2">
-                  <span className="text-2xl font-bold text-[var(--ink)]">{kpis.bedOccupancy}%</span>
+                  <span className="text-2xl font-bold text-[var(--ink)]">{kpis.bedOccupancy === null ? "—" : `${kpis.bedOccupancy}%`}</span>
                   <span className="text-xs text-[var(--ink-2)]">Occupancy</span>
                 </div>
-                <Progress value={kpis.bedOccupancy} tone={kpis.bedOccupancy >= 80 ? "teal" : "rose"} className="h-1.5" />
+                <Progress value={kpis.bedOccupancy ?? 0} tone={kpis.bedOccupancy === null ? "neutral" : kpis.bedOccupancy >= 80 ? "teal" : "rose"} className="h-1.5" />
                 <p className="text-[11px] text-[var(--ink-3)]">
-                  Live sync with Hospital Information System (HIS) census.
+                  From the bed census in the Hospital Dashboard.
                 </p>
               </CardBody>
             </Card>
@@ -471,7 +531,7 @@ export function NmcComplianceModule({ role }: { role: Role }) {
                       </div>
                       <Badge
                         tone={
-                          norm.status === "Compliant"
+                          norm.status === "Not Assessed" ? "neutral" : norm.status === "Compliant"
                             ? "teal"
                             : norm.status === "Needs Attention"
                             ? "amber"
@@ -496,11 +556,11 @@ export function NmcComplianceModule({ role }: { role: Role }) {
                     <div className="space-y-1">
                       <div className="flex justify-between text-[11px]">
                         <span className="text-[var(--ink-3)]">Compliance Index</span>
-                        <span className="font-bold text-[var(--ink)]">{norm.score}%</span>
+                        <span className="font-bold text-[var(--ink)]">{norm.status === "Not Assessed" ? "—" : `${norm.score}%`}</span>
                       </div>
                       <Progress
                         value={norm.score}
-                        tone={norm.score >= 90 ? "teal" : norm.score >= 75 ? "amber" : "rose"}
+                        tone={norm.status === "Not Assessed" ? "neutral" : norm.score >= 90 ? "teal" : norm.score >= 75 ? "amber" : "rose"}
                         className="h-1.5"
                       />
                     </div>
@@ -593,6 +653,7 @@ export function NmcComplianceModule({ role }: { role: Role }) {
                   <th className="p-3">Actual / Required</th>
                   <th className="p-3">AEBAS Punching</th>
                   <th className="p-3">Compliance</th>
+                  {canManage && <th className="p-3"></th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-[var(--line)]">
@@ -614,19 +675,19 @@ export function NmcComplianceModule({ role }: { role: Role }) {
                     <td className="p-3 text-[var(--ink)]">{dept.asstProfessors}</td>
                     <td className="p-3 text-[var(--ink)]">{dept.seniorResidents}</td>
                     <td className="p-3 font-semibold">
-                      <span className={dept.actualFaculty < dept.requiredFaculty ? "text-amber-600" : "text-[var(--ink)]"}>
-                        {dept.actualFaculty} / {dept.requiredFaculty}
+                      <span className={dept.requiredFaculty !== null && dept.actualFaculty < dept.requiredFaculty ? "text-amber-600" : "text-[var(--ink)]"}>
+                        {dept.requiredFaculty === null ? `${dept.actualFaculty} / not set` : `${dept.actualFaculty} / ${dept.requiredFaculty}`}
                       </span>
                     </td>
                     <td className="p-3">
                       <div className="flex items-center gap-2">
-                        <span className={cn("font-semibold", dept.aebasAttendance < 75 ? "text-rose-600" : "text-emerald-600")}>
-                          {dept.aebasAttendance}%
+                        <span className={cn("font-semibold", (dept.aebasAttendance ?? 100) < 75 ? "text-rose-600" : "text-emerald-600")}>
+                          {dept.aebasAttendance === null ? "—" : `${dept.aebasAttendance}%`}
                         </span>
                         <div className="w-12 bg-slate-200 dark:bg-slate-700 h-1.5 rounded-full overflow-hidden">
                           <div
-                            className={cn("h-full", dept.aebasAttendance < 75 ? "bg-rose-500" : "bg-emerald-500")}
-                            style={{ width: `${dept.aebasAttendance}%` }}
+                            className={cn("h-full", (dept.aebasAttendance ?? 100) < 75 ? "bg-rose-500" : "bg-emerald-500")}
+                            style={{ width: `${dept.aebasAttendance ?? 0}%` }}
                           />
                         </div>
                       </div>
@@ -634,7 +695,7 @@ export function NmcComplianceModule({ role }: { role: Role }) {
                     <td className="p-3">
                       <Badge
                         tone={
-                          dept.status === "Compliant"
+                          dept.status === "Not Set" ? "neutral" : dept.status === "Compliant"
                             ? "teal"
                             : dept.status === "Needs Attention"
                             ? "amber"
@@ -644,6 +705,13 @@ export function NmcComplianceModule({ role }: { role: Role }) {
                         {dept.status}
                       </Badge>
                     </td>
+                    {canManage && (
+                      <td className="p-3">
+                        <Button variant="secondary" size="sm" onClick={() => openNorms(dept)} className="text-xs h-7 px-2.5">
+                          Set norms
+                        </Button>
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>
@@ -659,22 +727,36 @@ export function NmcComplianceModule({ role }: { role: Role }) {
             <div>
               <h3 className="text-base font-semibold text-[var(--ink)]">Mandated NMC Statutory Committees & Cells</h3>
               <p className="text-xs text-[var(--ink-2)]">
-                Statutory committees required under NMC Act 2019, MSR 2023, and CDSCO clinical ethics regulations.
+                Statutory committees a medical college is expected to constitute. Record who chairs each and when it last met.
               </p>
             </div>
-            <Badge tone="teal">7 Committees Active</Badge>
+            <Badge tone={committees.length > 0 && activeCommittees === committees.length ? "teal" : "amber"}>
+              {activeCommittees} of {committees.length} Constituted
+            </Badge>
           </div>
 
+          {committees.length === 0 && (
+            <EmptyState
+              title="No committees recorded yet"
+              body="Add the standard statutory committees as a starting list, then record the chairperson, members and meeting dates for each."
+              action={
+                canManage ? (
+                  <Button variant="primary" onClick={() => seedCommitteesMutation.mutate()} disabled={seedCommitteesMutation.isPending}>
+                    Add standard NMC committees
+                  </Button>
+                ) : undefined
+              }
+            />
+          )}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {committees.map((comm) => (
               <Card key={comm.id} className="border-[var(--line)] flex flex-col justify-between">
                 <CardBody className="p-4 space-y-3">
                   <div className="flex items-start justify-between gap-2">
                     <div>
-                      <span className="text-[10px] font-mono font-semibold text-[var(--ink-3)]">{comm.id}</span>
                       <h4 className="font-semibold text-sm text-[var(--ink)]">{comm.name}</h4>
                     </div>
-                    <Badge tone={comm.status === "Constituted & Active" ? "teal" : "amber"}>
+                    <Badge tone={comm.status === "Constituted & Active" ? "teal" : comm.status === "Not Constituted" ? "rose" : "amber"}>
                       {comm.status}
                     </Badge>
                   </div>
@@ -686,11 +768,11 @@ export function NmcComplianceModule({ role }: { role: Role }) {
                   <div className="grid grid-cols-2 gap-2 text-xs pt-1 border-t border-[var(--line)]">
                     <div>
                       <span className="text-[11px] text-[var(--ink-3)] block">Chairperson</span>
-                      <span className="font-medium text-[var(--ink)]">{comm.chairperson}</span>
+                      <span className="font-medium text-[var(--ink)]">{comm.chairperson || "Not assigned"}</span>
                     </div>
                     <div>
                       <span className="text-[11px] text-[var(--ink-3)] block">Convener / Secretary</span>
-                      <span className="font-medium text-[var(--ink)]">{comm.convener}</span>
+                      <span className="font-medium text-[var(--ink)]">{comm.convener || "Not assigned"}</span>
                     </div>
                     <div>
                       <span className="text-[11px] text-[var(--ink-3)] block">Members & Frequency</span>
@@ -698,7 +780,7 @@ export function NmcComplianceModule({ role }: { role: Role }) {
                     </div>
                     <div>
                       <span className="text-[11px] text-[var(--ink-3)] block">Last Meeting Date</span>
-                      <span className="font-medium text-[var(--ink)]">{comm.lastMeetingDate}</span>
+                      <span className="font-medium text-[var(--ink)]">{comm.lastMeetingDate || "—"}</span>
                     </div>
                   </div>
 
@@ -708,7 +790,7 @@ export function NmcComplianceModule({ role }: { role: Role }) {
                     </div>
                   )}
 
-                  {(role === "institution" || role === "admin") && (
+                  {canManage && (
                     <div className="pt-2 border-t border-[var(--line)] flex justify-end">
                       <Button
                         variant="secondary"
@@ -747,7 +829,7 @@ export function NmcComplianceModule({ role }: { role: Role }) {
                 </button>
               ))}
             </div>
-            {(role === "institution" || role === "admin") && (
+            {canManage && (
               <Button
                 variant="primary"
                 size="sm"
@@ -783,7 +865,7 @@ export function NmcComplianceModule({ role }: { role: Role }) {
                     </div>
                   </div>
 
-                  {(role === "institution" || role === "admin") && (
+                  {canManage && (
                     <div className="flex items-center gap-2 self-start sm:self-center shrink-0">
                       {act.status !== "In Progress" && act.status !== "Resolved" && (
                         <Button
@@ -832,7 +914,7 @@ export function NmcComplianceModule({ role }: { role: Role }) {
                 National Medical Commission recognition details, CCTV central streaming link, and bio-metric setup.
               </p>
             </div>
-            {(role === "institution" || role === "admin") && (
+            {canManage && (
               <Button variant="secondary" size="sm" onClick={openEditProfile} className="flex items-center gap-1.5">
                 <Fi name="settings" className="text-xs" />
                 Edit Profile
@@ -847,23 +929,23 @@ export function NmcComplianceModule({ role }: { role: Role }) {
                 <div className="space-y-2 text-xs">
                   <div className="flex justify-between py-1 border-b border-[var(--line)]">
                     <span className="text-[var(--ink-3)]">NMC Institution Code</span>
-                    <span className="font-mono font-bold text-[var(--ink)]">{profile.nmcCode}</span>
+                    <span className="font-mono font-bold text-[var(--ink)]">{profile.nmcCode || "Not recorded"}</span>
                   </div>
                   <div className="flex justify-between py-1 border-b border-[var(--line)]">
                     <span className="text-[var(--ink-3)]">Annual MBBS Seat Sanction</span>
-                    <span className="font-bold text-[var(--ink)]">{profile.mbbsSeats} Seats</span>
+                    <span className="font-bold text-[var(--ink)]">{profile.mbbsSeats > 0 ? `${profile.mbbsSeats} Seats` : "Not recorded"}</span>
                   </div>
                   <div className="flex justify-between py-1 border-b border-[var(--line)]">
                     <span className="text-[var(--ink-3)]">Renewal of Permission (RoP)</span>
-                    <span className="font-medium text-emerald-600">{profile.lopStatus}</span>
+                    <span className="font-medium text-[var(--ink)]">{profile.lopStatus || "Not recorded"}</span>
                   </div>
                   <div className="flex justify-between py-1 border-b border-[var(--line)]">
                     <span className="text-[var(--ink-3)]">Institutional Ethics Reg No</span>
-                    <span className="font-mono text-[var(--ink)]">{profile.ethicsCommitteeRegNo}</span>
+                    <span className="font-mono text-[var(--ink)]">{profile.ethicsCommitteeRegNo || "Not recorded"}</span>
                   </div>
                   <div className="flex justify-between py-1">
                     <span className="text-[var(--ink-3)]">Upcoming Inspection Window</span>
-                    <span className="font-bold text-amber-600">{profile.nextInspectionWindow}</span>
+                    <span className="font-bold text-[var(--ink)]">{profile.nextInspectionWindow || "Not recorded"}</span>
                   </div>
                 </div>
               </CardBody>
@@ -876,24 +958,24 @@ export function NmcComplianceModule({ role }: { role: Role }) {
                   <div className="flex justify-between py-1 border-b border-[var(--line)]">
                     <span className="text-[var(--ink-3)]">NMC Live CCTV Feeds</span>
                     <span className="font-bold text-emerald-600">
-                      {profile.cctvStreamsOnline} / {profile.cctvStreamsTotal} Streams Active
+                      {profile.cctvStreamsTotal > 0 ? `${profile.cctvStreamsOnline} / ${profile.cctvStreamsTotal} Streams Active` : "Not recorded"}
                     </span>
                   </div>
                   <div className="flex justify-between py-1 border-b border-[var(--line)]">
                     <span className="text-[var(--ink-3)]">AEBAS Attendance Integration</span>
                     <Badge tone={profile.aebasPortalActive ? "teal" : "rose"}>
-                      {profile.aebasPortalActive ? "Connected to NIC Portal" : "Disconnected"}
+                      {profile.aebasPortalActive ? "Connected" : "Not connected"}
                     </Badge>
                   </div>
                   <div className="flex justify-between py-1 border-b border-[var(--line)]">
                     <span className="text-[var(--ink-3)]">Medical Education Unit (MEU)</span>
                     <Badge tone={profile.meuCertified ? "teal" : "amber"}>
-                      {profile.meuCertified ? "CISP-III Certified" : "Pending Renewal"}
+                      {profile.meuCertified ? "Certified" : "Not certified"}
                     </Badge>
                   </div>
                   <div className="flex justify-between py-1">
                     <span className="text-[var(--ink-3)]">Last NMC Physical Inspection</span>
-                    <span className="font-medium text-[var(--ink)]">{profile.lastInspectionDate}</span>
+                    <span className="font-medium text-[var(--ink)]">{profile.lastInspectionDate || "Not recorded"}</span>
                   </div>
                 </div>
               </CardBody>
@@ -1060,7 +1142,6 @@ export function NmcComplianceModule({ role }: { role: Role }) {
                     value={commChairperson}
                     onChange={(e) => setCommChairperson(e.target.value)}
                     className={cn(inputClass, "w-full text-xs")}
-                    required
                   />
                 </div>
                 <div>
@@ -1070,7 +1151,6 @@ export function NmcComplianceModule({ role }: { role: Role }) {
                     value={commConvener}
                     onChange={(e) => setCommConvener(e.target.value)}
                     className={cn(inputClass, "w-full text-xs")}
-                    required
                   />
                 </div>
               </div>
@@ -1080,21 +1160,21 @@ export function NmcComplianceModule({ role }: { role: Role }) {
                   <label className="block text-xs font-medium text-[var(--ink)] mb-1">Members Count</label>
                   <input
                     type="number"
-                    min="1"
+                    min="0"
                     max="50"
                     value={commMembers}
                     onChange={(e) => setCommMembers(Number(e.target.value))}
                     className={cn(inputClass, "w-full text-xs")}
-                    required
                   />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-[var(--ink)] mb-1">Constitution Status</label>
                   <select
                     value={commStatus}
-                    onChange={(e) => setCommStatus(e.target.value as any)}
+                    onChange={(e) => setCommStatus(e.target.value as NmcCommittee["status"])}
                     className={cn(inputClass, "w-full text-xs")}
                   >
+                    <option value="Not Constituted">Not Constituted</option>
                     <option value="Constituted & Active">Constituted & Active</option>
                     <option value="Pending Reconstitution">Pending Reconstitution</option>
                     <option value="In Review">In Review</option>
@@ -1107,7 +1187,6 @@ export function NmcComplianceModule({ role }: { role: Role }) {
                     value={commLastMeeting}
                     onChange={(e) => setCommLastMeeting(e.target.value)}
                     className={cn(inputClass, "w-full text-xs")}
-                    required
                   />
                 </div>
               </div>
@@ -1149,6 +1228,43 @@ export function NmcComplianceModule({ role }: { role: Role }) {
         </div>
       )}
 
+      {/* MODAL 4: DEPARTMENT NORMS */}
+      {normDept && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-2xl bg-[var(--surface)] border border-[var(--line)] shadow-xl overflow-hidden">
+            <div className="flex items-center justify-between border-b border-[var(--line)] p-4">
+              <div>
+                <h3 className="font-semibold text-base text-[var(--ink)]">{normDept.name}: Norms</h3>
+                <p className="text-xs text-[var(--ink-2)]">Faculty in post is counted from your staff records.</p>
+              </div>
+              <button onClick={() => setNormDept(null)} className="text-[var(--ink-3)] hover:text-[var(--ink)] text-sm p-1">✕</button>
+            </div>
+            <form onSubmit={handleNormSubmit} className="p-4 space-y-4">
+              {normFormError && (
+                <div className="p-3 text-xs rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-600">{normFormError}</div>
+              )}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-[var(--ink)] mb-1">Required faculty</label>
+                  <input type="number" min="0" max="200" value={normRequired} onChange={(e) => setNormRequired(e.target.value)} placeholder="Leave blank if not set" className={cn(inputClass, "w-full text-xs")} />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-[var(--ink)] mb-1">AEBAS attendance %</label>
+                  <input type="number" min="0" max="100" step="0.1" value={normAebas} onChange={(e) => setNormAebas(e.target.value)} placeholder="Leave blank if not set" className={cn(inputClass, "w-full text-xs")} />
+                </div>
+              </div>
+              <div className="flex justify-end gap-2 pt-2 border-t border-[var(--line)]">
+                <Button type="button" variant="secondary" size="sm" onClick={() => setNormDept(null)} disabled={updateNormMutation.isPending}>Cancel</Button>
+                <Button type="submit" variant="primary" size="sm" disabled={updateNormMutation.isPending} className="flex items-center gap-1.5">
+                  {updateNormMutation.isPending && <Spinner className="size-3.5" />}
+                  Save Norms
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* MODAL 3: EDIT PROFILE */}
       {showEditProfileModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
@@ -1166,60 +1282,53 @@ export function NmcComplianceModule({ role }: { role: Role }) {
               </button>
             </div>
 
-            <form onSubmit={handleProfileSubmit} className="p-4 space-y-4">
+            <form onSubmit={handleProfileSubmit} className="p-4 space-y-4 max-h-[75vh] overflow-y-auto">
               {profileFormError && (
                 <div className="p-3 text-xs rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-600">
                   {profileFormError}
                 </div>
               )}
-
-              <div>
-                <label className="block text-xs font-medium text-[var(--ink)] mb-1">NMC Code</label>
-                <input
-                  type="text"
-                  value={profileNmcCode}
-                  onChange={(e) => setProfileNmcCode(e.target.value)}
-                  className={cn(inputClass, "w-full text-xs")}
-                  required
-                />
-              </div>
-
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-[var(--ink)] mb-1">MBBS Annual Seats</label>
-                  <input
-                    type="number"
-                    min="50"
-                    max="500"
-                    value={profileMbbsSeats}
-                    onChange={(e) => setProfileMbbsSeats(Number(e.target.value))}
-                    className={cn(inputClass, "w-full text-xs")}
-                    required
-                  />
+                  <label className="block text-xs font-medium text-[var(--ink)] mb-1">NMC Code</label>
+                  <input type="text" value={profileNmcCode} onChange={(e) => setProfileNmcCode(e.target.value)} className={cn(inputClass, "w-full text-xs")} />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-[var(--ink)] mb-1">Active CCTV Feeds (Max 25)</label>
-                  <input
-                    type="number"
-                    min="0"
-                    max="25"
-                    value={profileCctvStreams}
-                    onChange={(e) => setProfileCctvStreams(Number(e.target.value))}
-                    className={cn(inputClass, "w-full text-xs")}
-                    required
-                  />
+                  <label className="block text-xs font-medium text-[var(--ink)] mb-1">MBBS Annual Seats</label>
+                  <input type="number" min="0" max="500" value={profileMbbsSeats} onChange={(e) => setProfileMbbsSeats(Number(e.target.value))} className={cn(inputClass, "w-full text-xs")} />
                 </div>
               </div>
-
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-[var(--ink)] mb-1">Total CCTV Cameras</label>
+                  <input type="number" min="0" max="1000" value={profileCctvTotal} onChange={(e) => setProfileCctvTotal(Number(e.target.value))} className={cn(inputClass, "w-full text-xs")} />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-[var(--ink)] mb-1">Cameras Streaming</label>
+                  <input type="number" min="0" max="1000" value={profileCctvStreams} onChange={(e) => setProfileCctvStreams(Number(e.target.value))} className={cn(inputClass, "w-full text-xs")} />
+                </div>
+              </div>
               <div>
                 <label className="block text-xs font-medium text-[var(--ink)] mb-1">Institutional Ethics Reg No</label>
-                <input
-                  type="text"
-                  value={profileEthicsReg}
-                  onChange={(e) => setProfileEthicsReg(e.target.value)}
-                  className={cn(inputClass, "w-full text-xs")}
-                  required
-                />
+                <input type="text" value={profileEthicsReg} onChange={(e) => setProfileEthicsReg(e.target.value)} className={cn(inputClass, "w-full text-xs")} />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-[var(--ink)] mb-1">Permission Status</label>
+                <input type="text" value={profileLop} onChange={(e) => setProfileLop(e.target.value)} placeholder="e.g. Renewal of permission granted" className={cn(inputClass, "w-full text-xs")} />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-[var(--ink)] mb-1">Last Inspection</label>
+                  <input type="date" value={profileLastInspection} onChange={(e) => setProfileLastInspection(e.target.value)} className={cn(inputClass, "w-full text-xs")} />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-[var(--ink)] mb-1">Next Inspection Window</label>
+                  <input type="text" value={profileNextWindow} onChange={(e) => setProfileNextWindow(e.target.value)} placeholder="e.g. Jan - Mar 2027" className={cn(inputClass, "w-full text-xs")} />
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-4 text-xs text-[var(--ink)]">
+                <label className="flex items-center gap-2"><input type="checkbox" checked={profileAebas} onChange={(e) => setProfileAebas(e.target.checked)} /> AEBAS connected</label>
+                <label className="flex items-center gap-2"><input type="checkbox" checked={profileMeu} onChange={(e) => setProfileMeu(e.target.checked)} /> MEU certified</label>
               </div>
 
               <div className="flex justify-end gap-2 pt-2 border-t border-[var(--line)]">

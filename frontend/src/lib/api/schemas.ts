@@ -688,10 +688,11 @@ export const SportItem = z.object({
   sport: z.string(),
   team: z.string(),
   coach: z.string(),
-  captain: z.string().default("Team Captain"),
-  event: z.string(),
-  venue: z.string().default("Campus Sports Complex"),
-  squadSize: z.number().int().nonnegative().default(15),
+  captain: z.string().default(""),
+  event: z.string().default(""),
+  venue: z.string().default(""),
+  /** Derived: the number of people registered for this team. */
+  squadSize: z.number().int().nonnegative().default(0),
   status: z.enum(["Trials open", "Active", "Off-season"]).default("Active"),
   isRegistered: z.boolean().default(false),
   createdAt: z.string(),
@@ -707,6 +708,7 @@ export const SportsOverview = z.object({
     upcomingMeets: z.number(),
   }),
   sports: z.array(SportItem),
+  permissions: z.object({ manage: z.boolean(), register: z.boolean() }).default({ manage: false, register: true }),
 });
 export type SportsOverview = z.infer<typeof SportsOverview>;
 
@@ -714,13 +716,18 @@ export const CreateSportInput = z.object({
   sport: z.string().min(2, "Sport name is required").max(80),
   team: z.string().min(2, "Team name is required").max(80),
   coach: z.string().min(2, "Coach name is required").max(80),
-  captain: z.string().max(80).default("Team Captain"),
-  event: z.string().min(2, "Upcoming event is required").max(100),
-  venue: z.string().max(100).default("Campus Sports Complex"),
-  squadSize: z.number().int().min(1).max(200).default(15),
+  captain: z.string().max(80).default(""),
+  event: z.string().max(100).default(""),
+  venue: z.string().max(100).default(""),
   status: z.enum(["Trials open", "Active", "Off-season"]).default("Trials open"),
 });
 export type CreateSportInput = z.infer<typeof CreateSportInput>;
+
+export const SportRegisterInput = z.object({
+  position: z.string().max(120).default(""),
+  experience: z.string().max(300).default(""),
+});
+export type SportRegisterInput = z.infer<typeof SportRegisterInput>;
 
 export const AcademicCalendarItem = z.object({
   id: z.string(),
@@ -1117,7 +1124,8 @@ export type ReportKpi = z.infer<typeof ReportKpiSchema>;
 export const ReportBreakdownItemSchema = z.object({
   item: z.string(),
   evaluated: z.number(),
-  score: z.number(),
+  /** null when there is nothing to score (for example no quiz attempts yet). */
+  score: z.number().nullable(),
   status: z.string(),
 });
 export type ReportBreakdownItem = z.infer<typeof ReportBreakdownItemSchema>;
@@ -1128,9 +1136,9 @@ export const ReportItemSchema = z.object({
   category: ReportCategorySchema,
   scope: z.string(),
   period: z.string(),
-  formats: z.array(z.string()).default(["PDF", "Excel", "CSV"]),
-  generated: z.string().default("Just now"),
-  fileSize: z.string().default("3.2 MB"),
+  formats: z.array(z.string()).default(["PDF", "CSV"]),
+  generated: z.string().default(""),
+  fileSize: z.string().default(""),
   generatedBy: z.string(),
   summary: z.string(),
   kpis: z.array(ReportKpiSchema),
@@ -1138,16 +1146,20 @@ export const ReportItemSchema = z.object({
   collegeId: z.string().optional(),
   authorRole: z.string().optional(),
   createdAt: z.string().optional(),
+  canDelete: z.boolean().default(false),
 });
 export type ReportItem = z.infer<typeof ReportItemSchema>;
 
 export const ScheduledReportSchema = z.object({
   id: z.string(),
   name: z.string(),
+  category: ReportCategorySchema.default("Institution"),
   frequency: z.enum(["Weekly", "Bi-Weekly", "Monthly", "End of Term"]),
   scope: z.string(),
   recipients: z.string(),
+  /** yyyy-mm-dd */
   nextRun: z.string(),
+  lastRun: z.string().nullable().default(null),
   enabled: z.boolean(),
 });
 export type ScheduledReport = z.infer<typeof ScheduledReportSchema>;
@@ -1156,19 +1168,32 @@ export const ReportsOverviewSchema = z.object({
   collegeId: z.string(),
   reports: z.array(ReportItemSchema),
   scheduledReports: z.array(ScheduledReportSchema),
+  permissions: z.object({ generate: z.boolean(), schedule: z.boolean() }).default({ generate: false, schedule: false }),
+  /** "Institution" plus this college's own departments. */
+  scopes: z.array(z.string()).default(["Institution"]),
 });
 export type ReportsOverview = z.infer<typeof ReportsOverviewSchema>;
 
 export const CreateReportInputSchema = z.object({
-  report: z.string().min(2, "Report title is required"),
+  report: z.string().trim().min(2, "Report title is required").max(200),
   category: ReportCategorySchema,
-  scope: z.string(),
-  period: z.string(),
+  scope: z.string().min(1, "Choose a scope"),
+  period: z.string().max(120).default(""),
   includeGrades: z.boolean().default(true),
   includeRisk: z.boolean().default(true),
   includePlacements: z.boolean().default(true),
 });
 export type CreateReportInput = z.infer<typeof CreateReportInputSchema>;
+
+export const CreateScheduleInputSchema = z.object({
+  name: z.string().trim().min(2, "Schedule name is required").max(200),
+  category: ReportCategorySchema,
+  scope: z.string().min(1, "Choose a scope"),
+  frequency: z.enum(["Weekly", "Bi-Weekly", "Monthly", "End of Term"]),
+  recipients: z.string().max(500).default(""),
+  startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use a valid date").optional(),
+});
+export type CreateScheduleInput = z.infer<typeof CreateScheduleInputSchema>;
 
 
 

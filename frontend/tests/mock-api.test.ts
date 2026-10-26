@@ -385,7 +385,6 @@ describe("Campus sports API and live management", () => {
       captain: "Aditi Rao",
       event: "Inter-collegiate TT Open · Nov 12",
       venue: "Indoor Stadium TT Arena",
-      squadSize: 8,
       status: "Trials open",
     };
     const res = await dispatch("POST", ["sports"], payload, instSession, new URLSearchParams());
@@ -393,7 +392,7 @@ describe("Campus sports API and live management", () => {
     const created = res.body as { id: string; sport: string; team: string; squadSize: number };
     expect(created.sport).toBe("Table Tennis");
     expect(created.team).toBe("AIT Spinners");
-    expect(created.squadSize).toBe(8);
+    expect(created.squadSize).toBe(0); // derived from registrations, not typed
 
     // Verify it appears in GET sports
     const overview = await dispatch("GET", ["sports"], undefined, instSession, new URLSearchParams());
@@ -413,7 +412,6 @@ describe("Campus sports API and live management", () => {
         captain: "Karthik",
         event: "Zonal meet",
         venue: "Ground A",
-        squadSize: 18,
         status: "Trials open",
       },
       instSession,
@@ -426,14 +424,14 @@ describe("Campus sports API and live management", () => {
     expect(regRes.status).toBe(200);
     const regBody = regRes.body as { isRegistered: boolean; squadSize: number };
     expect(regBody.isRegistered).toBe(true);
-    expect(regBody.squadSize).toBe(19); // 18 + 1
+    expect(regBody.squadSize).toBe(1);
 
     // Toggle again (withdraw)
     const withdrawRes = await dispatch("POST", ["sports", sport.id, "register"], undefined, studentSession, new URLSearchParams());
     expect(withdrawRes.status).toBe(200);
     const withdrawBody = withdrawRes.body as { isRegistered: boolean; squadSize: number };
     expect(withdrawBody.isRegistered).toBe(false);
-    expect(withdrawBody.squadSize).toBe(18);
+    expect(withdrawBody.squadSize).toBe(0);
   });
 
   it("denies student from registering a new sport or deleting a team", async () => {
@@ -449,6 +447,33 @@ describe("Campus sports API and live management", () => {
 
     const deleteRes = await dispatch("DELETE", ["sports", "some-sport-id"], undefined, studentSession, new URLSearchParams());
     expect(deleteRes.status).toBe(403);
+  });
+
+  it("counts real registrations, rejects duplicates and off-season registration", async () => {
+    const inst = session("institution");
+    const dup = { sport: "Squash", team: "AIT Squash", coach: "Coach Q", event: "" };
+    const first = await dispatch("POST", ["sports"], dup, inst, new URLSearchParams());
+    expect(first.status).toBe(200);
+    const created = first.body as { id: string; captain: string; venue: string };
+    expect(created.captain).toBe("");
+    expect(created.venue).toBe("");
+    expect((await dispatch("POST", ["sports"], dup, inst, new URLSearchParams())).status).toBe(409);
+
+    const s1 = session("student");
+    const s2 = { ...session("student"), sub: "other-student" };
+    await dispatch("POST", ["sports", created.id, "register"], { position: "No. 1" }, s1, new URLSearchParams());
+    const r2 = await dispatch("POST", ["sports", created.id, "register"], undefined, s2, new URLSearchParams());
+    expect((r2.body as { squadSize: number }).squadSize).toBe(2);
+
+    const overview = await dispatch("GET", ["sports"], undefined, s1, new URLSearchParams());
+    const body = overview.body as { permissions: { manage: boolean }; sports: Array<{ id: string; squadSize: number; isRegistered: boolean }> };
+    expect(body.permissions.manage).toBe(false);
+    expect(body.sports.find((x) => x.id === created.id)).toMatchObject({ squadSize: 2, isRegistered: true });
+
+    await dispatch("PUT", ["sports", created.id], { status: "Off-season" }, inst, new URLSearchParams());
+    const late = { ...session("student"), sub: "late-student" };
+    expect((await dispatch("POST", ["sports", created.id, "register"], undefined, late, new URLSearchParams())).status).toBe(409);
+    expect((await dispatch("PUT", ["sports", created.id], { coach: "X Y" }, s1, new URLSearchParams())).status).toBe(403);
   });
 
   it("allows institution to delete a sport team", async () => {
@@ -468,6 +493,56 @@ describe("Campus sports API and live management", () => {
     const overview = await dispatch("GET", ["sports"], undefined, instSession, new URLSearchParams());
     const list = (overview.body as { sports: Array<{ id: string }> }).sports;
     expect(list.some((s) => s.id === team.id)).toBe(false);
+  });
+});
+
+describe("Reports archive and schedules", () => {
+  const payload = { report: "Dept snapshot", category: "Academic", scope: "Institution", period: "AY test", includeGrades: true, includeRisk: true, includePlacements: true };
+
+  it("compiles a report from live records, with no invented figures", async () => {
+    const res = await dispatch("POST", ["reports"], payload, session("faculty"), new URLSearchParams());
+    expect(res.status).toBe(200);
+    const r = res.body as { id: string; kpis: Array<{ label: string; value: string }>; breakdown: Array<{ score: number | null; evaluated: number }>; canDelete: boolean };
+    expect(r.canDelete).toBe(true);
+    // memory backend has no records, so scored rows have no score instead of a made-up one
+    expect(r.breakdown.filter((b) => b.score !== null)).toEqual([]);
+    expect(r.kpis.find((k) => k.label === "Active students")?.value).toBe("0");
+  });
+
+  it("only staff compile reports, and only for the college's own scopes", async () => {
+    expect((await dispatch("POST", ["reports"], payload, session("student"), new URLSearchParams())).status).toBe(403);
+    expect((await dispatch("POST", ["reports"], { ...payload, scope: "Nonexistent Dept" }, session("faculty"), new URLSearchParams())).status).toBe(400);
+  });
+
+  it("lets the author or the principal office delete a report, nobody else", async () => {
+    const author = { ...session("faculty"), sub: "author-1" };
+    const other = { ...session("faculty"), sub: "other-2" };
+    const made = (await dispatch("POST", ["reports"], payload, author, new URLSearchParams())).body as { id: string };
+    expect((await dispatch("DELETE", ["reports", made.id], undefined, other, new URLSearchParams())).status).toBe(403);
+    expect((await dispatch("DELETE", ["reports", made.id], undefined, author, new URLSearchParams())).status).toBe(200);
+    const made2 = (await dispatch("POST", ["reports"], payload, author, new URLSearchParams())).body as { id: string };
+    expect((await dispatch("DELETE", ["reports", made2.id], undefined, session("institution"), new URLSearchParams())).status).toBe(200);
+  });
+
+  it("runs a due schedule once, then moves it forward", async () => {
+    const inst = session("institution");
+    const today = new Date().toISOString().slice(0, 10);
+    expect((await dispatch("POST", ["reports", "scheduled"], { name: "Nope", category: "Academic", scope: "Institution", frequency: "Weekly" }, session("faculty"), new URLSearchParams())).status).toBe(403);
+    const made = await dispatch("POST", ["reports", "scheduled"], { name: "Weekly digest", category: "Institution", scope: "Institution", frequency: "Weekly", startDate: today }, inst, new URLSearchParams());
+    expect(made.status).toBe(200);
+    expect((await dispatch("POST", ["reports", "scheduled"], { name: "weekly digest", category: "Institution", scope: "Institution", frequency: "Weekly" }, inst, new URLSearchParams())).status).toBe(409);
+
+    const first = (await dispatch("GET", ["reports"], undefined, inst, new URLSearchParams())).body as {
+      reports: Array<{ report: string; generatedBy: string }>;
+      scheduledReports: Array<{ name: string; nextRun: string; lastRun: string | null }>;
+    };
+    expect(first.reports.filter((r) => r.report.startsWith("Weekly digest")).length).toBe(1);
+    const sch = first.scheduledReports.find((s) => s.name === "Weekly digest")!;
+    expect(sch.nextRun > today).toBe(true);
+    expect(sch.lastRun).not.toBeNull();
+
+    const second = (await dispatch("GET", ["reports"], undefined, inst, new URLSearchParams())).body as { reports: Array<{ report: string }> };
+    expect(second.reports.filter((r) => r.report.startsWith("Weekly digest")).length).toBe(1);
   });
 });
 
@@ -1180,112 +1255,102 @@ describe("Teaching Hospital Management (/institution/hospital-dashboard)", () =>
 
 describe("NMC / Council Compliance (/institution/nmc-compliance)", () => {
   const medicalSession = { ...session("institution"), college: "COL-1006" };
-
-  it("serves live NMC overview adhering to NmcComplianceDataSchema", async () => {
-    const res = await dispatch("GET", ["nmc-compliance"], undefined, medicalSession, new URLSearchParams());
+  const call = (method: string, segs: string[], body?: unknown, sess = medicalSession) =>
+    dispatch(method, segs, body, sess, new URLSearchParams());
+  const overview = async () => {
+    const res = await call("GET", ["nmc-compliance"]);
     expect(res.status).toBe(200);
     const parsed = NmcComplianceDataSchema.safeParse(res.body);
     expect(parsed.success).toBe(true);
-    if (!parsed.success) return;
+    return parsed.success ? parsed.data : (undefined as never);
+  };
 
-    expect(parsed.data.departments.length).toBe(21);
-    expect(parsed.data.committees.length).toBe(7);
-    expect(parsed.data.norms.length).toBe(8);
-    expect(parsed.data.overallScore).toBeGreaterThan(70);
-    expect(parsed.data.kpis.facultyAdequacy).toBeGreaterThan(80);
-    expect(parsed.data.kpis.aebasAverage).toBeGreaterThan(75);
+  it("starts from the college's own records, with no invented figures", async () => {
+    const d = await overview();
+    expect(d.departments.length).toBe(21);
+    expect(d.committees.length).toBe(0);
+    expect(d.profile.nmcCode).toBe("");
+    expect(d.profile.mbbsSeats).toBe(0);
+    expect(d.kpis.facultyAdequacy).toBeNull();
+    expect(d.kpis.aebasAverage).toBeNull();
+    expect(d.departments.every((x) => x.requiredFaculty === null && x.status === "Not Set")).toBe(true);
+    expect(d.norms.find((n) => n.id === "NMC-NORM-05")?.status).toBe("Not Assessed");
+    expect(d.permissions.manage).toBe(true);
   });
 
   it("denies access to unauthorized roles", async () => {
     const studentSess = { ...session("student"), college: "COL-1006" };
-    const res = await dispatch("GET", ["nmc-compliance"], undefined, studentSess, new URLSearchParams());
-    expect(res.status).toBe(403);
+    expect((await call("GET", ["nmc-compliance"], undefined, studentSess)).status).toBe(403);
+    expect((await call("POST", ["nmc-compliance", "committees", "seed"], {}, studentSess)).status).toBe(403);
   });
 
-  it("manages NMC compliance action items: create, update status, and delete", async () => {
-    // 1. Create action
-    const createRes = await dispatch(
-      "POST",
-      ["nmc-compliance", "actions"],
-      {
-        title: "Procure Neonatal Resuscitation Model",
-        category: "Infrastructure & Labs",
-        priority: "High",
-        assignee: "Skills Lab Director",
-        dueDate: "2026-11-20",
-        notes: "Identified in internal council mock inspection.",
-      },
-      medicalSession,
-      new URLSearchParams()
-    );
+  it("adds the standard committees once and validates constitution", async () => {
+    const first = await call("POST", ["nmc-compliance", "committees", "seed"], {});
+    expect(first.status).toBe(200);
+    expect((first.body as { added: number }).added).toBe(7);
+    const again = await call("POST", ["nmc-compliance", "committees", "seed"], {});
+    expect((again.body as { added: number }).added).toBe(0);
+
+    const d = await overview();
+    expect(d.committees.length).toBe(7);
+    expect(d.committees.every((c) => c.status === "Not Constituted")).toBe(true);
+
+    const id = d.committees[0]!.id;
+    const bad = await call("PATCH", ["nmc-compliance", "committees", id], {
+      chairperson: "", convener: "", membersCount: 0, status: "Constituted & Active", lastMeetingDate: "", momUploaded: false,
+    });
+    expect(bad.status).toBe(400);
+    const good = await call("PATCH", ["nmc-compliance", "committees", id], {
+      chairperson: "Dr. A", convener: "Dr. B", membersCount: 9, status: "Constituted & Active", lastMeetingDate: "2026-10-12", momUploaded: true,
+    });
+    expect(good.status).toBe(200);
+    const after = await overview();
+    expect(after.committees.find((c) => c.id === id)?.chairperson).toBe("Dr. A");
+    expect(after.norms.find((n) => n.id === "NMC-NORM-05")?.current).toContain("1 of 7");
+    expect((await call("PATCH", ["nmc-compliance", "committees", "00000000-0000-0000-0000-000000000000"], {
+      chairperson: "x", convener: "", membersCount: 1, status: "In Review", lastMeetingDate: "",
+    })).status).toBe(404);
+  });
+
+  it("manages action items: create, update status, delete", async () => {
+    const createRes = await call("POST", ["nmc-compliance", "actions"], {
+      title: "Procure Neonatal Resuscitation Model", category: "Infrastructure & Labs", priority: "High",
+      assignee: "Skills Lab Director", dueDate: "2026-11-20", notes: "Identified in internal mock inspection.",
+    });
     expect(createRes.status).toBe(200);
-    const newAction = createRes.body as any;
-    expect(newAction.id).toBeDefined();
-    expect(newAction.status).toBe("Pending");
-
-    // 2. Update status
-    const updateRes = await dispatch(
-      "PATCH",
-      ["nmc-compliance", "actions", newAction.id],
-      { status: "Resolved", notes: "Procurement order PO-9921 placed." },
-      medicalSession,
-      new URLSearchParams()
-    );
-    expect(updateRes.status).toBe(200);
-
-    // 3. Delete action
-    const deleteRes = await dispatch(
-      "DELETE",
-      ["nmc-compliance", "actions", newAction.id],
-      undefined,
-      medicalSession,
-      new URLSearchParams()
-    );
-    expect(deleteRes.status).toBe(200);
+    const created = createRes.body as { id: string };
+    expect((await overview()).kpis.openActions).toBeGreaterThan(0);
+    expect((await call("PATCH", ["nmc-compliance", "actions", created.id], { status: "Resolved", notes: "PO placed." })).status).toBe(200);
+    const resolved = (await overview()).actions.find((x) => x.id === created.id);
+    expect(resolved?.status).toBe("Resolved");
+    expect((await call("DELETE", ["nmc-compliance", "actions", created.id])).status).toBe(200);
+    expect((await call("DELETE", ["nmc-compliance", "actions", created.id])).status).toBe(404);
   });
 
-  it("updates statutory committee details", async () => {
-    const res = await dispatch(
-      "PATCH",
-      ["nmc-compliance", "committees", "NMC-COM-01"],
-      {
-        chairperson: "Dr. R. Meenakshi, MD",
-        convener: "Dr. P. Sundaram, MD",
-        membersCount: 15,
-        status: "Constituted & Active",
-        lastMeetingDate: "2026-10-12",
-        momUploaded: true,
-        notes: "MEU CISP-IV preparation scheduled.",
-      },
-      medicalSession,
-      new URLSearchParams()
-    );
-    expect(res.status).toBe(200);
+  it("saves the profile and per-department norms, and computes scores from them", async () => {
+    expect((await call("PUT", ["nmc-compliance", "profile"], {
+      nmcCode: "NMC-MED-TN-042", mbbsSeats: 150, ethicsCommitteeRegNo: "ECR/1", cctvStreamsOnline: 8, cctvStreamsTotal: 10,
+    })).status).toBe(200);
+    expect((await call("PUT", ["nmc-compliance", "profile"], { cctvStreamsOnline: 20, cctvStreamsTotal: 10 })).status).toBe(400);
+    let d = await overview();
+    expect(d.profile.mbbsSeats).toBe(150);
+    expect(d.norms.find((n) => n.id === "NMC-NORM-06")?.score).toBe(80);
+
+    expect((await call("PUT", ["nmc-compliance", "departments"], { department: "Anatomy", requiredFaculty: 50, aebasAttendance: 90 })).status).toBe(200);
+    expect((await call("PUT", ["nmc-compliance", "departments"], { department: "Made Up", requiredFaculty: 2, aebasAttendance: null })).status).toBe(400);
+    d = await overview();
+    const anatomy = d.departments.find((x) => x.name === "Anatomy")!;
+    expect(anatomy.requiredFaculty).toBe(50);
+    expect(anatomy.status).not.toBe("Not Set");
+    expect(d.kpis.facultyAdequacy).not.toBeNull();
+    expect(d.kpis.aebasAverage).toBe(90);
   });
 
-  it("updates NMC college profile", async () => {
-    const res = await dispatch(
-      "PUT",
-      ["nmc-compliance", "profile"],
-      {
-        nmcCode: "NMC-MED-TN-042",
-        mbbsSeats: 250,
-        ethicsCommitteeRegNo: "ECR/124/Inst/TN/2021/RR-24",
-        cctvStreamsOnline: 25,
-      },
-      medicalSession,
-      new URLSearchParams()
-    );
-    expect(res.status).toBe(200);
-  });
-
-  it("provides dynamic scorecard module-data for backwards compatibility", async () => {
+  it("provides the scorecard module-data adapter", async () => {
     const data = await moduleData("nmc-compliance");
     expect(data).toBeDefined();
     if (data && "overall" in data) {
-      expect(typeof (data as any).overall).toBe("number");
-      expect((data as any).dimensions.length).toBeGreaterThan(0);
-      expect((data as any).strengths.length).toBeGreaterThan(0);
+      expect(typeof (data as { overall: number }).overall).toBe("number");
     }
   });
 });

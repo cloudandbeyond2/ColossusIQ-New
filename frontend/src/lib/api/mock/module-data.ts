@@ -27,7 +27,7 @@ import { collegeStream, listColleges } from "./records";
 import { brandingDefaults } from "./branding";
 import { dynamicBiAnalytics } from "./bi-analytics";
 import { clubsData } from "./clubs-data";
-import { getCollegeSports } from "./sports";
+import { sportsData } from "./sports-data";
 import { visibleCalendarItems } from "./academic-calendar";
 import { getStudentsList } from "./students-store";
 import { kbStore } from "./knowledge-store";
@@ -598,8 +598,8 @@ const DATA: Record<string, (collegeScope: string, live: ScopeData) => ModuleData
       "Start a club",
     );
   },
-  sports: (collegeScope) => {
-    const items = getCollegeSports(collegeScope);
+  sports: async (collegeScope) => {
+    const items = await sportsData().sports(collegeScope === "all" ? ((await listColleges())[0]?.id ?? "") : collegeScope);
     return list(
       [col("sport", "Sport"), col("team", "Team"), col("coach", "Coach"), col("event", "Upcoming"), col("status", "Status", "badge")],
       items.map((s) => ({

@@ -26,7 +26,6 @@ import {
   SportItem,
   SportsOverview,
 } from "@/lib/api/schemas";
-import type { Role } from "@/lib/auth/roles";
 import { TemplateSkeleton } from "@/components/modules/shared";
 import { LoadError } from "@/components/ui/load-error";
 import {
@@ -54,7 +53,7 @@ function statusTone(status: string): "teal" | "amber" | "sky" | "brand" {
   }
 }
 
-export function SportsModule({ role }: { role?: Role }) {
+export function SportsModule() {
   const qc = useQueryClient();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("All");
@@ -69,13 +68,17 @@ export function SportsModule({ role }: { role?: Role }) {
     queryFn: () => apiFetch("/api/v1/sports", SportsOverview),
   });
 
-  const isPrivileged = role === "institution" || role === "admin";
+  // what this person may do is decided by the server
+  const isPrivileged = query.data?.permissions.manage ?? false;
 
   const registerMutation = useMutation({
     mutationFn: async (sportId: string) => {
       return apiFetch(`/api/v1/sports/${sportId}/register`, SportItem.pick({ isRegistered: true, squadSize: true }), {
         method: "POST",
       });
+    },
+    onError: (err) => {
+      setToast(err instanceof ApiError ? err.message : "Could not update your trial registration.");
     },
     onSuccess: (res, sportId) => {
       qc.invalidateQueries({ queryKey: ["sports"] });
@@ -169,7 +172,7 @@ export function SportsModule({ role }: { role?: Role }) {
             </span>
           </div>
           <p className="mt-3 text-3xl font-bold text-ink">{formatNumber(kpis.totalAthletes)}</p>
-          <p className="mt-1 text-xs text-ink-3">Active players on team rosters</p>
+          <p className="mt-1 text-xs text-ink-3">Players registered across teams</p>
         </Card>
 
         <Card className="p-5">
@@ -452,7 +455,6 @@ function CreateSportModal({
   const [captainName, setCaptainName] = useState("");
   const [eventDate, setEventDate] = useState("");
   const [venue, setVenue] = useState("");
-  const [squadSize, setSquadSize] = useState("");
   const [status, setStatus] = useState<CreateSportInput["status"]>("Trials open");
   const [error, setError] = useState<string | null>(null);
 
@@ -475,6 +477,7 @@ function CreateSportModal({
     mutationFn: async (sportId: string) => {
       return apiFetch(`/api/v1/sports/${sportId}/register`, SportItem.pick({ isRegistered: true, squadSize: true }), {
         method: "POST",
+        body: { position: position.trim(), experience: experience.trim() },
       });
     },
     onSuccess: () => {
@@ -503,10 +506,9 @@ function CreateSportModal({
       sport: sportName.trim(),
       team: teamName.trim(),
       coach: coachName.trim(),
-      captain: captainName.trim() || "Team Captain",
+      captain: captainName.trim(),
       event: eventDate.trim(),
-      venue: venue.trim() || "Campus Sports Complex",
-      squadSize: parseInt(squadSize, 10) || 15,
+      venue: venue.trim(),
       status,
     });
   };
@@ -617,18 +619,6 @@ function CreateSportModal({
               </div>
 
               <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold uppercase tracking-wider text-ink-3">Squad Size</label>
-                  <input
-                    type="number"
-                    min="1"
-                    max="200"
-                    value={squadSize}
-                    onChange={(e) => setSquadSize(e.target.value)}
-                    className={cn(inputClass, "mt-1.5")}
-                  />
-                </div>
-
                 <div>
                   <label className="block text-xs font-semibold uppercase tracking-wider text-ink-3">Status</label>
                   <select
@@ -780,21 +770,21 @@ function SportDetailModal({
           <div>
             <p className="text-xs font-medium text-ink-3">Team Captain</p>
             <p className="mt-1 flex items-center gap-1.5 text-sm font-semibold text-ink">
-              <Sparkles className="size-3.5 text-gold" /> {sport.captain}
+              <Sparkles className="size-3.5 text-gold" /> {sport.captain || "Not assigned"}
             </p>
           </div>
 
           <div>
             <p className="text-xs font-medium text-ink-3">Active Squad</p>
             <p className="mt-1 flex items-center gap-1.5 text-sm font-semibold text-ink">
-              <Users className="size-3.5 text-teal" /> {sport.squadSize} players
+              <Users className="size-3.5 text-teal" /> {sport.squadSize} registered
             </p>
           </div>
 
           <div>
             <p className="text-xs font-medium text-ink-3">Training Venue</p>
             <p className="mt-1 flex items-center gap-1.5 text-sm font-semibold text-ink">
-              <MapPin className="size-3.5 text-rose" /> {sport.venue || "Campus Sports Complex"}
+              <MapPin className="size-3.5 text-rose" /> {sport.venue || "Not set"}
             </p>
           </div>
         </div>
