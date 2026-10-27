@@ -12,19 +12,25 @@ import { safeEqual, type SessionPayload } from "./session";
 
 export const DEMO_MFA_CODE = "246810";
 
-export type LoginResult = { ok: true; sub: string; name: string } | { ok: false; locked?: boolean };
+export type LoginResult = { ok: true; sub: string; name: string; department?: string } | { ok: false; locked?: boolean };
 
 export async function authenticate(input: { email: string; password: string; role: Role; college: string | null }): Promise<LoginResult> {
   if (dataBackend() === "memory") {
     const isMedical = input.college === "COL-1006" || input.college === "COL-1007" || input.email.includes("mmch") || input.email.includes("cinahs");
     let name = ROLE_META[input.role].persona.split(" · ")[0] ?? "User";
+    let department: string | undefined = undefined;
+    if (input.role === "hod") {
+      department = isMedical ? "General Surgery" : "Computer Science & Engineering";
+    } else if (input.role === "faculty") {
+      department = isMedical ? "General Surgery" : "Computer Science & Engineering";
+    }
     if (isMedical) {
       if (input.role === "student") name = "Keerthana S.";
       if (input.role === "faculty") name = "Dr. R. Prakash, MD";
       if (input.role === "hod") name = "Dr. S. K. Narayanan, MS";
       if (input.role === "institution") name = "Dr. R. Meenakshi, MD";
     }
-    return { ok: true, sub: `demo-${input.role}-${input.college ?? "all"}`, name };
+    return { ok: true, sub: `demo-${input.role}-${input.college ?? "all"}`, name, department };
   }
   const r = await withRequestContext({ scope: "all" }, () => pgAuthenticate(input));
   return r.ok ? r : { ok: false, locked: r.reason === "locked" };

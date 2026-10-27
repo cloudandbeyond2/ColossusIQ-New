@@ -29,17 +29,18 @@ export default async function PortalLayout({ children, params }: { children: Rea
     <>
       {css ? <style id="tenant-brand" dangerouslySetInnerHTML={{ __html: css }} /> : null}
       <AppShell
-      role={role}
-      roleLabel={ROLE_META[role].label}
-      name={session.name}
-      universityName={UNIVERSITY.name}
-      collegeName={brand.customised && brand.name ? brand.name : ctx.collegeName}
-      logoUrl={brand.logoUrl}
-      collegeScope={ctx.scope}
-      isSuperAdmin={role === "admin"}
-      nav={nav}
-      canChat={can(role, "ai:chat")}
-    >
+        role={role}
+        roleLabel={ROLE_META[role].label}
+        name={session.name}
+        departmentName={ctx.departmentName}
+        universityName={UNIVERSITY.name}
+        collegeName={brand.customised && brand.name ? brand.name : ctx.collegeName}
+        logoUrl={brand.logoUrl}
+        collegeScope={ctx.scope}
+        isSuperAdmin={role === "admin"}
+        nav={nav}
+        canChat={can(role, "ai:chat")}
+      >
       {role === "student" ? <FeeReminder /> : null}
       {children}
       </AppShell>

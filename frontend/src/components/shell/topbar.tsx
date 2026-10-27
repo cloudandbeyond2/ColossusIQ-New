@@ -19,6 +19,7 @@ export function Topbar({
   role,
   name,
   roleLabel,
+  departmentName = null,
   canChat,
   onMentor,
   menuButton,
@@ -28,6 +29,7 @@ export function Topbar({
   role: Role;
   name: string;
   roleLabel: string;
+  departmentName?: string | null;
   canChat: boolean;
   onMenu?: () => void;
   onMentor: () => void;
@@ -101,7 +103,7 @@ export function Topbar({
 
           <NotificationsMenu label={t("nav.notifications")} role={role} />
 
-          <UserMenu name={name} roleLabel={roleLabel} initials={initials} signOutLabel={t("nav.signout")} role={role} loginPath={loginPath} />
+          <UserMenu name={name} roleLabel={roleLabel} departmentName={departmentName} initials={initials} signOutLabel={t("nav.signout")} role={role} loginPath={loginPath} />
         </div>
       </div>
       {paletteOpen ? <CommandPalette role={role} onClose={() => setPaletteOpen(false)} /> : null}
@@ -325,7 +327,7 @@ function NotificationsMenu({ label, role }: { label: string; role: Role }) {
   );
 }
 
-function UserMenu({ name, roleLabel, initials, signOutLabel, role, loginPath }: { name: string; roleLabel: string; initials: string; signOutLabel: string; role: Role; loginPath: string }) {
+function UserMenu({ name, roleLabel, departmentName, initials, signOutLabel, role, loginPath }: { name: string; roleLabel: string; departmentName?: string | null; initials: string; signOutLabel: string; role: Role; loginPath: string }) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const ref = useClickOutside(open, () => setOpen(false));
@@ -338,7 +340,10 @@ function UserMenu({ name, roleLabel, initials, signOutLabel, role, loginPath }: 
         <div className="absolute right-0 mt-2 w-64 overflow-hidden rounded-xl border border-line bg-surface shadow-card">
           <div className="border-b border-line px-4 py-3">
             <p className="truncate text-sm font-semibold text-ink">{name}</p>
-            <p className="text-xs text-ink-3">{roleLabel}</p>
+            <p className="text-xs text-ink-3">
+              {roleLabel}
+              {departmentName ? ` · ${departmentName.startsWith("Department of") ? departmentName : `Dept of ${departmentName}`}` : ""}
+            </p>
             <p className="mt-1 inline-flex rounded bg-teal-soft px-1.5 py-0.5 text-[11px] font-medium text-teal">MFA verified</p>
           </div>
           <button

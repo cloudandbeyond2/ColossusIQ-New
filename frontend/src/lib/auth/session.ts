@@ -19,9 +19,12 @@ export interface SessionPayload {
   tenant: string;
   /** College scope: a college id, or "all" (University Super Admin only). */
   college: string;
+  /** Department name (e.g. for HOD, Faculty, or Student), if assigned. */
+  department?: string;
   mfa: boolean;
   exp: number; // unix seconds
 }
+
 
 const encoder = new TextEncoder();
 

@@ -22,13 +22,27 @@ function dummy(): Promise<string> {
   return dummyHash;
 }
 
-export type AuthResult = { ok: true; sub: string; name: string } | { ok: false; reason: "invalid" | "locked" };
+export type AuthResult = { ok: true; sub: string; name: string; department?: string } | { ok: false; reason: "invalid" | "locked" };
 
 export async function pgAuthenticate(input: { email: string; password: string; role: Role; college: string | null }): Promise<AuthResult> {
   const t = db();
   const user = await t.user.findFirst({
     where: { email: { equals: input.email, mode: "insensitive" } },
-    include: { userCredential: true, roleAssignments: { select: { role: true, collegeId: true } } },
+    include: {
+      userCredential: true,
+      roleAssignments: {
+        select: {
+          role: true,
+          collegeId: true,
+          department: { select: { name: true } },
+        },
+      },
+      staff: {
+        include: {
+          department: { select: { name: true } },
+        },
+      },
+    },
   });
   const cred = user?.userCredential;
   if (!user || !cred) {
@@ -51,11 +65,15 @@ export async function pgAuthenticate(input: { email: string; password: string; r
   }
   // The password is right; the account must also be active and hold this role in this college.
   const collegeUuid = input.college ? (await collegeByPublic(input.college))?.id : null;
-  const holds = user.roleAssignments.some((r) => r.role === input.role && (r.collegeId ?? null) === (collegeUuid ?? null));
+  const matchingAssignment = user.roleAssignments.find(
+    (r) => r.role === input.role && (r.collegeId ?? null) === (collegeUuid ?? null)
+  );
+  const holds = Boolean(matchingAssignment);
   await t.userCredential.update({ where: { userId: user.id }, data: { failedAttempts: 0, lockedUntil: null } });
   if (user.status !== "Active" || !holds) return { ok: false, reason: "invalid" };
   await t.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
-  return { ok: true, sub: user.id, name: user.fullName };
+  const department = matchingAssignment?.department?.name ?? user.staff?.department?.name ?? undefined;
+  return { ok: true, sub: user.id, name: user.fullName, department };
 }
 
 /** true / false for an enrolled authenticator; "not_enrolled" when the account has none. */

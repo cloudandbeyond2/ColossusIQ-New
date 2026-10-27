@@ -24,6 +24,7 @@ export function AppShell({
   role,
   roleLabel,
   name,
+  departmentName = null,
   universityName,
   collegeName,
   collegeScope,
@@ -36,6 +37,7 @@ export function AppShell({
   role: Role;
   roleLabel: string;
   name: string;
+  departmentName?: string | null;
   universityName: string;
   collegeName: string;
   collegeScope: string;
@@ -63,7 +65,7 @@ export function AppShell({
     <div className="flex min-h-dvh">
       {/* Desktop sidebar */}
       <aside className="bg-sidebar sticky top-0 hidden h-dvh w-[280px] shrink-0 flex-col text-white lg:flex" aria-label="Primary">
-        <SidebarContent role={role} roleLabel={roleLabel} universityName={universityName} collegeName={collegeName} logoUrl={logoUrl} nav={nav} pathname={pathname} />
+        <SidebarContent role={role} roleLabel={roleLabel} departmentName={departmentName} universityName={universityName} collegeName={collegeName} logoUrl={logoUrl} nav={nav} pathname={pathname} />
       </aside>
 
       {/* Mobile drawer */}
@@ -78,7 +80,7 @@ export function AppShell({
             >
               <Fi name="cross-small" className="text-lg" />
             </button>
-            <SidebarContent role={role} roleLabel={roleLabel} universityName={universityName} collegeName={collegeName} logoUrl={logoUrl} nav={nav} pathname={pathname} />
+            <SidebarContent role={role} roleLabel={roleLabel} departmentName={departmentName} universityName={universityName} collegeName={collegeName} logoUrl={logoUrl} nav={nav} pathname={pathname} />
           </aside>
         </div>
       ) : null}
@@ -88,6 +90,7 @@ export function AppShell({
           role={role}
           name={name}
           roleLabel={roleLabel}
+          departmentName={departmentName}
           canChat={canChat}
           collegeSwitcher={isSuperAdmin ? <CollegeSwitcher scope={collegeScope} /> : null}
           loginPath={loginPath}
@@ -115,6 +118,7 @@ export function AppShell({
 function SidebarContent({
   role,
   roleLabel,
+  departmentName,
   universityName,
   collegeName,
   logoUrl,
@@ -123,6 +127,7 @@ function SidebarContent({
 }: {
   role: Role;
   roleLabel: string;
+  departmentName?: string | null;
   universityName: string;
   collegeName: string;
   logoUrl: string;
@@ -158,7 +163,15 @@ function SidebarContent({
             <p className="truncate text-[11px] text-white/60" title={universityName}>
               {universityName}
             </p>
-            <p className="mt-0.5 text-[10px] uppercase tracking-wider text-gold/90">{tRole(role, lang, roleLabel)}</p>
+            <div className="mt-1 flex flex-col gap-0.5">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-gold/90">{tRole(role, lang, roleLabel)}</span>
+              {departmentName ? (
+                <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-amber-200/90 truncate" title={departmentName}>
+                  <Fi name="book-alt" className="text-[10px] shrink-0 text-gold/80" />
+                  <span className="truncate">{departmentName.startsWith("Department of") ? departmentName : `Dept of ${departmentName}`}</span>
+                </span>
+              ) : null}
+            </div>
           </div>
         </div>
       </div>

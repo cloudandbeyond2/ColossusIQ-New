@@ -404,6 +404,7 @@ export type SearchResult = z.infer<typeof SearchResult>;
 
 export const RoleHome = z.object({
   greeting: z.string(),
+  department: z.string().optional(),
   kpis: z.array(Kpi),
   charts: z.array(ChartSpec),
   insights: z.array(Insight),
