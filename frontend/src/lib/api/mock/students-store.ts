@@ -15,6 +15,7 @@ export interface StudentRecord {
   email?: string;
   phone?: string;
   collegeId?: string | null;
+  collegeName?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -28,6 +29,7 @@ export interface StudentInput {
   signal?: "None" | "Review suggested" | "At risk" | "High performer";
   email?: string;
   phone?: string;
+  collegeId?: string;
 }
 
 // Student store starts empty and is populated through user actions (forms, Excel import)
@@ -189,6 +191,7 @@ export async function getStudentsList(opts?: {
         email: s.user.email,
         phone: s.college.phone,
         collegeId: s.college.publicId,
+        collegeName: s.college.name,
         createdAt: s.createdAt.toISOString(),
         updatedAt: s.updatedAt.toISOString(),
       };
@@ -274,6 +277,7 @@ export async function getStudentById(id: string): Promise<StudentRecord | null> 
       email: s.user.email,
       phone: s.college.phone,
       collegeId: s.college.publicId,
+      collegeName: s.college.name,
       createdAt: s.createdAt.toISOString(),
       updatedAt: s.updatedAt.toISOString(),
     };
@@ -288,7 +292,7 @@ export async function createStudent(
 ): Promise<StudentRecord> {
   if (dataBackend() === "postgres") {
     const t = db();
-    const effectiveCollege = collegeId && collegeId !== "all" ? collegeId : "COL-1001";
+    const effectiveCollege = input.collegeId || (collegeId && collegeId !== "all" ? collegeId : "COL-1001");
     const college = (await t.college.findFirst({
       where: isUuid(effectiveCollege) ? { OR: [{ publicId: effectiveCollege }, { id: effectiveCollege }] } : { publicId: effectiveCollege },
     })) || (await t.college.findFirst());
@@ -357,12 +361,15 @@ export async function createStudent(
       name: student.user.fullName,
       roll: student.rollNo,
       section: meta.section,
+      department: student.department?.name || dept.name,
+      departmentCode: dept.streamKey,
       cgpa: meta.cgpa,
       readiness: meta.readiness,
       signal: meta.signal as any,
       email: student.user.email,
       phone: input.phone ? cleanText(input.phone, 20).trim() : undefined,
       collegeId: student.college.publicId,
+      collegeName: student.college.name,
       createdAt: student.createdAt.toISOString(),
       updatedAt: student.updatedAt.toISOString(),
     };
@@ -439,7 +446,7 @@ export async function updateStudent(
     const t = db();
     const student = await t.student.findFirst({
       where: isUuid(id) ? { OR: [{ id }, { rollNo: id }] } : { rollNo: id },
-      include: { user: true, college: true },
+      include: { user: true, college: true, department: true },
     });
     if (!student) return null;
 
@@ -485,6 +492,8 @@ export async function updateStudent(
       email: data.email ? cleanText(data.email, 120).trim() : student.user.email,
       phone: data.phone ? cleanText(data.phone, 20).trim() : undefined,
       collegeId: student.college.publicId,
+      collegeName: student.college.name,
+      department: student.department?.name,
       createdAt: student.createdAt.toISOString(),
       updatedAt: new Date().toISOString(),
     };

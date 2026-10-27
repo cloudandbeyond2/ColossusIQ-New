@@ -26,6 +26,7 @@ import {
   Progress,
   Spinner,
   inputClass,
+  selectFilterClass,
 } from "@/components/ui/primitives";
 import { cn } from "@/lib/utils";
 import type { Role } from "@/lib/auth/roles";
@@ -501,7 +502,7 @@ export function AicteComplianceModule({ role }: { role: Role }) {
               <select
                 value={selectedDept}
                 onChange={(e) => setSelectedDept(e.target.value)}
-                className={cn(inputClass, "w-auto text-xs")}
+                className={cn(selectFilterClass, "w-full sm:w-auto text-xs")}
               >
                 <option value="All Departments">All Sanctioned Departments</option>
                 {data.departments.map((d) => (
@@ -687,7 +688,7 @@ export function AicteComplianceModule({ role }: { role: Role }) {
               <select
                 value={actionStatusFilter}
                 onChange={(e) => setActionStatusFilter(e.target.value)}
-                className={cn(inputClass, "w-auto text-xs")}
+                className={cn(selectFilterClass, "w-full sm:w-auto text-xs")}
               >
                 <option value="All Statuses">All Statuses</option>
                 <option value="Open">Open</option>

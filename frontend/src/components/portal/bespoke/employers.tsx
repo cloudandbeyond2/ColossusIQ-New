@@ -33,6 +33,7 @@ import {
   Skeleton,
   Spinner,
   inputClass,
+  selectFilterClass,
 } from "@/components/ui/primitives";
 import { apiFetch } from "@/lib/api/client";
 import {
@@ -207,8 +208,8 @@ export function EmployersModule() {
 
       {/* ── Main Employer Directory Card ─────────── */}
       <Card>
-        <div className="flex flex-col gap-3 border-b border-line p-4 lg:flex-row lg:items-center">
-          <div className="relative flex-1">
+        <div className="flex flex-col gap-3 border-b border-line p-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="relative flex-1 min-w-[220px] max-w-full lg:max-w-md">
             <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ink-3" aria-hidden />
             <label htmlFor="employer-search" className="sr-only">
               Search employers
@@ -219,16 +220,16 @@ export function EmployersModule() {
               maxLength={80}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search by company, contact person or location…"
-              className={cn(inputClass, "pl-9")}
+              className={cn(inputClass, "pl-9 text-xs sm:text-sm py-2")}
             />
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto">
             <select
               aria-label="Filter by sector"
               value={sectorFilter}
               onChange={(e) => setSectorFilter(e.target.value as "all" | EmployerSector)}
-              className={cn(inputClass, "w-auto text-xs sm:text-sm")}
+              className={cn(selectFilterClass, "w-full sm:w-auto min-w-[130px] max-w-full")}
             >
               <option value="all">All Sectors</option>
               {EMPLOYER_SECTORS.map((s) => (
@@ -242,7 +243,7 @@ export function EmployersModule() {
               aria-label="Filter by relationship tier"
               value={tierFilter}
               onChange={(e) => setTierFilter(e.target.value as "all" | EmployerTier)}
-              className={cn(inputClass, "w-auto text-xs sm:text-sm")}
+              className={cn(selectFilterClass, "w-full sm:w-auto min-w-[110px] max-w-full")}
             >
               <option value="all">All Tiers</option>
               {EMPLOYER_TIERS.map((t) => (
@@ -256,7 +257,7 @@ export function EmployersModule() {
               aria-label="Filter by MoU status"
               value={mouFilter}
               onChange={(e) => setMouFilter(e.target.value as "all" | MouStatus)}
-              className={cn(inputClass, "w-auto text-xs sm:text-sm")}
+              className={cn(selectFilterClass, "w-full sm:w-auto min-w-[110px] max-w-full")}
             >
               <option value="all">All MoUs</option>
               {MOU_STATUSES.map((m) => (
@@ -266,21 +267,24 @@ export function EmployersModule() {
               ))}
             </select>
 
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => downloadEmployersCsv(items)}
-              disabled={items.length === 0}
-              title="Export filtered employers as CSV"
-            >
-              <Download className="size-4" /> Export CSV
-            </Button>
-
-            {o.canEdit ? (
-              <Button size="sm" onClick={() => setForm({ employer: null })}>
-                <Plus className="size-4" /> Add employer
+            <div className="flex items-center gap-2 shrink-0">
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => downloadEmployersCsv(items)}
+                disabled={items.length === 0}
+                className="whitespace-nowrap text-xs sm:text-sm"
+                title="Export filtered employers as CSV"
+              >
+                <Download className="size-4" /> Export CSV
               </Button>
-            ) : null}
+
+              {o.canEdit ? (
+                <Button size="sm" className="whitespace-nowrap text-xs sm:text-sm" onClick={() => setForm({ employer: null })}>
+                  <Plus className="size-4" /> Add employer
+                </Button>
+              ) : null}
+            </div>
           </div>
         </div>
 

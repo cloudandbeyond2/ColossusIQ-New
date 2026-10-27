@@ -18,6 +18,8 @@ import {
   Eye,
   EyeOff,
   Users,
+  Building2,
+  GraduationCap,
 } from "lucide-react";
 import { apiFetch } from "@/lib/api/client";
 import type { Role } from "@/lib/auth/roles";
@@ -29,6 +31,7 @@ import {
   Field,
   Spinner,
   inputClass,
+  selectFilterClass,
 } from "@/components/ui/primitives";
 import { cn } from "@/lib/utils";
 
@@ -44,6 +47,9 @@ export interface StudentItem {
   signal: "None" | "Review suggested" | "At risk" | "High performer";
   email?: string;
   phone?: string;
+  collegeId?: string | null;
+  collegeName?: string | null;
+  department?: string;
 }
 
 const StudentItemSchema = z.object({
@@ -59,6 +65,9 @@ const StudentItemSchema = z.object({
   }),
   email: z.string().optional(),
   phone: z.string().optional(),
+  collegeId: z.string().nullable().optional(),
+  collegeName: z.string().nullable().optional(),
+  department: z.string().optional(),
 });
 
 const StudentSchema = z.object({
@@ -73,8 +82,36 @@ export function StudentsModule({ role: _role }: { role: Role }) {
 
   // Filters & Search
   const [q, setQ] = useState("");
+  const [collegeFilter, setCollegeFilter] = useState("all");
+  const [deptFilter, setDeptFilter] = useState("all");
   const [sectionFilter, setSectionFilter] = useState("all");
   const [unmasked, setUnmasked] = useState<Record<string, boolean>>({});
+
+  // Query Colleges for Dropdown Filter & Creation
+  const { data: colleges = [] } = useQuery({
+    queryKey: ["public-colleges-list"],
+    queryFn: async () => {
+      try {
+        const res = await apiFetch(
+          "/api/v1/public/colleges",
+          z.object({
+            colleges: z.array(
+              z.object({
+                id: z.string(),
+                name: z.string(),
+                city: z.string().optional(),
+                type: z.string().optional(),
+              })
+            ),
+          })
+        );
+        return res.colleges;
+      } catch {
+        return [];
+      }
+    },
+    staleTime: 5 * 60 * 1000,
+  });
 
   // Modals state
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
@@ -87,12 +124,14 @@ export function StudentsModule({ role: _role }: { role: Role }) {
   const [newStudent, setNewStudent] = useState<Partial<StudentItem>>({
     name: "",
     roll: "",
+    department: "",
     section: "CSE-A",
     cgpa: 7.5,
     readiness: 60,
     signal: "None",
     email: "",
     phone: "",
+    collegeId: "",
   });
 
   // Excel / CSV upload state
@@ -109,9 +148,13 @@ export function StudentsModule({ role: _role }: { role: Role }) {
 
   /* ── Query Students (GET) ────────────────────────── */
   const { data: queryData, isLoading, isError, error } = useQuery({
-    queryKey: ["students-list"],
+    queryKey: ["students-list", collegeFilter],
     queryFn: async () => {
-      const res = await apiFetch("/api/v1/students", StudentSchema);
+      const url =
+        collegeFilter && collegeFilter !== "all"
+          ? `/api/v1/students?college=${encodeURIComponent(collegeFilter)}`
+          : "/api/v1/students?college=all";
+      const res = await apiFetch(url, StudentSchema);
       return res.students;
     },
   });
@@ -207,7 +250,13 @@ export function StudentsModule({ role: _role }: { role: Role }) {
     },
   });
 
-  /* ── Filtered & Derived Records ──────────────────── */
+  const departmentsList = useMemo(() => {
+    const set = new Set<string>();
+    students.forEach((s) => {
+      if (s.department) set.add(s.department);
+    });
+    return Array.from(set).sort();
+  }, [students]);
 
   const sectionsList = useMemo(() => {
     const set = new Set<string>();
@@ -221,14 +270,22 @@ export function StudentsModule({ role: _role }: { role: Role }) {
       if (sectionFilter !== "all" && s.section.toLowerCase() !== sectionFilter.toLowerCase()) {
         return false;
       }
+      if (collegeFilter !== "all" && s.collegeId && s.collegeId !== collegeFilter) {
+        return false;
+      }
+      if (deptFilter !== "all" && s.department && s.department.toLowerCase() !== deptFilter.toLowerCase()) {
+        return false;
+      }
       if (!needle) return true;
       return (
         s.name.toLowerCase().includes(needle) ||
         s.roll.toLowerCase().includes(needle) ||
-        s.section.toLowerCase().includes(needle)
+        s.section.toLowerCase().includes(needle) ||
+        (s.department && s.department.toLowerCase().includes(needle)) ||
+        (s.collegeName && s.collegeName.toLowerCase().includes(needle))
       );
     });
-  }, [students, q, sectionFilter]);
+  }, [students, q, sectionFilter, collegeFilter, deptFilter]);
 
   /* ── Excel / CSV File Handlers ───────────────────── */
 
@@ -316,10 +373,12 @@ export function StudentsModule({ role: _role }: { role: Role }) {
 
   // Export students list to real CSV/Excel file with UTF-8 BOM
   const handleExportExcel = () => {
-    const headers = ["Student Name", "Roll Number", "Section", "CGPA", "Career Readiness (%)", "Support Signal", "Email", "Phone"];
+    const headers = ["Student Name", "Roll Number", "College", "Department", "Section", "CGPA", "Career Readiness (%)", "Support Signal", "Email", "Phone"];
     const rows = filteredStudents.map((s) => [
       `"${s.name.replace(/"/g, '""')}"`,
       `"${s.roll.replace(/"/g, '""')}"`,
+      `"${(s.collegeName || "").replace(/"/g, '""')}"`,
+      `"${(s.department || "").replace(/"/g, '""')}"`,
       `"${s.section.replace(/"/g, '""')}"`,
       s.cgpa.toFixed(2),
       s.readiness.toString(),
@@ -387,9 +446,9 @@ export function StudentsModule({ role: _role }: { role: Role }) {
       {/* Main Table Card */}
       <Card className="overflow-hidden border border-line bg-surface shadow-xs">
         {/* Toolbar Header */}
-        <div className="flex flex-col gap-3 border-b border-line p-4 sm:flex-row sm:items-center">
+        <div className="flex flex-col gap-3 border-b border-line p-4 sm:flex-row sm:flex-wrap sm:items-center">
           {/* Search Input */}
-          <div className="relative flex-1 min-w-0">
+          <div className="relative flex-1 min-w-[220px]">
             <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ink-3" />
             <input
               id="student-search"
@@ -397,19 +456,61 @@ export function StudentsModule({ role: _role }: { role: Role }) {
               value={q}
               onChange={(e) => setQ(e.target.value)}
               placeholder="Search students.."
-              className={cn(inputClass, "pl-9 text-sm")}
+              className={cn(inputClass, "pl-9 text-sm py-2")}
             />
           </div>
 
+          {/* College Filter Dropdown */}
+          <div className="flex items-center gap-2 w-full sm:w-auto shrink-0">
+            <Building2 className="size-4 text-ink-3 shrink-0" />
+            <select
+              id="student-college-filter"
+              value={collegeFilter}
+              onChange={(e) => setCollegeFilter(e.target.value)}
+              className={cn(selectFilterClass, "w-full sm:w-auto text-sm py-2 px-3 min-w-[140px] max-w-full sm:max-w-[210px]")}
+              title="Filter by college"
+            >
+              <option value="all">All Colleges</option>
+              {colleges.map((col) => (
+                <option key={col.id} value={col.id}>
+                  {col.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Department Filter Dropdown */}
+          {departmentsList.length > 0 && (
+            <div className="flex items-center gap-2 w-full sm:w-auto shrink-0">
+              <GraduationCap className="size-4 text-ink-3 shrink-0" />
+              <select
+                id="student-department-filter"
+                value={deptFilter}
+                onChange={(e) => setDeptFilter(e.target.value)}
+                className={cn(selectFilterClass, "w-full sm:w-auto text-sm py-2 px-3 min-w-[140px] max-w-full sm:max-w-[200px]")}
+                title="Filter by department"
+              >
+                <option value="all">All Departments</option>
+                {departmentsList.map((dept) => (
+                  <option key={dept} value={dept}>
+                    {dept}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
           {/* Section Filter Dropdown */}
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-2 w-full sm:w-auto shrink-0">
             <Filter className="size-4 text-ink-3 shrink-0" />
             <select
+              id="student-section-filter"
               value={sectionFilter}
               onChange={(e) => setSectionFilter(e.target.value)}
-              className={cn(inputClass, "w-auto text-sm py-1.5")}
+              className={cn(selectFilterClass, "w-full sm:w-auto text-sm py-2 px-3 min-w-[120px] max-w-full sm:max-w-[160px]")}
+              title="Filter by section"
             >
-              <option value="all">All</option>
+              <option value="all">All Sections</option>
               {sectionsList.map((sec) => (
                 <option key={sec} value={sec}>
                   {sec}
@@ -513,7 +614,7 @@ export function StudentsModule({ role: _role }: { role: Role }) {
           <div className="p-12 text-center text-ink-3 space-y-2">
             <Users className="size-8 mx-auto text-ink-3/60" />
             <p className="text-sm font-medium text-ink">No matching students found</p>
-            <p className="text-xs text-ink-3">Try adjusting your search query or section filter.</p>
+            <p className="text-xs text-ink-3">Try adjusting your search query, college, department, or section filter.</p>
           </div>
         ) : (
           /* Desktop / Responsive Table */
@@ -523,6 +624,8 @@ export function StudentsModule({ role: _role }: { role: Role }) {
                 <tr className="border-b border-line bg-surface-2/40 text-[11px] font-semibold uppercase tracking-wider text-ink-3">
                   <th className="px-4 py-3">Student</th>
                   <th className="px-4 py-3">Roll No.</th>
+                  <th className="px-4 py-3">College</th>
+                  <th className="px-4 py-3">Department</th>
                   <th className="px-4 py-3">Section</th>
                   <th className="px-4 py-3">CGPA</th>
                   <th className="px-4 py-3">Career Readiness</th>
@@ -573,6 +676,27 @@ export function StudentsModule({ role: _role }: { role: Role }) {
                               <Eye className="size-3.5" />
                             )}
                           </button>
+                        </div>
+                      </td>
+
+                      {/* College */}
+                      <td className="px-4 py-3.5 text-xs">
+                        <span
+                          className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-surface-2 border border-line text-ink-2 font-medium text-[11px] max-w-[200px] truncate"
+                          title={student.collegeName || "Institution"}
+                        >
+                          <Building2 className="size-3 shrink-0 text-brand" />
+                          <span className="truncate">{student.collegeName || "Institution"}</span>
+                        </span>
+                      </td>
+
+                      {/* Department */}
+                      <td className="px-4 py-3.5 text-xs text-ink-2 font-medium">
+                        <div className="flex items-center gap-1.5">
+                          <GraduationCap className="size-3.5 text-brand shrink-0" />
+                          <span className="truncate max-w-[170px]" title={student.department || "General"}>
+                            {student.department || "General"}
+                          </span>
                         </div>
                       </td>
 
@@ -758,7 +882,36 @@ export function StudentsModule({ role: _role }: { role: Role }) {
                   </Field>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {/* College Selection */}
+                {colleges.length > 0 && (
+                  <Field label="College / Institution" htmlFor="inp-college">
+                    <select
+                      id="inp-college"
+                      value={newStudent.collegeId || (collegeFilter !== "all" ? collegeFilter : colleges[0]?.id || "")}
+                      onChange={(e) => setNewStudent({ ...newStudent, collegeId: e.target.value })}
+                      className={inputClass}
+                    >
+                      {colleges.map((col) => (
+                        <option key={col.id} value={col.id}>
+                          {col.name}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                )}
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <Field label="Department" htmlFor="inp-dept">
+                    <input
+                      id="inp-dept"
+                      type="text"
+                      value={newStudent.department || ""}
+                      onChange={(e) => setNewStudent({ ...newStudent, department: e.target.value })}
+                      placeholder="e.g. Computer Science & Engineering"
+                      className={inputClass}
+                    />
+                  </Field>
+
                   <Field label="Section *" htmlFor="inp-sec">
                     <input
                       id="inp-sec"
@@ -770,7 +923,9 @@ export function StudentsModule({ role: _role }: { role: Role }) {
                       className={inputClass}
                     />
                   </Field>
+                </div>
 
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <Field label="CGPA (0 - 10)" htmlFor="inp-cgpa">
                     <input
                       id="inp-cgpa"
@@ -981,6 +1136,14 @@ export function StudentsModule({ role: _role }: { role: Role }) {
               }}
               className="space-y-4"
             >
+              {editingStudent.collegeName && (
+                <div className="flex items-center gap-2 p-2.5 rounded-lg bg-surface-2 border border-line text-xs text-ink-2">
+                  <Building2 className="size-4 text-brand shrink-0" />
+                  <span className="text-ink-3">College:</span>
+                  <span className="font-semibold text-ink">{editingStudent.collegeName}</span>
+                </div>
+              )}
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <Field label="Full Name *" htmlFor="edit-name">
                   <input
@@ -1005,7 +1168,17 @@ export function StudentsModule({ role: _role }: { role: Role }) {
                 </Field>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <Field label="Department" htmlFor="edit-dept">
+                  <input
+                    id="edit-dept"
+                    type="text"
+                    value={editingStudent.department || ""}
+                    onChange={(e) => setEditingStudent({ ...editingStudent, department: e.target.value })}
+                    className={inputClass}
+                  />
+                </Field>
+
                 <Field label="Section *" htmlFor="edit-sec">
                   <input
                     id="edit-sec"
@@ -1016,7 +1189,9 @@ export function StudentsModule({ role: _role }: { role: Role }) {
                     className={inputClass}
                   />
                 </Field>
+              </div>
 
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <Field label="CGPA" htmlFor="edit-cgpa">
                   <input
                     id="edit-cgpa"

@@ -207,3 +207,7 @@ export function Field({ label, htmlFor, hint, error, children }: { label: string
 
 export const inputClass =
   "w-full rounded-xl border border-line bg-surface px-3.5 py-2.5 text-sm text-ink placeholder:text-ink-3 transition-colors hover:border-brand/30 focus:border-brand focus:outline-none focus:ring-4 focus:ring-brand/10 disabled:opacity-60 aria-[invalid=true]:border-rose aria-[invalid=true]:ring-rose/10";
+
+export const selectFilterClass =
+  "rounded-xl border border-line bg-surface px-3 py-2 text-xs sm:text-sm text-ink transition-colors hover:border-brand/30 focus:border-brand focus:outline-none focus:ring-4 focus:ring-brand/10 disabled:opacity-60 cursor-pointer";
+

@@ -407,15 +407,15 @@ export function PlacementAnalyticsModule({ role }: { role: Role }) {
       )}
 
       {/* HOD / Department Context Filter Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-surface-1 rounded-xl p-3 border border-surface-2">
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-xs font-semibold text-ink-3 uppercase tracking-wider">Department Scope:</span>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-surface-1 rounded-xl p-3.5 border border-surface-2">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2.5 w-full sm:w-auto">
+          <span className="text-xs font-semibold text-ink-3 uppercase tracking-wider shrink-0">Department Scope:</span>
           {isHod ? (
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1.5 flex-wrap">
               <button
                 onClick={() => setSelectedDept("Computer Science & Engineering")}
                 className={cn(
-                  "px-3 py-1 rounded-full text-xs font-semibold transition-all",
+                  "px-3 py-1.5 rounded-full text-xs font-semibold transition-all",
                   selectedDept === "Computer Science & Engineering"
                     ? "bg-brand text-white shadow-xs"
                     : "bg-surface text-ink-2 border border-surface-2 hover:bg-surface-2"
@@ -426,7 +426,7 @@ export function PlacementAnalyticsModule({ role }: { role: Role }) {
               <button
                 onClick={() => setSelectedDept("all")}
                 className={cn(
-                  "px-3 py-1 rounded-full text-xs font-semibold transition-all",
+                  "px-3 py-1.5 rounded-full text-xs font-semibold transition-all",
                   selectedDept === "all"
                     ? "bg-brand text-white shadow-xs"
                     : "bg-surface text-ink-2 border border-surface-2 hover:bg-surface-2"
@@ -437,9 +437,13 @@ export function PlacementAnalyticsModule({ role }: { role: Role }) {
             </div>
           ) : (
             <select
+              id="placement-department-scope-select"
               value={selectedDept}
               onChange={(e) => setSelectedDept(e.target.value)}
-              className={cn(inputClass, "h-8 text-xs w-64")}
+              className={cn(
+                inputClass,
+                "h-10 py-2 px-3.5 text-xs sm:text-sm font-medium w-full sm:w-auto min-w-[280px] max-w-full cursor-pointer leading-normal"
+              )}
             >
               <option value="all">All Departments (Institutional)</option>
               <option value="Computer Science & Engineering">Computer Science & Engineering (CSE)</option>
@@ -757,7 +761,7 @@ export function PlacementAnalyticsModule({ role }: { role: Role }) {
                   placeholder="Search departments..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className={cn(inputClass, "h-8 text-xs w-48 sm:w-64")}
+                  className={cn(inputClass, "h-9 py-1.5 px-3 text-xs w-full sm:w-64")}
                 />
                 <Link
                   href={`/${role === "placement" ? "institution" : role}/department-skills`}
@@ -842,7 +846,7 @@ export function PlacementAnalyticsModule({ role }: { role: Role }) {
                 <select
                   value={selectedTier}
                   onChange={(e) => setSelectedTier(e.target.value)}
-                  className={cn(inputClass, "h-8 text-xs w-36")}
+                  className={cn(inputClass, "h-9 py-1.5 px-3 text-xs w-full sm:w-36 cursor-pointer")}
                 >
                   <option value="all">All Tiers</option>
                   <option value="Super Dream">Super Dream</option>
@@ -985,7 +989,7 @@ export function PlacementAnalyticsModule({ role }: { role: Role }) {
                 <select
                   value={studentStatusFilter}
                   onChange={(e) => setStudentStatusFilter(e.target.value)}
-                  className={cn(inputClass, "h-8 text-xs w-40")}
+                  className={cn(inputClass, "h-9 py-1.5 px-3 text-xs w-full sm:w-40 cursor-pointer")}
                 >
                   <option value="all">All Statuses</option>
                   <option value="Placed">Placed</option>
@@ -998,7 +1002,7 @@ export function PlacementAnalyticsModule({ role }: { role: Role }) {
                   placeholder="Search candidates, companies..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className={cn(inputClass, "h-8 text-xs w-48 sm:w-56")}
+                  className={cn(inputClass, "h-9 py-1.5 px-3 text-xs w-full sm:w-56")}
                 />
 
                 <Link
