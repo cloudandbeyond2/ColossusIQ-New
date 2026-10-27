@@ -307,7 +307,7 @@ export function OsceModule({ role }: { role: Role }) {
   const canManage = data.permissions.manage;
 
   return (
-    <div className="space-y-6 p-4 md:p-6 max-w-7xl mx-auto">
+    <div className="space-y-6">
       {/* Flash Toast */}
       {flashMessage && (
         <div className="fixed top-4 right-4 z-50 bg-emerald-600 text-white px-4 py-2.5 rounded-lg shadow-xl text-sm flex items-center gap-2 animate-in fade-in slide-in-from-top-2">
@@ -316,140 +316,123 @@ export function OsceModule({ role }: { role: Role }) {
         </div>
       )}
 
-      {/* Header Banner & Cross-Portal Links */}
-      <div className="bg-gradient-to-r from-teal-900 via-slate-900 to-sky-950 text-white rounded-2xl p-6 shadow-xl border border-teal-800/40">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-2.5 flex-wrap">
-              <span className="px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wider bg-teal-500/20 text-teal-300 border border-teal-400/30">
-                NMC CBME Clinical Framework
+      {/* Action Toolbar & Clinical Links */}
+      <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-4 shadow-sm flex flex-col gap-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="px-2.5 py-1 rounded-full text-xs font-semibold uppercase tracking-wider bg-teal-500/10 text-teal-700 dark:text-teal-300 border border-teal-500/20">
+              NMC CBME Framework
+            </span>
+            <span className="px-2.5 py-0.5 rounded-full text-xs bg-sky-500/10 text-sky-700 dark:text-sky-300 border border-sky-500/20">
+              Phase 3 MSR Skills Lab
+            </span>
+            {role === "hod" && (
+              <span className="px-2.5 py-0.5 rounded-full text-xs bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/20 font-medium">
+                Viewing as Head of Department
               </span>
-              <span className="px-2.5 py-0.5 rounded-full text-xs bg-sky-500/20 text-sky-200 border border-sky-400/20">
-                Phase 3 MSR Skills Lab
-              </span>
-              {role === "hod" && (
-                <span className="px-2.5 py-0.5 rounded-full text-xs bg-amber-500/20 text-amber-300 border border-amber-400/30 font-medium">
-                  Viewing as Head of Department (Clinical Oversight)
-                </span>
-              )}
-            </div>
-            <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight mt-2 text-white flex items-center gap-3">
-              <Fi name="heart" className="text-teal-400 text-2xl" />
-              OSCE & Skills Simulation Lab
-            </h1>
-            <p className="text-sm md:text-base text-teal-100/80 mt-1 max-w-3xl">
-              Objective Structured Clinical Examination circuits, checklist rubric authoring, high-fidelity manikin simulator bookings, and NMC CBME certified skill mastery.
-            </p>
+            )}
           </div>
 
-          <div className="flex flex-wrap items-center gap-2.5">
-            <button
-              type="button"
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              size="sm"
+              variant="secondary"
               onClick={() => refetch()}
-              className="inline-flex items-center justify-center rounded-xl h-8 px-3 text-xs md:text-sm font-medium gap-1.5 bg-teal-950/80 hover:bg-teal-900 text-teal-100 hover:text-white border border-teal-500/40 shadow-sm transition-all active:scale-[0.98]"
+              className="text-xs h-8 px-3"
             >
-              <Fi name="refresh" className="text-teal-300" /> Refresh
-            </button>
-            <button
-              type="button"
+              <Fi name="refresh" /> Refresh
+            </Button>
+            <Button
+              size="sm"
+              variant="secondary"
               onClick={handleExportCsv}
-              className="inline-flex items-center justify-center rounded-xl h-8 px-3 text-xs md:text-sm font-medium gap-1.5 bg-teal-950/80 hover:bg-teal-900 text-teal-100 hover:text-white border border-teal-500/40 shadow-sm transition-all active:scale-[0.98]"
+              className="text-xs h-8 px-3"
             >
-              <Fi name="download" className="text-teal-300" /> Export CSV
-            </button>
+              <Fi name="download" /> Export CSV
+            </Button>
             {canManage && (
               <>
-                <button
-                  type="button"
+                <Button
+                  size="sm"
+                  variant="primary"
                   onClick={() => setShowAddStationModal(true)}
-                  className="inline-flex items-center justify-center rounded-xl h-8 px-3 text-xs md:text-sm font-medium gap-1.5 bg-teal-600 hover:bg-teal-500 text-white shadow-md shadow-teal-950/40 transition-all active:scale-[0.98]"
+                  className="text-xs h-8 px-3 gap-1.5"
                 >
                   <Fi name="plus" /> Add Station
-                </button>
-                <button
-                  type="button"
+                </Button>
+                <Button
+                  size="sm"
+                  variant="secondary"
                   onClick={() => {
                     if (data.stations.length > 0) {
                       setGradeStationId(data.stations[0]?.id || "");
                     }
                     setShowGradeModal(true);
                   }}
-                  className="inline-flex items-center justify-center rounded-xl h-8 px-3 text-xs md:text-sm font-medium gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white shadow-md shadow-emerald-950/40 transition-all active:scale-[0.98]"
+                  className="text-xs h-8 px-3 gap-1.5 bg-emerald-600/10 hover:bg-emerald-600/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30"
                 >
                   <Fi name="memo-circle-check" /> Grade Candidate
-                </button>
+                </Button>
               </>
             )}
-            <button
-              type="button"
+            <Button
+              size="sm"
+              variant="secondary"
               onClick={() => setShowBookingModal(true)}
-              className="inline-flex items-center justify-center rounded-xl h-8 px-3.5 text-xs md:text-sm font-semibold gap-1.5 bg-sky-600 hover:bg-sky-500 text-white shadow-md shadow-sky-950/40 transition-all active:scale-[0.98]"
+              className="text-xs h-8 px-3.5 gap-1.5 bg-sky-600/10 hover:bg-sky-600/20 text-sky-700 dark:text-sky-300 border border-sky-500/30 font-medium"
             >
               <Fi name="calendar" /> Book Lab Slot
-            </button>
+            </Button>
           </div>
         </div>
 
-        {/* Cross-Role Navigation & Action Workflows Bar */}
-        <div className="mt-6 pt-4 border-t border-teal-800/50">
-          <p className="text-xs font-semibold uppercase tracking-wider text-teal-300 mb-2 flex items-center gap-1.5">
-            <Fi name="link" /> Related Portals & Clinical Action Workflows Across Roles:
-          </p>
-          <div className="flex flex-wrap gap-2 text-xs">
-            <Link
-              href={`/${role}/competency-logbook`}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-teal-950/70 hover:bg-teal-900/90 text-teal-200 border border-teal-700/50 transition-colors"
-            >
-              <span>📓</span>
-              <span className="font-semibold">Competency Logbook (CBME)</span>
-              <span className="text-[10px] text-teal-400">NMC K/KH/SH/P certification</span>
-            </Link>
-
-            <Link
-              href={`/${role}/clinical-rotations`}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-teal-950/70 hover:bg-teal-900/90 text-teal-200 border border-teal-700/50 transition-colors"
-            >
-              <span>🩺</span>
-              <span className="font-semibold">Clinical Rotations</span>
-              <span className="text-[10px] text-teal-400">Ward postings & attendance</span>
-            </Link>
-
-            <Link
-              href={role === "institution" ? "/institution/hospital-dashboard" : `/${role}/hospital-dashboard`}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-teal-950/70 hover:bg-teal-900/90 text-teal-200 border border-teal-700/50 transition-colors"
-            >
-              <span>🏥</span>
-              <span className="font-semibold">Teaching Hospital Dashboard</span>
-              <span className="text-[10px] text-teal-400">Bed census & case loads</span>
-            </Link>
-
-            <Link
-              href={`/${role}/early-warning`}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-teal-950/70 hover:bg-teal-900/90 text-teal-200 border border-teal-700/50 transition-colors"
-            >
-              <span>⚠️</span>
-              <span className="font-semibold">Early Warning System</span>
-              <span className="text-[10px] text-amber-400">Remediation for failed stations</span>
-            </Link>
-
-            <Link
-              href="/institution/nmc-compliance"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-teal-950/70 hover:bg-teal-900/90 text-teal-200 border border-teal-700/50 transition-colors"
-            >
-              <span>🛡️</span>
-              <span className="font-semibold">NMC Council Compliance</span>
-              <span className="text-[10px] text-sky-400">MSR skills-lab infrastructure</span>
-            </Link>
-
-            <Link
-              href={`/${role}/curriculum`}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-teal-950/70 hover:bg-teal-900/90 text-teal-200 border border-teal-700/50 transition-colors"
-            >
-              <span>📚</span>
-              <span className="font-semibold">Curriculum Studio</span>
-              <span className="text-[10px] text-teal-400">CBME syllabus mapping</span>
-            </Link>
-          </div>
+        {/* Cross-Role Navigation Bar */}
+        <div className="pt-2.5 border-t border-[var(--line)] flex flex-wrap items-center gap-2 text-xs">
+          <span className="text-[11px] font-medium text-[var(--ink-3)] uppercase tracking-wider flex items-center gap-1">
+            <Fi name="link" /> Quick Workflows:
+          </span>
+          <Link
+            href={`/${role}/competency-logbook`}
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[var(--surface-2)] hover:bg-[var(--surface-3)] text-[var(--ink-2)] hover:text-[var(--ink)] border border-[var(--line)] transition-colors"
+          >
+            <span>📓</span>
+            <span className="font-medium">Competency Logbook</span>
+          </Link>
+          <Link
+            href={`/${role}/clinical-rotations`}
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[var(--surface-2)] hover:bg-[var(--surface-3)] text-[var(--ink-2)] hover:text-[var(--ink)] border border-[var(--line)] transition-colors"
+          >
+            <span>🩺</span>
+            <span className="font-medium">Clinical Rotations</span>
+          </Link>
+          <Link
+            href={role === "institution" ? "/institution/hospital-dashboard" : `/${role}/hospital-dashboard`}
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[var(--surface-2)] hover:bg-[var(--surface-3)] text-[var(--ink-2)] hover:text-[var(--ink)] border border-[var(--line)] transition-colors"
+          >
+            <span>🏥</span>
+            <span className="font-medium">Hospital Dashboard</span>
+          </Link>
+          <Link
+            href={`/${role}/early-warning`}
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[var(--surface-2)] hover:bg-[var(--surface-3)] text-[var(--ink-2)] hover:text-[var(--ink)] border border-[var(--line)] transition-colors"
+          >
+            <span>⚠️</span>
+            <span className="font-medium">Early Warning</span>
+          </Link>
+          <Link
+            href={`/${role}/nmc-compliance`}
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[var(--surface-2)] hover:bg-[var(--surface-3)] text-[var(--ink-2)] hover:text-[var(--ink)] border border-[var(--line)] transition-colors"
+          >
+            <span>🛡️</span>
+            <span className="font-medium">NMC Compliance</span>
+          </Link>
+          <Link
+            href={`/${role}/curriculum`}
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[var(--surface-2)] hover:bg-[var(--surface-3)] text-[var(--ink-2)] hover:text-[var(--ink)] border border-[var(--line)] transition-colors"
+          >
+            <span>📚</span>
+            <span className="font-medium">Curriculum Studio</span>
+          </Link>
         </div>
       </div>
 
@@ -951,12 +934,12 @@ export function OsceModule({ role }: { role: Role }) {
                 <tr>
                   <th className="p-3">Candidate</th>
                   <th className="p-3">Station</th>
-                  <th className="p-3">Score</th>
-                  <th className="p-3">Grade</th>
-                  <th className="p-3">Critical Step</th>
+                  <th className="p-3 whitespace-nowrap">Score</th>
+                  <th className="p-3 whitespace-nowrap">Grade</th>
+                  <th className="p-3 whitespace-nowrap">Critical Step</th>
                   <th className="p-3">Examiner Remarks</th>
-                  <th className="p-3">CBME Logbook</th>
-                  <th className="p-3 text-right">Actions</th>
+                  <th className="p-3 whitespace-nowrap">CBME Logbook</th>
+                  <th className="p-3 text-right whitespace-nowrap">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-line">
@@ -966,7 +949,7 @@ export function OsceModule({ role }: { role: Role }) {
                       <p className="font-semibold text-foreground">{result.studentName}</p>
                       <p className="text-[10px] text-muted-foreground font-mono">{result.rollNo} • {result.batch}</p>
                     </td>
-                    <td className="p-3 font-medium max-w-[200px] truncate">{result.stationName}</td>
+                    <td className="p-3 font-medium min-w-[180px] max-w-xs whitespace-normal break-words">{result.stationName}</td>
                     <td className="p-3">
                       <span className="font-semibold text-foreground">
                         {result.score} / {result.total}
@@ -997,34 +980,36 @@ export function OsceModule({ role }: { role: Role }) {
                         </span>
                       )}
                     </td>
-                    <td className="p-3 text-muted-foreground max-w-[220px] line-clamp-2">
-                      {result.evaluatorRemarks}
+                    <td className="p-3 text-muted-foreground min-w-[240px] max-w-md whitespace-normal break-words leading-relaxed text-xs">
+                      {result.evaluatorRemarks || "—"}
                     </td>
-                    <td className="p-3">
+                    <td className="p-3 whitespace-nowrap">
                       {result.cbmeCertified ? (
-                        <span className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300 font-medium text-[10px] border border-emerald-400/30">
+                        <span className="inline-flex items-center whitespace-nowrap px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 font-medium text-xs border border-emerald-400/30">
                           Certified (SH)
                         </span>
                       ) : (
-                        <span className="px-2 py-0.5 rounded bg-amber-50 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300 font-medium text-[10px]">
+                        <span className="inline-flex items-center whitespace-nowrap px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300 font-medium text-xs border border-amber-400/30">
                           Pending Remediation
                         </span>
                       )}
                     </td>
-                    <td className="p-3 text-right">
+                    <td className="p-3 text-right whitespace-nowrap">
                       {result.grade === "Remediation Needed" ? (
                         <Link
                           href={`/${role}/early-warning`}
-                          className="text-[10px] px-2 py-1 rounded bg-amber-500/10 text-amber-700 dark:text-amber-300 hover:bg-amber-500/20 font-medium"
+                          className="inline-flex items-center gap-1.5 whitespace-nowrap text-xs font-medium px-3 py-1.5 rounded-lg border border-amber-500/30 bg-amber-50 hover:bg-amber-100/80 text-amber-800 dark:bg-amber-950/60 dark:hover:bg-amber-900/60 dark:text-amber-200 transition-all shadow-xs"
                         >
-                          Remediation Alert ↗
+                          <span>Remediation Alert</span>
+                          <span className="text-amber-600 dark:text-amber-400 font-bold">↗</span>
                         </Link>
                       ) : (
                         <Link
                           href={`/${role}/competency-logbook`}
-                          className="text-[10px] px-2 py-1 rounded bg-teal-500/10 text-teal-700 dark:text-teal-300 hover:bg-teal-500/20 font-medium"
+                          className="inline-flex items-center gap-1.5 whitespace-nowrap text-xs font-semibold px-3 py-1.5 rounded-lg border border-teal-500/30 bg-teal-50 hover:bg-teal-100 text-teal-800 dark:bg-teal-950/60 dark:hover:bg-teal-900/60 dark:text-teal-200 transition-all shadow-xs hover:border-teal-500/50"
                         >
-                          View in Logbook ↗
+                          <span>View in Logbook</span>
+                          <span className="text-teal-600 dark:text-teal-400 font-bold">↗</span>
                         </Link>
                       )}
                     </td>
@@ -1053,8 +1038,8 @@ export function OsceModule({ role }: { role: Role }) {
                 </Button>
               )}
               <Link
-                href="/institution/nmc-compliance"
-                className="text-xs px-3 py-1.5 rounded-lg bg-teal-600 hover:bg-teal-500 text-white font-medium flex items-center gap-1.5"
+                href={`/${role}/nmc-compliance`}
+                className="text-xs px-3 py-1.5 rounded-lg bg-teal-600 hover:bg-teal-500 text-white font-medium flex items-center gap-1.5 shadow-xs transition-colors"
               >
                 <span>🛡️</span> Council Compliance Report ↗
               </Link>

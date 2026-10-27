@@ -845,7 +845,11 @@ export async function dispatch(method: string, segs: string[], rawBody: unknown,
     case "PUT nmc-compliance/profile":
     case "PUT nmc-compliance/departments":
     case "POST nmc-compliance/committees/seed": {
-      if (session.role !== "institution" && session.role !== "admin") return forbidden();
+      if (found.route === "GET nmc-compliance") {
+        if (!["institution", "admin", "faculty", "hod"].includes(session.role)) return forbidden();
+      } else if (session.role !== "institution" && session.role !== "admin") {
+        return forbidden();
+      }
       const bad = (m: string, d: string) => err(400, "invalid_body", m || d);
       try {
         switch (found.route) {
