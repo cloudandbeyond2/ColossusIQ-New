@@ -5,7 +5,7 @@ import { RESOURCES, type RecordValue, type ResourceDef, type ResourceRecord } fr
 import type { Stream } from "@/config/streams";
 import type { RecordListQuery, RecordStore, Scope } from "../store";
 import { ARGON2 } from "./auth";
-import { db, requestScope, type Tx } from "./db";
+import { db, isUuid, requestScope, type Tx } from "./db";
 import { enumValue, label, maybeEnum } from "./enums";
 import {
   collegeByPublic,
@@ -502,10 +502,11 @@ async function userScopeWhere(scope: Scope, college?: string) {
   return { collegeId: (await collegeByPublic(target))?.id ?? "00000000-0000-0000-0000-000000000000" };
 }
 
-async function assignmentFor(publicId: string) {
+async function assignmentFor(idOrPublicId: string) {
   const scope = requestScope();
   const where = scope === "all" ? {} : await userScopeWhere(scope);
-  return db().roleAssignment.findFirst({ where: { ...where, user: { publicId } }, include: USER_INCLUDE, orderBy: { createdAt: "asc" } });
+  const user = isUuid(idOrPublicId) ? { id: idOrPublicId } : { publicId: idOrPublicId };
+  return db().roleAssignment.findFirst({ where: { ...where, user }, include: USER_INCLUDE, orderBy: { createdAt: "asc" } });
 }
 
 async function userColumns(d: Data) {

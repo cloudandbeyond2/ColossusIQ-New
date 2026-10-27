@@ -11,6 +11,7 @@ import { InsightList, KpiGrid, TemplateSkeleton } from "@/components/modules/sha
 import { Card, CardHeader, PageHeader, toneBar } from "@/components/ui/primitives";
 import { safeNextPath } from "@/lib/security/redirect";
 import { cn } from "@/lib/utils";
+import { Fi } from "@/components/ui/icon";
 import { NoticeStrip } from "./notice-strip";
 
 export function RoleHomeView({ role }: { role: Exclude<Role, "student"> }) {
@@ -23,7 +24,65 @@ export function RoleHomeView({ role }: { role: Exclude<Role, "student"> }) {
 
   return (
     <div className="space-y-6">
-      <PageHeader eyebrow={ROLE_META[role].label} title={data.greeting} description={ROLE_META[role].description} />
+      <PageHeader
+        eyebrow={
+          <div className="flex flex-wrap items-center gap-2">
+            <span>{ROLE_META[role].label}</span>
+            {data.department ? (
+              <>
+                <span className="text-ink-4">/</span>
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-brand/10 px-2.5 py-0.5 text-xs font-semibold normal-case tracking-normal text-brand ring-1 ring-inset ring-brand/20">
+                  <Fi name="book-alt" className="text-xs" />
+                  {data.department.startsWith("Department of") ? data.department : `Dept of ${data.department}`}
+                </span>
+              </>
+            ) : null}
+          </div>
+        }
+        title={data.greeting}
+        description={
+          data.department && role === "hod"
+            ? `Department intelligence, faculty, academics and placement readiness for ${data.department.startsWith("Department of") ? data.department : `Department of ${data.department}`}.`
+            : ROLE_META[role].description
+        }
+      />
+      {role === "hod" && data.department ? (
+        <div className="relative overflow-hidden rounded-2xl border border-brand/20 bg-gradient-to-r from-brand/10 via-brand-soft/20 to-surface p-4 shadow-sm sm:p-5">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-3.5">
+              <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-brand text-white shadow-md shadow-brand/25">
+                <Fi name="building" className="text-xl" />
+              </span>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-semibold uppercase tracking-wider text-brand">Department Oversight</span>
+                  <span className="size-1.5 rounded-full bg-teal animate-pulse" />
+                  <span className="text-xs text-ink-3">Live Department Portal</span>
+                </div>
+                <h2 className="text-lg font-bold text-ink sm:text-xl">
+                  {data.department.startsWith("Department of") ? data.department : `Department of ${data.department}`}
+                </h2>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Link
+                href="/hod/department-faculty"
+                className="inline-flex items-center gap-1.5 rounded-xl border border-line bg-surface px-3 py-2 text-xs font-medium text-ink shadow-sm hover:bg-surface-2 transition-colors"
+              >
+                <Fi name="users" className="text-sm text-ink-3" />
+                Faculty Roster
+              </Link>
+              <Link
+                href="/hod/department-skills"
+                className="inline-flex items-center gap-1.5 rounded-xl bg-brand px-3 py-2 text-xs font-medium text-white shadow-sm shadow-brand/20 hover:brightness-105 transition-all"
+              >
+                <Fi name="chart" className="text-sm" />
+                Department Skills
+              </Link>
+            </div>
+          </div>
+        </div>
+      ) : null}
       <NoticeStrip role={role} />
       <KpiGrid kpis={data.kpis} />
       <div className="grid gap-6 xl:grid-cols-[1fr_380px]">

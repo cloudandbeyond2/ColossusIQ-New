@@ -12,6 +12,7 @@ import type { Role } from "./roles";
 import { blockedSlugs } from "@/lib/module-access";
 import { accessState } from "@/lib/billing/dues";
 import type { AccessState } from "@/lib/api/billing-schemas";
+import { resolveUserDepartment } from "./department";
 
 export async function getSession(): Promise<SessionPayload | null> {
   const store = await cookies();
@@ -54,6 +55,8 @@ export interface CollegeContext {
   stream: Stream | null;
   /** Modules the Super Admin has switched off for the signed-in role (Module Control). */
   blocked: string[];
+  /** Department name for HOD, faculty, or student, if applicable. */
+  departmentName: string | null;
 }
 
 export async function collegeContext(session: SessionPayload): Promise<CollegeContext> {
@@ -65,6 +68,7 @@ export async function collegeContext(session: SessionPayload): Promise<CollegeCo
     enabledGroups: await enabledGroups(session.college),
     stream: all ? null : await collegeStream(session.college),
     blocked: await blockedSlugs(session.role),
+    departmentName: await resolveUserDepartment(session),
   }));
 }
 

@@ -12,6 +12,7 @@ import {
   type SessionPayload,
 } from "@/lib/auth/session";
 import { ROLES } from "@/lib/auth/roles";
+import { resolveUserDepartment } from "@/lib/auth/department";
 import { dispatch } from "@/lib/api/mock/router";
 import { prefetchCourseAi } from "@/lib/api/mock/course-builder";
 import { prefetchKnowledgeAi } from "@/lib/api/mock/knowledge-base";
@@ -251,6 +252,7 @@ async function handle(req: NextRequest, ctx: { params: Promise<{ path: string[] 
       name: account.name,
       tenant: UNIVERSITY.id,
       college,
+      department: account.department,
       mfa: false,
       exp: Math.floor(Date.now() / 1000) + 10 * 60, // pre-MFA session lives 10 minutes
     });
@@ -421,6 +423,7 @@ async function handleSession(req: NextRequest, method: string, segs: string[], r
     return json({
       role: session.role,
       name: session.name,
+      department: session.department ?? (await resolveUserDepartment(session)),
       tenant: session.tenant,
       tenantName: UNIVERSITY.name,
       college: session.college,

@@ -2,6 +2,7 @@ import "server-only";
 import { z } from "zod";
 import type { SessionPayload } from "@/lib/auth/session";
 import { can, ROLES } from "@/lib/auth/roles";
+import { resolveUserDepartment } from "@/lib/auth/department";
 import { findModule, modulesForRole, type ModuleDef } from "@/config/modules";
 import { RESOURCES } from "@/config/resources";
 import { ALL_COLLEGES, TOGGLEABLE_GROUPS, UNIVERSITY } from "@/config/tenancy";
@@ -844,7 +845,11 @@ export async function dispatch(method: string, segs: string[], rawBody: unknown,
     case "PUT nmc-compliance/profile":
     case "PUT nmc-compliance/departments":
     case "POST nmc-compliance/committees/seed": {
-      if (session.role !== "institution" && session.role !== "admin") return forbidden();
+      if (found.route === "GET nmc-compliance") {
+        if (!["institution", "admin", "faculty", "hod"].includes(session.role)) return forbidden();
+      } else if (session.role !== "institution" && session.role !== "admin") {
+        return forbidden();
+      }
       const bad = (m: string, d: string) => err(400, "invalid_body", m || d);
       try {
         switch (found.route) {
@@ -1086,9 +1091,18 @@ export async function dispatch(method: string, segs: string[], rawBody: unknown,
       // Placement works from live readiness and drive data; the other roles still show their sample home.
       const home = role === "placement" && inCollege ? placementHome(staticHome, await placementSnapshot(session, session.college)) : staticHome;
       const res = { ...roleHomeFor(home, role, inCollege ? await collegeStream(session.college) : null, inCollege ? String((await getCollege(session.college))?.name ?? "College") : null) };
+      
+      const userDept = await resolveUserDepartment(session);
+      if (userDept) {
+        res.department = userDept;
+      }
+
       if (res.kpis?.some((k) => k.label.toLowerCase() === "students")) {
         const collegePublicId = inCollege ? session.college : null;
-        const studentsList = await getStudentsList({ collegeId: collegePublicId });
+        const studentsList = await getStudentsList({
+          collegeId: collegePublicId,
+          ...(role === "hod" && userDept ? { department: userDept } : {}),
+        });
         const studentCount = studentsList.length;
         res.kpis = res.kpis.map((k) =>
           k.label.toLowerCase() === "students"
@@ -1100,9 +1114,11 @@ export async function dispatch(method: string, segs: string[], rawBody: unknown,
         const hour = new Date().getHours();
         const greet = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
         if (role === "faculty") {
-          res.greeting = `${greet}, ${session.name}`;
+          const deptSuffix = userDept ? ` · ${userDept.startsWith("Department of") ? userDept : `Dept of ${userDept}`}` : "";
+          res.greeting = `${greet}, ${session.name}${deptSuffix}`;
         } else if (role === "hod") {
-          res.greeting = `${greet}, ${session.name} · Department Intelligence`;
+          const deptLabel = userDept ? (userDept.startsWith("Department of") ? userDept : `Department of ${userDept}`) : "Department Intelligence";
+          res.greeting = `${greet}, ${session.name} · ${deptLabel}`;
         } else if (role === "placement") {
           res.greeting = `${greet}, ${session.name} · Training & Placement`;
         } else if (role === "recruiter") {
