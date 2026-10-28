@@ -482,6 +482,36 @@ const STREAM_CURRICULUM: Record<
   },
 };
 
+function generateDefaultSubjectsForDepartment(deptName: string, deptCode: string, sem: number): EnrolledSubject[] {
+  const code = (deptCode || deptName.slice(0, 3)).toUpperCase().replace(/[^A-Z]/g, "").slice(0, 3) || "GEN";
+  const titles = [
+    `Foundations of ${deptName}`,
+    `${deptName} Methods & Concepts`,
+    `Applied ${deptName} & Analysis`,
+    `Contemporary Topics in ${deptName}`,
+  ];
+  return titles.map((title, idx) => ({
+    code: `${code}${sem}0${idx + 1}`,
+    title,
+    shortName: title.length > 20 ? `${code}${sem}0${idx + 1}` : title,
+    credits: 4,
+    facultyName: idx % 2 === 0 ? "Dr. K. Rajendran" : "Prof. S. Meenakshi",
+    facultyDesignation: "Faculty",
+    semester: sem,
+    attendancePercent: 88,
+    ia1Marks: 0,
+    ia2Marks: 0,
+    semesterProgress: 0,
+    units: [
+      { id: `${code.toLowerCase()}${idx + 1}-u1`, unit: "Unit 1", title: "Core Principles & Overview", mastery: 0 },
+      { id: `${code.toLowerCase()}${idx + 1}-u2`, unit: "Unit 2", title: "Key Methodologies & Frameworks", mastery: 0 },
+      { id: `${code.toLowerCase()}${idx + 1}-u3`, unit: "Unit 3", title: "Analytical Approaches & Sources", mastery: 0 },
+      { id: `${code.toLowerCase()}${idx + 1}-u4`, unit: "Unit 4", title: "Advanced Topics & Critique", mastery: 0 },
+      { id: `${code.toLowerCase()}${idx + 1}-u5`, unit: "Unit 5", title: "Contemporary Developments & Trends", mastery: 0 },
+    ],
+  }));
+}
+
 export async function getStudentAcademicProfile(
   session: SessionPayload | { sub: string; name?: string; college: string }
 ): Promise<StudentAcademicProfile> {
@@ -507,7 +537,7 @@ export async function getStudentAcademicProfile(
       const collegePublicId = session.college && session.college !== "all" ? session.college : undefined;
       const userSub = session.sub;
 
-      // 1. Look up student record in DB if session.sub is a UUID or fallback to available student
+      // 1. Look up student record in DB if session.sub is a UUID
       let studentRecord = isUuid(userSub)
         ? await t.student.findFirst({
           where: {
@@ -529,7 +559,73 @@ export async function getStudentAcademicProfile(
         })
         : null;
 
-      if (!studentRecord && collegePublicId) {
+      // Auto-provision or link Student record from RoleAssignment if userSub is a UUID
+      if (!studentRecord && isUuid(userSub)) {
+        const ra = await t.roleAssignment.findFirst({
+          where: { userId: userSub, role: "student" },
+          include: { department: true, college: true, user: true },
+        });
+
+        if (ra && ra.collegeId && ra.departmentId) {
+          const dept = ra.department;
+          const streamKey = dept?.streamKey || stream;
+          let prog = dept?.name
+            ? await t.programme.findFirst({
+              where: { streamKey, name: { contains: dept.name, mode: "insensitive" } },
+            })
+            : null;
+          if (!prog) prog = await t.programme.findFirst({ where: { streamKey } });
+
+          const collegeCode = ra.college?.code || "TC";
+          const yearShort = String(new Date().getFullYear()).slice(2);
+          const count = await t.student.count({ where: { collegeId: ra.collegeId } });
+          const rollNoVal = `${collegeCode}${yearShort}${String(count + 1).padStart(3, "0")}`;
+
+          if (prog) {
+            try {
+              studentRecord = await t.student.create({
+                data: {
+                  userId: userSub,
+                  collegeId: ra.collegeId,
+                  rollNo: rollNoVal,
+                  departmentId: ra.departmentId,
+                  programmeId: prog.id,
+                  batchYear: new Date().getFullYear(),
+                  status: "Active",
+                },
+                include: {
+                  department: true,
+                  programme: true,
+                  term: true,
+                  college: true,
+                  user: true,
+                  certificates: true,
+                  quizAttempts: { include: { quiz: true } },
+                  evaluationItems: true,
+                },
+              });
+            } catch {
+              studentRecord = await t.student.findFirst({
+                where: { userId: userSub },
+                include: {
+                  department: true,
+                  programme: true,
+                  term: true,
+                  college: true,
+                  user: true,
+                  certificates: true,
+                  quizAttempts: { include: { quiz: true } },
+                  evaluationItems: true,
+                },
+              });
+            }
+          }
+        }
+      }
+
+      // Fallback only for non-registered/demo students (e.g. demo-student),
+      // NEVER overwrite a real registered student's profile with a different student's identity!
+      if (!studentRecord && collegePublicId && !isUuid(userSub)) {
         studentRecord = await t.student.findFirst({
           where: { college: { publicId: collegePublicId } },
           include: {
@@ -559,6 +655,15 @@ export async function getStudentAcademicProfile(
           semester = Math.min(8, yearDiff * 2 - 1);
         }
         departmentCode = department.split(" ").map((w) => w[0]).join("").toUpperCase().slice(0, 4) || departmentCode;
+      } else if (isUuid(userSub)) {
+        const ra = await t.roleAssignment.findFirst({
+          where: { userId: userSub, role: "student" },
+          include: { department: true },
+        });
+        if (ra?.department?.name) {
+          department = ra.department.name;
+          departmentCode = department.split(" ").map((w) => w[0]).join("").toUpperCase().slice(0, 4) || departmentCode;
+        }
       }
 
       // 2. Fetch real active courses from PostgreSQL for this college and department
@@ -576,14 +681,16 @@ export async function getStudentAcademicProfile(
 
       const colCourses = deptCourses.length > 0
         ? deptCourses
-        : await t.course.findMany({
-          where: {
-            ...(collegePublicId ? { college: { publicId: collegePublicId } } : {}),
-            status: "Active",
-          },
-          include: { department: true },
-          orderBy: { title: "asc" },
-        });
+        : (studentRecord?.departmentId
+          ? await t.course.findMany({
+            where: {
+              departmentId: studentRecord.departmentId,
+              status: "Active",
+            },
+            include: { department: true },
+            orderBy: { title: "asc" },
+          })
+          : []);
 
       const quizCount = studentRecord?.quizAttempts?.length || 0;
       const evalCount = studentRecord?.evaluationItems?.length || 0;
@@ -619,6 +726,8 @@ export async function getStudentAcademicProfile(
             ],
           };
         });
+      } else if (department && department !== curr.department) {
+        subjects = generateDefaultSubjectsForDepartment(department, departmentCode, semester);
       }
 
       // Calculate live CGPA and credits earned from database

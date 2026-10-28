@@ -571,6 +571,42 @@ const usersStore = {
         update: { passwordHash, failedAttempts: 0, lockedUntil: null },
       });
     }
+    const role = ROLE_OF[s(d.role)] ?? "student";
+    if (role === "student" && collegeId) {
+      const collegeUuidVal = await collegeUuid(collegeId);
+      if (collegeUuidVal) {
+        const stream = await streamOf(collegeId);
+        const deptId = stream && s(d.department) ? await lookupId("departments", stream, s(d.department)) : null;
+        if (deptId) {
+          const dept = await t.department.findUnique({ where: { id: deptId } });
+          const streamKey = dept?.streamKey || stream || "artsScience";
+          let prog = await t.programme.findFirst({
+            where: { streamKey, name: { contains: s(d.department), mode: "insensitive" } },
+          });
+          if (!prog) prog = await t.programme.findFirst({ where: { streamKey } });
+
+          const collegeRec = await t.college.findUnique({ where: { id: collegeUuidVal } });
+          const collegeCode = collegeRec?.code || "TC";
+          const yearShort = String(new Date().getFullYear()).slice(2);
+          const count = await t.student.count({ where: { collegeId: collegeUuidVal } });
+          const rollNo = `${collegeCode}${yearShort}${String(count + 1).padStart(3, "0")}`;
+
+          if (prog) {
+            await t.student.create({
+              data: {
+                userId: user.id,
+                collegeId: collegeUuidVal,
+                rollNo,
+                departmentId: deptId,
+                programmeId: prog.id,
+                batchYear: new Date().getFullYear(),
+                status: "Active",
+              },
+            }).catch(() => {});
+          }
+        }
+      }
+    }
     return (await this.get(user.publicId))!;
   },
   async update(id: string, d: Data, version: number) {
@@ -581,6 +617,48 @@ const usersStore = {
     if (r.count === 0) return "stale" as const;
     const collegeId = await collegePublic(ra.collegeId);
     await t.roleAssignment.update({ where: { id: ra.id }, data: (await assignmentColumns(d, collegeId || null)) as any });
+    const role = ROLE_OF[s(d.role)] ?? ra.role;
+    if (role === "student") {
+      const collegeUuidVal = ra.collegeId;
+      const stream = await streamOf(collegeId);
+      const deptId = stream && s(d.department) ? await lookupId("departments", stream, s(d.department)) : null;
+      if (deptId && collegeUuidVal) {
+        const dept = await t.department.findUnique({ where: { id: deptId } });
+        const streamKey = dept?.streamKey || stream || "artsScience";
+        let prog = await t.programme.findFirst({
+          where: { streamKey, name: { contains: s(d.department), mode: "insensitive" } },
+        });
+        if (!prog) prog = await t.programme.findFirst({ where: { streamKey } });
+
+        const existingStudent = await t.student.findUnique({ where: { userId: ra.userId } });
+        if (existingStudent) {
+          await t.student.update({
+            where: { id: existingStudent.id },
+            data: {
+              departmentId: deptId,
+              ...(prog ? { programmeId: prog.id } : {}),
+            },
+          }).catch(() => {});
+        } else if (prog) {
+          const collegeRec = await t.college.findUnique({ where: { id: collegeUuidVal } });
+          const collegeCode = collegeRec?.code || "TC";
+          const yearShort = String(new Date().getFullYear()).slice(2);
+          const count = await t.student.count({ where: { collegeId: collegeUuidVal } });
+          const rollNo = `${collegeCode}${yearShort}${String(count + 1).padStart(3, "0")}`;
+          await t.student.create({
+            data: {
+              userId: ra.userId,
+              collegeId: collegeUuidVal,
+              rollNo,
+              departmentId: deptId,
+              programmeId: prog.id,
+              batchYear: new Date().getFullYear(),
+              status: "Active",
+            },
+          }).catch(() => {});
+        }
+      }
+    }
     return this.get(id);
   },
   async delete(id: string) {
