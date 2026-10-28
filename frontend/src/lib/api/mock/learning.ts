@@ -5,6 +5,7 @@ import { RESOURCES } from "@/config/resources";
 import { STREAM_DEFS, streamOptions, type Stream } from "@/config/streams";
 import { ALL_COLLEGES } from "@/config/tenancy";
 import type { SessionPayload } from "@/lib/auth/session";
+import { resolveUserDepartment } from "@/lib/auth/department";
 import { cleanText, mask } from "@/lib/security/sanitize";
 import { signCertificateFields } from "@/lib/security/certificate-signature";
 import { getStore } from "@/lib/data";
@@ -327,7 +328,11 @@ export async function dispatchLearning(method: string, segs: string[], rawBody: 
   /* context for department pickers */
   if (area === "learning" && a1 === "context" && method === "GET") {
     if (!stream) return ok({ collegeId: null, stream: null, streamLabel: "All colleges", departments: [], terms: [] });
-    return ok({ collegeId: session.college, stream, streamLabel: STREAM_DEFS[stream].label, departments: streamOptions("department", stream).filter((d) => !/Administration/.test(d)), terms: streamOptions("semester", stream) });
+    const allDepts = streamOptions("department", stream).filter((d) => !/Administration/.test(d));
+    const userDept = (session.role === "hod" || session.role === "faculty") ? await resolveUserDepartment(session) : null;
+    const matchingDept = userDept ? allDepts.find((d) => d.toLowerCase() === userDept.toLowerCase()) : null;
+    const departments = matchingDept ? [matchingDept] : allDepts;
+    return ok({ collegeId: session.college, stream, streamLabel: STREAM_DEFS[stream].label, departments, terms: streamOptions("semester", stream), userDepartment: userDept });
   }
 
   /* ── Quizzes ── */

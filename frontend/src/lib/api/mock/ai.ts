@@ -33,25 +33,35 @@ export function chatReply(agent: string, message: string): ChatReply {
     };
   }
 
-  if (agent === "knowledge" || agent === "policy" || /placement office|exam application|internal assessment|attendance|register for sports|policy/.test(m)) {
-    if (/placement office/.test(m))
+  if (agent === "knowledge" || agent === "policy" || /placement office|exam application|internal assessment|attendance|register for sports|policy|leave|casual leave|on duty|auditorium|seminar hall|library|cafeteria|health centre|doctor|hostel|wifi|transport/.test(m)) {
+    if (/placement office|placement/.test(m))
       return inst(agent, "The **Training & Placement Office** is in **Block A, Ground Floor, Room A-012**, open 9:30–17:00 on working days.", ["Student Handbook 2026, §4.2"]);
     if (/exam application|exam fee/.test(m))
       return inst(agent, "Exam applications open through the student portal two weeks before each end-semester exam.\n\n1. Log in → **Exams → Apply**\n2. Verify subjects and arrears\n3. Pay the fee online before the deadline (late fee applies after that)\n\nThe current cycle closes on **10 October 2026**.", ["Circular 42/2026 — Exam fee", "Regulations 2021, §11"]);
-    if (/internal assessment|ia rules/.test(m))
-      return inst(agent, "Internal assessment carries **40 marks**: two IA tests (best of two scaled to 20), assignments (10) and attendance/participation (10). A student who misses an IA for a valid reason may request a retest within 7 days with HOD approval.", ["Internal Assessment Rules (CSE), §2–3"]);
-    if (/attendance/.test(m))
-      return inst(agent, "A minimum of **75% attendance** per course is required for end-semester exam eligibility. Medical condonation up to 10% may be granted by the Principal with valid documentation.", ["Regulations 2021, §9.1"]);
+    if (/internal assessment|ia rules|ia marks/.test(m))
+      return inst(agent, "Internal assessment carries **40 marks**: two IA tests (best of two scaled to 20), assignments (10) and attendance/participation (10). Marks must be entered into the portal within 5 working days of test completion.", ["Internal Assessment Rules, §2–3"]);
+    if (/attendance|condonation/.test(m))
+      return inst(agent, "A minimum of **75% attendance** per course is required for end-semester exam eligibility. Medical condonation for 65–74% may be granted by the Principal with valid documentation. Students below 65% are detained.", ["Regulations 2021, §9.1"]);
+    if (/leave|casual leave|on duty|\bod\b/.test(m))
+      return inst(agent, "Faculty are entitled to **12 days of Casual Leave (CL)** and up to **15 days of On-Duty (OD)** leave per calendar year. Apply via the Faculty ERP portal at least 3 days in advance with HOD recommendation and Principal sanction.", ["Faculty Handbook 2026, §4.1–4.3"]);
+    if (/auditorium|seminar hall|hall booking/.test(m))
+      return inst(agent, "The **APJ Abdul Kalam Auditorium** (1,200 seats) and **Mini Seminar Halls** (Block B-301, C-201) can be booked through the Campus Facilities Portal or at Estate Office Room A-104 with 5 days prior notice.", ["Campus Facility Management Guide 2026, §3.2"]);
+    if (/library|books?|ieee/.test(m))
+      return inst(agent, "The **Central Library** (Block B, 2nd & 3rd Floors) is open **8:00 AM – 8:00 PM** on working days. Off-campus access to IEEE Xplore and ScienceDirect is available via RemoteXs with your institutional login.", ["Library Handbook 2026, §2.1"]);
+    if (/cafeteria|canteen|food/.test(m))
+      return inst(agent, "The **Faculty Lounge & Dining Room** is located in **Block C, 1st Floor** (open 8:30–17:30). The Main Food Court is on the ground floor of Block C (open 7:30–19:30).", ["Campus Services Directory 2026, §4.1"]);
+    if (/health|doctor|ambulance|emergency/.test(m))
+      return inst(agent, "The **Campus Health Centre** is in **Block A, Ground Floor, Room A-005**. RMO on duty 9:00–18:00; 24/7 emergency nursing and ambulance: **Ext 108** or **+91-44-2235-0108**.", ["Campus Health Directory 2026, §1.1"]);
+    if (/hostel|curfew|warden/.test(m))
+      return inst(agent, "Campus hostels (Men: H1–H3, Women: H4–H6) have an in-time curfew of **8:30 PM** on weekdays and **9:00 PM** on weekends. Chief Warden Office: Block H1 Ground Floor.", ["Hostel Manual 2026, §1.2"]);
+    if (/wifi|wi-fi|internet|password/.test(m))
+      return inst(agent, "Connect to **AIT-Faculty-Secure** (staff) or **AIT-Campus-5G** (students) using your institutional email and LDAP credentials. For IT support, visit Block A, Room A-208 or email ithelpdesk@annatech.ac.in.", ["IT Policy 2026, §2.1"]);
     if (/sport/.test(m))
       return inst(agent, "Register through **Campus Life → Sports**. Trials for cricket, kabaddi and athletics are open this month; contact the Physical Director at the Sports Office, Ground Floor, Block D.", ["Sports Calendar 2026–27"]);
+    if (/principal|registrar|working hours|timing/.test(m))
+      return inst(agent, "Principal Office: Admin Block A, 1st Floor, Room A-100 (visiting hours 15:00–17:00). Academic classes run 8:45–16:15; Admin offices operate 9:00–17:00.", ["Campus Directory 2026, §1"]);
     if (agent === "policy" || agent === "knowledge")
-      return {
-        agent,
-        message:
-          "I couldn't find this in the approved institutional documents, so I won't guess. Please contact the Registrar's office, or ask an administrator to add the relevant policy to the knowledge base.",
-        sources: [],
-        confidence: 0.4,
-      };
+      return inst(agent, "I am the **Campus Assistant** for Anna Institute of Technology. You can ask me about faculty leave and OD rules, examination procedures, lab bookings, hostel timings, bus routes, or visit the Registrar's office (Admin Block A, Room A-008).", ["Campus Directory 2026"]);
   }
 
   if (/what should i study|study today|today/.test(m))

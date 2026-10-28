@@ -9,5 +9,5 @@ export default async function EditRecordPage({ params }: { params: Promise<{ rol
   const { role, module, id } = await params;
   const { mod, resource, role: r, ctx } = await resolveCrud(role, module, true);
   if (!SAFE_RECORD_ID.test(id)) notFound();
-  return <CrudForm mod={mod} role={r} resource={resource} recordId={id} allColleges={ctx.isAllColleges} stream={ctx.stream} />;
+  return <CrudForm mod={mod} role={r} resource={resource} recordId={id} allColleges={ctx.isAllColleges} stream={ctx.stream} defaultDepartment={ctx.departmentName} />;
 }

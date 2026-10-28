@@ -5,6 +5,7 @@ import { findResource, recordSchema, type RecordValue, type ResourceDef, type Re
 import { ALL_COLLEGES, COLLEGE_ID_RE, TOGGLEABLE_GROUPS } from "@/config/tenancy";
 import { can } from "@/lib/auth/roles";
 import type { SessionPayload } from "@/lib/auth/session";
+import { resolveUserDepartment } from "@/lib/auth/department";
 import { cleanText, mask, maskEmail } from "@/lib/security/sanitize";
 import { audit } from "./audit";
 import { collegeIndex, collegeStream, createRecord, enabledGroups, getCollege, recordsInCollege } from "./records";
@@ -149,9 +150,17 @@ export async function dispatchRecords(method: string, segs: string[], rawBody: u
         const options = res.fields.find((f) => f.name === name)?.options ?? [];
         if (v && (options as readonly string[]).includes(v)) filters[name] = v;
       }
+      const userDept = (session.role === "hod" || session.role === "faculty") ? await resolveUserDepartment(session) : null;
+      if (res.key === "courses" && userDept) {
+        filters.department = userDept;
+      }
       const result = await store.list(res, { scope: session.college, college: COLLEGE_ID_RE.test(collegeFilter) ? collegeFilter : undefined, q, status, filters, page, pageSize });
-      const items = await withStats(res, result.items.map((r) => present(res, r, canManage, colleges)));
-      return ok({ items, total: result.total, page, pageSize, counts: result.counts, canManage });
+      let rawItems = result.items;
+      if (res.key === "courses" && userDept) {
+        rawItems = rawItems.filter((r) => String(r.department ?? "").toLowerCase() === userDept.toLowerCase());
+      }
+      const items = await withStats(res, rawItems.map((r) => present(res, r, canManage, colleges)));
+      return ok({ items, total: userDept && res.key === "courses" ? rawItems.length : result.total, page, pageSize, counts: result.counts, canManage, userDepartment: userDept });
     }
     if (method === "POST") {
       if (!canManage) return err(403, "forbidden", `You can view ${res.title.toLowerCase()} but not add to it.`);
@@ -173,6 +182,12 @@ export async function dispatchRecords(method: string, segs: string[], rawBody: u
       const parsed = recordSchema(res).safeParse(body.data.data);
       if (!parsed.success) return err(422, "validation", "Please correct the highlighted fields.", fieldErrors(parsed.error));
       const data = normalise(res, parsed.data as Record<string, RecordValue>);
+      if (res.key === "courses" && (session.role === "hod" || session.role === "faculty")) {
+        const userDept = await resolveUserDepartment(session);
+        if (userDept) {
+          data.department = userDept;
+        }
+      }
       const rule = await businessRules(res, data, session, collegeId);
       if (rule) return err(409, "conflict", "Please correct the highlighted fields.", rule);
       const rec = await createRecord(res, data, collegeId);
@@ -187,6 +202,12 @@ export async function dispatchRecords(method: string, segs: string[], rawBody: u
   if (!ID.test(id)) return notFound();
   const existing = await store.get(res, id);
   if (!existing || !inScope(res, existing, session)) return notFound();
+  if (res.key === "courses" && (session.role === "hod" || session.role === "faculty")) {
+    const userDept = await resolveUserDepartment(session);
+    if (userDept && existing.department && String(existing.department).toLowerCase() !== userDept.toLowerCase()) {
+      return notFound();
+    }
+  }
 
   if (method === "GET") return ok({ record: (await withStats(res, [present(res, existing, canManage, colleges)]))[0], canManage });
 
@@ -202,6 +223,12 @@ export async function dispatchRecords(method: string, segs: string[], rawBody: u
     const parsed = recordSchema(res).safeParse(body.data.data);
     if (!parsed.success) return err(422, "validation", "Please correct the highlighted fields.", fieldErrors(parsed.error));
     const data = normalise(res, parsed.data as Record<string, RecordValue>);
+    if (res.key === "courses" && (session.role === "hod" || session.role === "faculty")) {
+      const userDept = await resolveUserDepartment(session);
+      if (userDept) {
+        data.department = userDept;
+      }
+    }
     const rule = await businessRules(res, data, session, existing.collegeId ?? null, id);
     if (rule) return err(409, "conflict", "Please correct the highlighted fields.", rule);
     // collegeId is immutable through updates — records cannot be moved between colleges by editing.

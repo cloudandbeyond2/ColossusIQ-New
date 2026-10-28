@@ -27,6 +27,7 @@ export function CrudForm({
   recordId,
   allColleges = false,
   stream = null,
+  defaultDepartment = null,
 }: {
   mod: ModuleDef;
   role: Role;
@@ -34,6 +35,7 @@ export function CrudForm({
   recordId?: string;
   allColleges?: boolean;
   stream?: Stream | null;
+  defaultDepartment?: string | null;
 }) {
   const isEdit = Boolean(recordId);
   const existing = useQuery({
@@ -63,6 +65,7 @@ export function CrudForm({
       initial={record}
       pickCollege={allColleges && Boolean(resource.scoped) && !isEdit}
       sessionStream={stream ?? (record?.collegeType ? streamOfType(record.collegeType) : null)}
+      defaultDepartment={defaultDepartment}
     />
   );
 }
@@ -74,6 +77,7 @@ function FormInner({
   initial,
   pickCollege,
   sessionStream,
+  defaultDepartment,
 }: {
   mod: ModuleDef;
   role: Role;
@@ -81,6 +85,7 @@ function FormInner({
   initial?: Record<string, RecordValue> & { id: string; version: number; collegeName?: RecordValue };
   pickCollege: boolean;
   sessionStream: Stream | null;
+  defaultDepartment?: string | null;
 }) {
   const [collegeId, setCollegeId] = useState("");
   const collegeOptions = useQuery({
@@ -93,11 +98,17 @@ function FormInner({
   const router = useRouter();
   const qc = useQueryClient();
   const isEdit = Boolean(initial);
+  const isScopedStaff = (role === "hod" || role === "faculty") && Boolean(defaultDepartment);
   const start = useMemo(() => {
     const base = emptyValues(resource);
-    if (!initial) return base;
+    if (!initial) {
+      if (isScopedStaff && defaultDepartment && "department" in base) {
+        return { ...base, department: defaultDepartment };
+      }
+      return base;
+    }
     return Object.fromEntries(Object.keys(base).map((k) => [k, initial[k] ?? base[k] ?? null]));
-  }, [initial, resource]);
+  }, [initial, resource, isScopedStaff, defaultDepartment]);
 
   const [values, setValues] = useState<Record<string, RecordValue>>(start);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -259,9 +270,21 @@ function FormInner({
                   {sectionErrors ? <span className="rounded-full bg-rose-soft px-2 py-0.5 text-xs font-medium text-rose">{sectionErrors} to fix</span> : null}
                 </div>
                 <CardBody className="grid gap-5 sm:grid-cols-2">
-                  {fields.map((f) => (
-                    <FieldInput key={f.name} field={f} value={values[f.name] ?? null} error={errors[f.name]} onChange={(v) => set(f.name, v)} disabled={save.isPending || (pickCollege && !collegeId)} stream={stream} collegeId={collegeId || undefined} />
-                  ))}
+                  {fields.map((f) => {
+                    const isDeptLocked = f.name === "department" && isScopedStaff && resource.key === "courses";
+                    return (
+                      <FieldInput
+                        key={f.name}
+                        field={f}
+                        value={isDeptLocked ? (defaultDepartment ?? values[f.name] ?? null) : (values[f.name] ?? null)}
+                        error={errors[f.name]}
+                        onChange={(v) => set(f.name, v)}
+                        disabled={save.isPending || (pickCollege && !collegeId) || isDeptLocked}
+                        stream={stream}
+                        collegeId={collegeId || undefined}
+                      />
+                    );
+                  })}
                 </CardBody>
               </Card>
             );

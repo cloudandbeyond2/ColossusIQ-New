@@ -1370,7 +1370,17 @@ const CHAT: Record<string, Omit<ChatData, "template">> = {
   viva: { intro: "I'll act as your viva examiner for **Smart Campus AI**. I'll start with basics and follow up based on your answers.", suggestions: ["Start my project viva", "Ask me architecture questions", "Give me a tough follow-up on security"], context: ["Project: Smart Campus AI", "Stack: Python, FastAPI, React", "Mode: Technical viva"] },
   "group-discussion": { intro: "Welcome to the GD room. Three AI participants — **Asha** (pro), **Vikram** (against) and **Neha** (moderator) — will join you.", suggestions: ["Topic: Should AI be allowed in exams?", "Topic: Work from home vs office", "Give me feedback on my last point"], context: ["Mode: Group discussion", "Participants: 3 AI + you", "Duration: 10 minutes"] },
   research: { intro: "I can help you frame research questions, find and compare literature, and plan your paper. I will flag when a claim needs a verified source.", suggestions: ["Research questions on IoT for agriculture", "Compare approaches to handwriting OCR", "Outline an IEEE conference paper"], context: ["Field: Computer Science", "Level: UG"] },
-  "campus-assistant": { intro: "Ask me anything about Anna Institute of Technology. I answer from **institution-approved sources** and cite them.", suggestions: ["Where is the placement office?", "What is the exam application process?", "How can I register for sports?"], context: ["Knowledge base: 8 approved documents", "Campus: Main"] },
+  "campus-assistant": {
+    intro: "Ask me anything about Anna Institute of Technology. I answer from **institution-approved sources** with official citations.",
+    suggestions: [
+      "How do I apply for On-Duty (OD) or Casual Leave?",
+      "What is the procedure to book the APJ Abdul Kalam Auditorium?",
+      "When is the deadline to submit IA marks to COE?",
+      "What are the rules for faculty research grants and seed funding?",
+      "Where is the faculty cafeteria and health center located?",
+    ],
+    context: ["Knowledge base: 4 approved handbooks", "Campus: Anna Institute of Technology"]
+  },
   "policy-assistant": { intro: "I answer strictly from approved institutional documents. If a policy is not in the knowledge base, I'll say so rather than guess.", suggestions: ["What are the internal assessment rules?", "Minimum attendance for exam eligibility?", "Placement policy for students with offers"], context: ["Sources: Regulations 2021, IA Rules, Placement Policy 2026"] },
 };
 
@@ -1421,6 +1431,36 @@ export async function moduleData(slug: string, collegeScope = "all", session?: S
     return data;
   }
   if (mod.template === "chat") {
+    if (slug === "campus-assistant") {
+      const isFaculty = session?.role === "faculty" || session?.role === "hod";
+      const name = session?.name || (isFaculty ? "Faculty Member" : "Student");
+      return {
+        template: "chat",
+        intro: isFaculty
+          ? `Welcome to the Campus Assistant, **${name}**. I answer questions regarding Anna Institute of Technology faculty service rules, leave & OD procedures, laboratory resources, IA marks entry, examination protocols, and campus facilities from **approved institutional sources**.`
+          : `Hi **${name}** 👋 Ask me anything about Anna Institute of Technology. I answer from **institution-approved sources** (regulations, campus directory, examination manual, placement guidelines) and cite official documents.`,
+        suggestions: isFaculty
+          ? [
+              "How do I apply for On-Duty (OD) or Casual Leave?",
+              "What is the procedure to book the APJ Abdul Kalam Auditorium?",
+              "When is the deadline to submit IA marks to COE?",
+              "What are the rules for faculty research grants and seed funding?",
+              "Where is the faculty cafeteria and health center located?",
+            ]
+          : [
+              "Where is the Training & Placement Office located?",
+              "What is the minimum attendance required and condonation rules?",
+              "How do I apply for end-semester exams and fee payment?",
+              "How do I access IEEE Xplore digital library off-campus?",
+              "What are the campus hostel timings and curfew?",
+            ],
+        context: [
+          "Campus: Anna Institute of Technology",
+          `Role: ${isFaculty ? `Faculty (${session?.department ?? "Engineering"})` : `Student (${session?.department ?? "Engineering"})`}`,
+          "Knowledge base: 4 approved handbooks",
+        ],
+      };
+    }
     const cfg = CHAT[slug];
     if (cfg) return { template: "chat", ...cfg };
   }
