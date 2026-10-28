@@ -60,14 +60,15 @@ function MiniBar({ data, seriesKey, color }: {
   return (
     <div className="flex items-end gap-1 h-16">
       {data.map((d, i) => {
-        const h = Math.round((values[i] / max) * 100);
+        const val = values[i] ?? 0;
+        const h = Math.round((val / max) * 100);
         const name = String(d.name ?? "");
         return (
           <div key={i} className="flex flex-col items-center gap-0.5 flex-1 min-w-0">
             <div
               className="w-full rounded-t transition-all duration-500"
-              style={{ height: `${h}%`, backgroundColor: color, minHeight: values[i] > 0 ? 4 : 0 }}
-              title={`${name}: ${values[i]}`}
+              style={{ height: `${h}%`, backgroundColor: color, minHeight: val > 0 ? 4 : 0 }}
+              title={`${name}: ${val}`}
             />
             <span className="text-[9px] text-ink-3 truncate w-full text-center leading-tight">
               {name.split(" ")[0]}
@@ -132,7 +133,7 @@ function DonutMini({ data }: { data: { name: string; value: number }[] }) {
     const pct = d.value / total;
     const offset = -circumference * cum;
     cum += pct;
-    return { ...d, pct, offset, dash: circumference * pct, color: DONUT_COLORS[i % DONUT_COLORS.length] };
+    return { ...d, pct, offset, dash: circumference * pct, color: DONUT_COLORS[i % DONUT_COLORS.length] ?? "#6366f1" };
   });
   return (
     <div className="flex items-center gap-4">
@@ -234,7 +235,8 @@ export function AdmissionInsightsModule({ role: _role }: { role?: Role }) {
           <div className="space-y-1">
             {funnelData.map((row, i) => {
               const count = Number(row[funnelSeriesKey] ?? 0);
-              const prev = i > 0 ? Number(funnelData[i - 1][funnelSeriesKey] ?? 0) : undefined;
+              const prevRow = i > 0 ? funnelData[i - 1] : undefined;
+              const prev = prevRow ? Number(prevRow[funnelSeriesKey] ?? 0) : undefined;
               const stageName = String(row.name ?? "");
               return (
                 <FunnelRow
