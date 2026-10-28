@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import {
   Area,
   AreaChart,
@@ -35,7 +36,17 @@ const tooltipStyle = {
 };
 
 export function ChartView({ spec, height = 260 }: { spec: ChartSpec; height?: number }) {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   const legend = spec.series.length > 1 ? <Legend wrapperStyle={{ fontSize: 12, color: "var(--ink-2)" }} iconType="circle" iconSize={8} /> : null;
+
+  if (!mounted) {
+    return <div style={{ height }} role="img" aria-label={`${spec.title} chart`} />;
+  }
+
   return (
     <div style={{ height }} role="img" aria-label={`${spec.title} chart`}>
       <ResponsiveContainer width="100%" height="100%">
