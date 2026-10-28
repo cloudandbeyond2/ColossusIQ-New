@@ -341,6 +341,7 @@ model College {
   incubationVentures    IncubationVenture[]
   clinicalCases         ClinicalCase[]
   agentDisabled         AgentDisabled[]
+  eventPlans            EventPlan[]
   clinicalSkills        ClinicalSkill[]
   incubationStartups    IncubationStartup[]
   incubationMentors     IncubationMentor[]
@@ -2646,4 +2647,21 @@ model AgentDisabled {
 
   @@id([collegeId, agentId])
   @@map("agent_disabled")
+}
+
+model EventPlan {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  collegeId String @map("college_id") @db.Uuid
+  title String
+  category String
+  status String @default("Draft")
+  plan Json
+  createdBySub String @default("") @map("created_by_sub")
+  createdByName String @default("") @map("created_by_name")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+  college College @relation(fields: [collegeId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([collegeId, updatedAt(sort: Desc)], map: "event_plans_college_idx")
+  @@map("event_plans")
 }

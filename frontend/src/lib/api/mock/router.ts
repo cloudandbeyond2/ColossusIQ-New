@@ -228,6 +228,7 @@ import { dispatchPrepContent } from "./prep-content";
 import { dispatchAiProviders } from "./ai-providers";
 import { dispatchCertificateDesk } from "./certificate-desk";
 import { dispatchModuleControl } from "./module-control";
+import { dispatchEventPlans } from "./event-plans";
 import { agentAllowed, AgentStoreError, getAgentStore, setAgentEnabled } from "./agent-store";
 import { dispatchNotices, noticeNotifications } from "./notices";
 import { dispatchContentDesk } from "./content-desk";
@@ -628,6 +629,7 @@ export async function dispatch(method: string, segs: string[], rawBody: unknown,
   if (LEARNING_AREAS.has(segs[0] ?? "")) return dispatchLearning(method, segs, rawBody, session, query);
   if (segs[0] === "students" && segs[1] !== "me") return dispatchStudents(method, segs, rawBody, session, query);
   if (segs[0] === "faculty") return dispatchFaculty(method, segs, rawBody, session, query);
+  if (segs[0] === "event-plans") return dispatchEventPlans(method, segs, rawBody, session);
   if (segs[0] === "clinical") return dispatchClinical(method, segs, rawBody, session, query);
   const found = matchRoute(method, segs);
   if (!found) return notFound();
@@ -2033,6 +2035,7 @@ export async function dispatch(method: string, segs: string[], rawBody: unknown,
       }
     }
     case "PUT agents/store": {
+      if (session.role !== "institution" && session.role !== "admin") return forbidden();
       const parsed = AgentToggleBody.safeParse(rawBody);
       if (!parsed.success) return err(400, "invalid_body", "Choose an agent and whether it is on or off.");
       try {

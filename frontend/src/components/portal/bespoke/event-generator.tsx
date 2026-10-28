@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import Link from "next/link";
 import { z } from "zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -29,6 +29,7 @@ import {
   UserCheck,
 } from "lucide-react";
 import { apiFetch } from "@/lib/api/client";
+import { SavedEventPlan, SavedEventPlans } from "@/lib/api/event-plan-schemas";
 import type { Role } from "@/lib/auth/roles";
 import {
   Badge,
@@ -430,17 +431,64 @@ export function EventGeneratorModule({ role }: { role: Role }) {
 
   // Current active plan (starts empty/null until generated or selected)
   const [plan, setPlan] = useState<EventPlan | null>(null);
-  // Saved plans archive (persisted to localStorage)
-  const [savedPlans, setSavedPlans] = useState<EventPlan[]>([]);
+  // Saved plans archive: kept in the database, shared by the college's staff on every device
+  const plansQuery = useQuery({
+    queryKey: ["event-plans"],
+    queryFn: () => apiFetch("/api/v1/event-plans", SavedEventPlans),
+  });
+  const savedList = useMemo(() => plansQuery.data?.plans ?? [], [plansQuery.data]);
+  const savedPlans = useMemo(() => savedList.map((p) => p.plan as unknown as EventPlan), [savedList]);
+  const canEditSaved = (id: string) => savedList.find((p) => p.id === id)?.canEdit ?? false;
 
+  const savePlan = useMutation({
+    mutationFn: async (p: EventPlan) => {
+      const mine = savedList.find((x) => x.id === p.id);
+      // A plan someone else wrote is saved as your own copy.
+      return mine?.canEdit
+        ? apiFetch(`/api/v1/event-plans/${encodeURIComponent(p.id)}`, SavedEventPlan, { method: "PUT", body: { plan: p } })
+        : apiFetch("/api/v1/event-plans", SavedEventPlan, { method: "POST", body: { plan: p } });
+    },
+    onSuccess: (saved, p) => {
+      setPlan((cur) => (cur && cur.id === p.id ? { ...cur, id: saved.id } : cur));
+      void qc.invalidateQueries({ queryKey: ["event-plans"] });
+      setSaveToast(true);
+      setTimeout(() => setSaveToast(false), 2500);
+    },
+    onError: () => window.alert("Could not save the event plan. Please try again."),
+  });
+
+  const deletePlan = useMutation({
+    mutationFn: (id: string) => apiFetch(`/api/v1/event-plans/${encodeURIComponent(id)}`, z.object({ ok: z.boolean() }), { method: "DELETE" }),
+    onSuccess: (_r, id) => {
+      setPlan((cur) => (cur && cur.id === id ? null : cur));
+      void qc.invalidateQueries({ queryKey: ["event-plans"] });
+    },
+    onError: () => window.alert("Could not delete the event plan."),
+  });
+
+  // Plans saved in this browser before they moved to the database are uploaded once.
+  const movedLocal = useRef(false);
   useEffect(() => {
+    if (!plansQuery.isSuccess || movedLocal.current) return;
+    movedLocal.current = true;
+    let old: unknown = null;
     try {
       const stored = localStorage.getItem("colossusiq_saved_event_plans");
-      if (stored) {
-        setSavedPlans(JSON.parse(stored));
-      }
+      if (stored) old = JSON.parse(stored);
     } catch { }
-  }, []);
+    if (!Array.isArray(old) || old.length === 0) return;
+    void (async () => {
+      for (const p of old.slice(0, 20)) {
+        try {
+          await apiFetch("/api/v1/event-plans", SavedEventPlan, { method: "POST", body: { plan: p } });
+        } catch { }
+      }
+      try {
+        localStorage.removeItem("colossusiq_saved_event_plans");
+      } catch { }
+      await qc.invalidateQueries({ queryKey: ["event-plans"] });
+    })();
+  }, [plansQuery.isSuccess, qc]);
 
   // Tab navigation
   const [activeTab, setActiveTab] = useState<
@@ -640,6 +688,23 @@ export function EventGeneratorModule({ role }: { role: Role }) {
         };
       });
 
+      if (plan) {
+        savePlan.mutate({
+          ...plan,
+          title: data.title,
+          category: data.category,
+          date: data.date,
+          startTime: data.startTime,
+          venue: data.venue,
+          department: data.department,
+          audience: data.capacity,
+          budget: data.budget,
+          duration: data.duration,
+          status: data.status,
+          publishedId: data.id || "EVT-OK",
+        });
+      }
+
       setPublishSuccess(
         `Event "${data.title}" successfully published to Campus Events! (Record ID: ${data.id || "EVT-NEW"})`
       );
@@ -717,18 +782,7 @@ export function EventGeneratorModule({ role }: { role: Role }) {
   // Save current plan into archive
   const handleSavePlan = () => {
     if (!plan) return;
-    setSavedPlans((prev) => {
-      const filtered = prev.filter((p) => p.id !== plan.id);
-      const updated = [plan, ...filtered];
-      if (typeof window !== "undefined") {
-        try {
-          localStorage.setItem("colossusiq_saved_event_plans", JSON.stringify(updated));
-        } catch { }
-      }
-      return updated;
-    });
-    setSaveToast(true);
-    setTimeout(() => setSaveToast(false), 2500);
+    savePlan.mutate(plan);
   };
 
   // Calculate Budget Metrics
@@ -866,12 +920,12 @@ ${plan.promo.whatsapp}
           <Button
             variant="secondary"
             size="sm"
-            disabled={!plan}
+            disabled={!plan || savePlan.isPending}
             onClick={handleSavePlan}
             className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5"
           >
             {saveToast ? <Check className="size-3.5 text-teal" /> : <Save className="size-3.5" />}
-            {saveToast ? "Saved!" : "Save Blueprint"}
+            {savePlan.isPending ? "Saving..." : saveToast ? "Saved!" : "Save Blueprint"}
           </Button>
 
           <Button
@@ -1126,23 +1180,6 @@ ${plan.promo.whatsapp}
               <span className="text-xs font-semibold uppercase tracking-wider text-ink-3">
                 Saved Event Plans ({savedPlans.length})
               </span>
-              {savedPlans.length > 0 && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSavedPlans([]);
-                    if (typeof window !== "undefined") {
-                      try {
-                        localStorage.removeItem("colossusiq_saved_event_plans");
-                      } catch { }
-                    }
-                  }}
-                  className="text-[10px] text-ink-3 hover:text-rose transition-colors"
-                  title="Clear all saved plans"
-                >
-                  Clear All
-                </button>
-              )}
             </div>
             {savedPlans.length === 0 ? (
               <div className="rounded-xl border border-dashed border-line p-3 text-center text-xs text-ink-3">
@@ -1175,6 +1212,19 @@ ${plan.promo.whatsapp}
                         {sp.category} · {sp.audience} students · ₹{(sp.budget / 1000).toFixed(0)}k
                       </p>
                     </div>
+                    {canEditSaved(sp.id) ? (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (window.confirm(`Delete the saved plan "${sp.title}"?`)) deletePlan.mutate(sp.id);
+                        }}
+                        className="mr-1 shrink-0 text-[10px] text-ink-3 hover:text-rose transition-colors"
+                        title="Delete this saved plan"
+                      >
+                        Delete
+                      </button>
+                    ) : null}
                     <ChevronRight className="size-3.5 shrink-0 text-ink-3" />
                   </div>
                 ))}
