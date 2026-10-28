@@ -32,6 +32,7 @@ import {
   EmptyState,
   Field,
   inputClass,
+  selectFilterClass,
   Progress,
   Spinner,
   toneBar,
@@ -132,7 +133,7 @@ export function ListTemplate({ data, mod }: { data: ListData; mod: ModuleDef }) 
             <label htmlFor="list-filter" className="sr-only">
               Filter
             </label>
-            <select id="list-filter" value={filter} onChange={(e) => setFilter(e.target.value)} className={cn(inputClass, "w-auto")}>
+            <select id="list-filter" value={filter} onChange={(e) => setFilter(e.target.value)} className={cn(selectFilterClass, "w-full sm:w-auto")}>
               <option value="all">All</option>
               {filterValues.map((v) => (
                 <option key={v} value={v}>

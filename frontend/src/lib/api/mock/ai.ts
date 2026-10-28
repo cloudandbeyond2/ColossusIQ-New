@@ -4,6 +4,7 @@ import type { ChatReply, EvaluationResult, GenerateReply, InterviewTurn, ResumeA
 import { geminiEnabled, geminiJson } from "@/lib/ai/gemini";
 import { generateDocumentAi } from "./document-ai";
 import { generateCopilotContent, generateQuestionPaperContent } from "./copilot-ai";
+import { generateJobPrepPlan } from "./job-prep-ai";
 
 /*
  * Deterministic stand-ins for the AI Orchestrator. They exist so every screen is fully
@@ -108,11 +109,15 @@ export async function generate(module: string, inputs: Record<string, string>): 
         agent: "project",
         markdown: `### Project concepts — ${v("category", "AI/ML")} · ${v("department", "CSE")}\n\n**1. Smart Attendance with Privacy-Preserving Face Matching**\nOn-device embeddings, no raw images stored. *Feasibility:* high · *Budget:* ₹${v("budget", "5000")} · *Team:* ${v("team", "3")}\n\n**2. Campus Energy Advisor**\nIoT meters + forecasting model recommending HVAC schedules. *Feasibility:* medium\n\n**3. Vernacular Lecture Summariser**\nSpeech-to-text + summarisation for Tamil/Hindi lectures. *Feasibility:* medium\n\n**Next steps:** pick one → problem definition → market research → architecture (I can generate SRS, UML and API design).`,
       };
-    case "job-prep":
+    case "job-prep": {
+      const role = v("role", "Software Engineer");
+      const company = v("company", "Product company");
+      const weeks = v("weeks", "8");
       return {
         agent: "career",
-        markdown: `### ${v("weeks", "8")}-week plan — ${v("role", "Software Engineer")} at a ${lower(v("company", "product company"))}\n\n**Required skills:** DSA, one backend language, SQL, system basics, communication\n\n| Week | Coding | Aptitude | Communication |\n|---|---|---|---|\n| 1–2 | Arrays, strings, hashing | Percentages, ratios | STAR stories ×3 |\n| 3–4 | Trees, graphs | Time & work | Mock HR interview |\n| 5–6 | DP, SQL joins/windows | Puzzles | Technical explanation drill |\n| 7–8 | Company PYQs, mock OAs | Full mocks | 2 full mock interviews |\n\n**Resume:** quantify project impact; add GitHub link.\n**Portfolio:** deploy one project publicly.`,
+        markdown: generateJobPrepPlan(role, company, weeks),
       };
+    }
     case "copilot": {
       const tool = v("tool", "Lesson plan");
       const topic = v("topic", "Database normalization");

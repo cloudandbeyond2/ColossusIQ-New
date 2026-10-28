@@ -42,6 +42,7 @@ import {
   CardBody,
   EmptyState,
   inputClass,
+  selectFilterClass,
   Spinner,
 } from "@/components/ui/primitives";
 import { cn } from "@/lib/utils";
@@ -550,7 +551,7 @@ export function AcademicCalendarModule({ role }: { role: Role }) {
           <select
             value={selectedDept}
             onChange={(e) => { setSelectedDept(e.target.value); setPage(1); }}
-            className={cn(inputClass, "w-auto text-xs py-1.5")}
+            className={cn(selectFilterClass, "w-full sm:w-auto text-xs py-1.5")}
           >
             {departments.map((dept) => (
               <option key={dept} value={dept}>
