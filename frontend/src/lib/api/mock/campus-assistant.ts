@@ -247,7 +247,7 @@ export async function campusAssistantChat(session: SessionPayload, body: ChatBod
   try {
     if (session.college && session.college !== "all") {
       const col = await getCollege(session.college);
-      if (col?.name) collegeName = col.name;
+      if (typeof col?.name === "string") collegeName = col.name;
     }
   } catch {
     // fallback to Anna Institute of Technology
