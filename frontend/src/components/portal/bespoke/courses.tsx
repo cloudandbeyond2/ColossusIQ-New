@@ -83,7 +83,7 @@ function CourseList({ go }: { go: (q: string) => void }) {
       ) : null}
 
       {!shown.length ? (
-        <EmptyState title="No courses published yet" body="Your HOD publishes department courses here. Check back soon." />
+        <EmptyState title="No courses published yet" body="Your department faculty and HOD publish courses here. Check back soon." />
       ) : (
         <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
           {shown.map((c) => {

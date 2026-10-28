@@ -261,7 +261,7 @@ function NewCourse({ ctx, go }: { ctx: LearningContext; go: (q: string) => void 
           >
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
               <Field label="Department" htmlFor="n-dept" error={errors.department}>
-                <select id="n-dept" className={inputClass} value={form.department} onChange={(e) => set("department", e.target.value)}>
+                <select id="n-dept" className={inputClass} value={form.department} disabled={ctx.departments.length === 1} onChange={(e) => set("department", e.target.value)}>
                   {ctx.departments.map((d) => (
                     <option key={d}>{d}</option>
                   ))}

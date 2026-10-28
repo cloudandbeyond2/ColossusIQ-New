@@ -6,6 +6,7 @@ import { streamOptions, type Stream } from "@/config/streams";
 import { ALL_COLLEGES } from "@/config/tenancy";
 import { can } from "@/lib/auth/roles";
 import type { SessionPayload } from "@/lib/auth/session";
+import { resolveUserDepartment } from "@/lib/auth/department";
 import { cleanText } from "@/lib/security/sanitize";
 import { isReferenceUrl, parseVideoUrl } from "@/lib/video";
 import { audit } from "./audit";
@@ -847,10 +848,21 @@ export async function dispatchCourses(method: string, segs: string[], rawBody: u
   // ── list ──
   if (!id && method === "GET") {
     const list = (await store.courses.list(session.college)).filter(inScope).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-    if (isStudent) return ok(await Promise.all(list.filter((c) => c.status === "Published").map((c) => studentSummary(c, session.sub))));
+    if (isStudent) {
+      const studentDept = await resolveUserDepartment(session);
+      const studentCourses = studentDept
+        ? list.filter((c) => c.department.toLowerCase() === studentDept.toLowerCase())
+        : list;
+      return ok(await Promise.all(studentCourses.filter((c) => c.status === "Published").map((c) => studentSummary(c, session.sub))));
+    }
+    const isScopedStaff = session.role === "hod" || session.role === "faculty";
+    const staffDept = isScopedStaff ? await resolveUserDepartment(session) : null;
+    const staffCourses = staffDept
+      ? list.filter((c) => c.department.toLowerCase() === staffDept.toLowerCase())
+      : list;
     const colleges = await collegeIndex();
-    const items = await Promise.all(list.map(async (c) => staffSummary(c, await statsFor(c), String(colleges.get(c.collegeId)?.name ?? "Unknown college"))));
-    return ok({ canPublish, stream, items });
+    const items = await Promise.all(staffCourses.map(async (c) => staffSummary(c, await statsFor(c), String(colleges.get(c.collegeId)?.name ?? "Unknown college"))));
+    return ok({ canPublish, stream, items, department: staffDept });
   }
 
   // ── generate a new draft ──
@@ -864,6 +876,11 @@ export async function dispatchCourses(method: string, segs: string[], rawBody: u
       return err(422, "validation", "Check the course details.", fields);
     }
     const d = p.data;
+    const isScopedStaff = session.role === "hod" || session.role === "faculty";
+    const staffDept = isScopedStaff ? await resolveUserDepartment(session) : null;
+    if (staffDept && d.department.toLowerCase() !== staffDept.toLowerCase()) {
+      return err(422, "validation", `You can only create courses for your department (${staffDept}).`, { department: `Must be ${staffDept}` });
+    }
     if (!streamOptions("department", stream).includes(d.department)) return err(422, "validation", "Choose a department of your college.", { department: "Not a department of your college" });
     if (!streamOptions("semester", stream).includes(d.semester)) return err(422, "validation", "Choose a valid term.", { semester: "Choose a valid term" });
     if (d.mode === "syllabus") {
@@ -878,6 +895,18 @@ export async function dispatchCourses(method: string, segs: string[], rawBody: u
   if (!id || !ID.test(id)) return err(404, "not_found", "Course not found.");
   const course = await store.courses.get(id);
   if (!course || !inScope(course) || (isStudent && course.status !== "Published")) return err(404, "not_found", "Course not found.");
+  if (isStudent) {
+    const studentDept = await resolveUserDepartment(session);
+    if (studentDept && course.department.toLowerCase() !== studentDept.toLowerCase()) {
+      return err(404, "not_found", "Course not found.");
+    }
+  }
+  if (session.role === "hod" || session.role === "faculty") {
+    const staffDept = await resolveUserDepartment(session);
+    if (staffDept && course.department.toLowerCase() !== staffDept.toLowerCase()) {
+      return err(404, "not_found", "Course not found.");
+    }
+  }
   const quiz = (await store.quizzes.get(course.finalQuizId))!;
 
   // ── student: read + progress ──
