@@ -255,9 +255,10 @@ import { audit, recentAudit } from "./audit";
 import { createStudent, deleteStudent, getStudentsList, importStudents, updateStudent } from "./students-store";
 import { createFaculty, deleteFaculty, getFacultyList, updateFaculty } from "./faculty-store";
 import {
-  approveClinicalCase,
-  approveDopsSkill,
+  ClinicalError,
   createClinicalCase,
+  decideClinicalCase,
+  decideDopsSkill,
   listClinicalCases,
   listDopsSkills,
   submitDopsSkill,
@@ -2563,75 +2564,34 @@ async function dispatchClinical(
   session: SessionPayload,
   _query: URLSearchParams
 ): Promise<MockResult> {
-  if (method === "GET" && segs[1] === "cases") {
-    const list = listClinicalCases(session.college);
-    return ok({ cases: list });
-  }
-
-  if (method === "POST" && segs[1] === "cases" && (!segs[2] || segs[2] === "")) {
-    let body: any = rawBody;
-    if (typeof body === "string") {
-      try {
-        body = JSON.parse(body);
-      } catch {}
+  let body: Record<string, unknown> = {};
+  if (typeof rawBody === "string" && rawBody) {
+    try {
+      const parsed: unknown = JSON.parse(rawBody);
+      if (parsed && typeof parsed === "object") body = parsed as Record<string, unknown>;
+    } catch {
+      return err(400, "bad_request", "The request body is not valid JSON.");
     }
-    const created = createClinicalCase({
-      bed: body.bed,
-      patient: body.patient || body.name,
-      diagnosis: body.diagnosis,
-      complaints: body.complaints,
-      faculty: body.faculty,
-      studentName: session.name || body.studentName || "Aishwarya V.",
-      studentRoll: body.studentRoll || "51211005",
-      collegeId: session.college,
-    });
-    return { status: 201, body: created };
+  } else if (rawBody && typeof rawBody === "object") {
+    body = rawBody as Record<string, unknown>;
   }
-
-  if (method === "POST" && segs[1] === "cases" && segs[2] === "approve") {
-    let body: any = rawBody;
-    if (typeof body === "string") {
-      try {
-        body = JSON.parse(body);
-      } catch {}
+  try {
+    const [, area, action] = segs;
+    if (method === "GET" && area === "cases") return ok({ cases: await listClinicalCases(session) });
+    if (method === "POST" && area === "cases" && !action) return { status: 201, body: await createClinicalCase(session, body) };
+    if (method === "POST" && area === "cases" && action === "approve") return ok({ ok: true, case: await decideClinicalCase(session, body.id, "Approved") });
+    if (method === "POST" && area === "cases" && action === "reject") return ok({ ok: true, case: await decideClinicalCase(session, body.id, "Rejected") });
+    if (method === "GET" && area === "dops") return ok({ skills: await listDopsSkills(session) });
+    if (method === "POST" && area === "dops" && action === "submit") return { status: 201, body: { ok: true, skill: await submitDopsSkill(session, body) } };
+    if (method === "POST" && area === "dops" && action === "approve") return ok({ ok: true, skill: await decideDopsSkill(session, body.id, "Certified") });
+    if (method === "POST" && area === "dops" && action === "reject") return ok({ ok: true, skill: await decideDopsSkill(session, body.id, "Rejected") });
+    return notFound();
+  } catch (e) {
+    if (e instanceof ClinicalError) {
+      if (e.status === 403) return forbidden();
+      if (e.status === 404) return notFound();
+      return err(400, "invalid", e.message);
     }
-    const facultyName = session.name || "Dr. R. Prakash, MD";
-    const approved = approveClinicalCase(body.id, facultyName);
-    if (!approved) return notFound();
-    return ok({ ok: true, case: approved });
+    throw e;
   }
-
-  if (method === "GET" && segs[1] === "dops") {
-    return ok({ skills: listDopsSkills() });
-  }
-
-  if (method === "POST" && segs[1] === "dops" && segs[2] === "submit") {
-    let body: any = rawBody;
-    if (typeof body === "string") {
-      try {
-        body = JSON.parse(body);
-      } catch {}
-    }
-    const updated = submitDopsSkill({
-      code: body.code || body.procedure,
-      notes: body.notes,
-      supervisor: body.supervisor,
-      studentName: session.name || "Aishwarya V.",
-    });
-    return ok({ ok: true, skill: updated });
-  }
-
-  if (method === "POST" && segs[1] === "dops" && segs[2] === "approve") {
-    let body: any = rawBody;
-    if (typeof body === "string") {
-      try {
-        body = JSON.parse(body);
-      } catch {}
-    }
-    const supervisor = session.name || "Dr. R. Prakash, MD";
-    const certified = approveDopsSkill(body.code, supervisor);
-    return ok({ ok: true, skill: certified });
-  }
-
-  return notFound();
 }

@@ -81,6 +81,7 @@ import { IncubationPipelineModule } from "./bespoke/incubation-pipeline";
 import { MentorNetworkModule } from "./bespoke/mentors";
 import { StartupsPortfolioModule } from "./bespoke/startups";
 import { FundingReadinessModule } from "./bespoke/funding-readiness";
+import { NaacReadinessModule } from "./bespoke/naac-readiness";
 import { TalentSearchModule } from "./bespoke/talent-search";
 import { ShortlistsModule } from "./bespoke/shortlists";
 import { RecruiterInterviewsModule } from "./bespoke/recruiter-interviews";
@@ -176,6 +177,7 @@ const BESPOKE: Record<string, (props: { role: Role }) => React.ReactNode> = {
   mentors: ({ role }) => <MentorNetworkModule role={role} />,
   startups: ({ role }) => <StartupsPortfolioModule role={role} />,
   "funding-readiness": ({ role }) => <FundingReadinessModule role={role} />,
+  "naac-readiness": ({ role }) => <NaacReadinessModule role={role} />,
 };
 
 

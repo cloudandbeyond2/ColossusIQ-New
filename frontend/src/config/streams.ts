@@ -162,10 +162,13 @@ export const STREAM_DEFS: Record<Stream, StreamDef> = {
     programs: [
       "B.A. Tamil",
       "B.A. English",
+      "B.A. History",
       "B.A. Economics",
       "B.Sc. Mathematics",
       "B.Sc. Physics",
       "B.Sc. Chemistry",
+      "B.Sc. Botany",
+      "B.Sc. Zoology",
       "B.Sc. Computer Science",
       "B.Com",
       "BCA",
