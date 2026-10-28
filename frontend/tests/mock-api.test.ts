@@ -716,6 +716,32 @@ describe("Academic calendar API and dynamic live management", () => {
     const deleteRes = await dispatch("DELETE", ["academic-calendar", "cal-gandhi-jayanti"], undefined, studentSession, new URLSearchParams());
     expect(deleteRes.status).toBe(403);
   });
+
+  it("scopes HOD calendar entries to HOD's own department", async () => {
+    const hodSession = session("hod");
+    const overviewRes = await dispatch("GET", ["academic-calendar"], undefined, hodSession, new URLSearchParams());
+    expect(overviewRes.status).toBe(200);
+    const overview = overviewRes.body as { userDepartment?: string; departments: string[] };
+    expect(overview.userDepartment).toBe("Computer Science & Engineering");
+    expect(overview.departments).toContain("Computer Science & Engineering");
+
+    const payload = {
+      title: "HOD Department Review Meeting",
+      date: "2026-11-05",
+      time: "10:00 AM - 11:30 AM",
+      tag: "Event",
+      department: "All Departments", // HOD might submit this or client default
+      venue: "CSE Conference Hall",
+      description: "Quarterly syllabus completion review for department faculty.",
+      audience: "Faculty",
+    };
+    const postRes = await dispatch("POST", ["academic-calendar"], payload, hodSession, new URLSearchParams());
+    expect(postRes.status).toBe(200);
+    const created = postRes.body as { id: string; title: string; department: string };
+    expect(created.title).toBe("HOD Department Review Meeting");
+    // Verify department is strictly scoped to HOD's own department
+    expect(created.department).toBe("Computer Science & Engineering");
+  });
 });
 
 describe("Security settings and runtime actions", () => {
