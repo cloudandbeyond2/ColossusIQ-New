@@ -227,6 +227,7 @@ import { dispatchPrepContent } from "./prep-content";
 import { dispatchAiProviders } from "./ai-providers";
 import { dispatchCertificateDesk } from "./certificate-desk";
 import { dispatchModuleControl } from "./module-control";
+import { agentAllowed, AgentStoreError, getAgentStore, setAgentEnabled } from "./agent-store";
 import { dispatchNotices, noticeNotifications } from "./notices";
 import { dispatchContentDesk } from "./content-desk";
 import { dispatchCurriculum } from "./curriculum";
@@ -249,6 +250,7 @@ import { dispatchJobs } from "./jobs";
 import { dispatchAlumni } from "./alumni";
 import { dispatchInterview } from "./interview";
 import { ChatBodySchema } from "@/lib/api/mentor-schemas";
+import { AgentToggleBody } from "@/lib/api/agent-store-schemas";
 import { dispatchNotifications } from "./notifications";
 import { audit, recentAudit } from "./audit";
 import { createStudent, deleteStudent, getStudentsList, importStudents, updateStudent } from "./students-store";
@@ -506,6 +508,8 @@ export const PATTERNS = [
   "POST team-finder/invite",
   "POST team-finder/apply",
   "POST ai/chat",
+  "GET agents/store",
+  "PUT agents/store",
   "POST ai/generate",
   "POST ai/interview/start",
   "POST ai/interview/respond",
@@ -2013,10 +2017,27 @@ export async function dispatch(method: string, segs: string[], rawBody: unknown,
     }
 
     /* ── AI ── */
+    case "GET agents/store": {
+      try {
+        return ok(await getAgentStore(session));
+      } catch (e) {
+        return agentStoreFail(e);
+      }
+    }
+    case "PUT agents/store": {
+      const parsed = AgentToggleBody.safeParse(rawBody);
+      if (!parsed.success) return err(400, "invalid_body", "Choose an agent and whether it is on or off.");
+      try {
+        return ok(await setAgentEnabled(session, parsed.data.agent, parsed.data.enabled));
+      } catch (e) {
+        return agentStoreFail(e);
+      }
+    }
     case "POST ai/chat": {
       if (!can(session.role, "ai:chat")) return forbidden();
       const parsed = ChatBody.safeParse(rawBody);
       if (!parsed.success) return err(400, "invalid_body", "Message must be 1–2000 characters.");
+      if (!(await agentAllowed(session, parsed.data.agent))) return err(403, "agent_disabled", "This assistant is switched off for your college.");
       if (parsed.data.agent === "mentor") return mentorChat(session, parsed.data);
       if (parsed.data.agent === "language") return languageChat(session, parsed.data);
       if (parsed.data.agent === "research") return researchChat(session, parsed.data);
@@ -2028,6 +2049,7 @@ export async function dispatch(method: string, segs: string[], rawBody: unknown,
       if (!parsed.success) return err(400, "invalid_body", "Invalid generator input.");
       const mod = findModule(parsed.data.module);
       if (!mod || !mod.roles.includes(session.role) || !(await moduleEnabled(mod, session))) return forbidden();
+      if (!(await agentAllowed(session, mod.agent))) return err(403, "agent_disabled", "This assistant is switched off for your college.");
       const inputs = Object.fromEntries(Object.entries(parsed.data.inputs).map(([key, v]) => [key, cleanText(v, 4000)]));
       return ok(await generate(parsed.data.module, inputs));
     }
@@ -2548,6 +2570,15 @@ async function dispatchFaculty(
   return notFound();
 }
 
+
+function agentStoreFail(e: unknown): MockResult {
+  if (e instanceof AgentStoreError) {
+    if (e.status === 403) return forbidden();
+    if (e.status === 404) return notFound();
+    return err(400, "invalid", e.message);
+  }
+  throw e;
+}
 
 async function dispatchClinical(
   method: string,

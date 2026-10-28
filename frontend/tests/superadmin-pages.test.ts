@@ -40,6 +40,7 @@ const BESPOKE_API: Record<string, string[]> = {
   "my-classes": ["faculty/me/allocations"],
   billing: ["billing/overview"],
   "student-fees": ["fees/college"],
+  "agent-store": ["agents/store"],
   "department-skills": ["department-skills"],
   "early-warning": ["early-warning"],
   "placement-board": ["placement/board"],

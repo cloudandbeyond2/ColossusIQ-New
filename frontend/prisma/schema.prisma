@@ -340,6 +340,7 @@ model College {
   placementEmployers    PlacementEmployer[]
   incubationVentures    IncubationVenture[]
   clinicalCases         ClinicalCase[]
+  agentDisabled         AgentDisabled[]
   clinicalSkills        ClinicalSkill[]
   incubationStartups    IncubationStartup[]
   incubationMentors     IncubationMentor[]
@@ -2634,4 +2635,15 @@ model ClinicalSkill {
   @@index([collegeId, performedOn(sort: Desc)], map: "clinical_skills_college_idx")
   @@index([collegeId, studentSub], map: "clinical_skills_student_idx")
   @@map("clinical_skills")
+}
+
+model AgentDisabled {
+  collegeId String @map("college_id") @db.Uuid
+  agentId String @map("agent_id")
+  updatedBy String @default("") @map("updated_by")
+  updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+  college College @relation(fields: [collegeId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([collegeId, agentId])
+  @@map("agent_disabled")
 }

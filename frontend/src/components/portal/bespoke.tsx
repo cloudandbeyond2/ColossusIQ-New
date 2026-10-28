@@ -66,6 +66,7 @@ import { ClassAnalyticsModule } from "./bespoke/class-analytics";
 import { FeePaymentModule } from "./bespoke/fee-payment";
 import { BillingModule } from "./bespoke/billing";
 import { StudentFeesModule } from "./bespoke/student-fees";
+import { AgentStoreModule } from "./bespoke/agent-store";
 import { BrandingModule } from "./bespoke/branding";
 import { HackathonsModule } from "./bespoke/hackathons";
 import { TeamFinderModule } from "./bespoke/team-finder";
@@ -171,6 +172,7 @@ const BESPOKE: Record<string, (props: { role: Role }) => React.ReactNode> = {
   "fee-payment": () => <FeePaymentModule />,
   billing: () => <BillingModule />,
   "student-fees": () => <StudentFeesModule />,
+  "agent-store": () => <AgentStoreModule />,
   hackathons: ({ role }) => <HackathonsModule role={role} />,
   "question-generator": ({ role }) => <QuestionGeneratorModule role={role} />,
   "incubation-pipeline": ({ role }) => <IncubationPipelineModule role={role} />,

@@ -31,7 +31,7 @@ import { sportsData } from "./sports-data";
 import { visibleCalendarItems } from "./academic-calendar";
 import { getStudentsList } from "./students-store";
 import { kbStore } from "./knowledge-store";
-import { agentStorePage, aiGovernancePage, aiObservabilityPage, developerApiPage } from "./platform-pages";
+import { aiGovernancePage, aiObservabilityPage, developerApiPage } from "./platform-pages";
 import type { SessionPayload } from "@/lib/auth/session";
 import {
   generateDynamicAcademicTracker,
@@ -1308,7 +1308,6 @@ const DATA: Record<string, (collegeScope: string, live: ScopeData) => ModuleData
       ["Research & Analytics Lab", "Data analysis, case studies and reporting", "Department", "Active", "sky"],
     ]);
   },
-  "agent-store": () => agentStorePage(),
 
   /* ── settings ── */
   branding: (collegeScope?: string): Promise<SettingsData> => brandingDefaults(collegeScope ?? ALL_COLLEGES),
