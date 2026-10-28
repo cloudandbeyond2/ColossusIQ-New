@@ -214,6 +214,7 @@ import { dispatchCourses } from "./course-builder";
 import { dispatchTeaching } from "./teaching";
 import { assignmentNotifications, dispatchAssignments } from "./assignments";
 import { dispatchKnowledge } from "./knowledge-base";
+import { campusAssistantChat } from "./campus-assistant";
 import { dispatchPolicy } from "./policy-assistant";
 import { dispatchQuestionAi, dispatchQuestionBankFolders } from "./question-ai";
 import { dispatchMentor, mentorChat } from "./mentor";
@@ -2076,6 +2077,7 @@ export async function dispatch(method: string, segs: string[], rawBody: unknown,
       if (parsed.data.agent === "mentor") return mentorChat(session, parsed.data);
       if (parsed.data.agent === "language") return languageChat(session, parsed.data);
       if (parsed.data.agent === "research") return researchChat(session, parsed.data);
+      if (parsed.data.agent === "knowledge") return campusAssistantChat(session, parsed.data);
       return ok(chatReply(parsed.data.agent, cleanText(parsed.data.message, 2000)));
     }
     case "POST ai/generate": {
