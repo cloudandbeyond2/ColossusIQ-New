@@ -18,6 +18,7 @@ import { ROLE_HOMES } from "./homes";
 import { roleHomeFor, studentCourses, studentDashboard } from "./stream-content";
 import { dynamicInstitutionHome } from "./institution-home";
 import { dynamicFacultyHome } from "./faculty-home";
+import { dynamicHodHome } from "./hod-home";
 import { placementHome, placementSnapshot } from "./placement-stats";
 import { dynamicBiAnalytics } from "./bi-analytics";
 import { moduleData } from "./module-data";
@@ -1119,6 +1120,15 @@ export async function dispatch(method: string, segs: string[], rawBody: unknown,
           console.error("[GET home/faculty] Error:", e);
         }
       }
+      if (role === "hod") {
+        try {
+          return ok(await dynamicHodHome(session));
+        } catch (e) {
+          // Never fall back to the sample home: a failure should show as an error, not as made-up numbers.
+          console.error("[GET home/hod] Error:", e);
+          return err(500, "home_failed", "The department dashboard could not be loaded.");
+        }
+      }
       const inCollege = session.college !== ALL_COLLEGES;
       const staticHome = ROLE_HOMES[role as Exclude<typeof session.role, "student">];
       // Placement works from live readiness and drive data; the other roles still show their sample home.
@@ -1134,7 +1144,6 @@ export async function dispatch(method: string, segs: string[], rawBody: unknown,
         const collegePublicId = inCollege ? session.college : null;
         const studentsList = await getStudentsList({
           collegeId: collegePublicId,
-          ...(role === "hod" && userDept ? { department: userDept } : {}),
         });
         const studentCount = studentsList.length;
         res.kpis = res.kpis.map((k) =>
@@ -1149,9 +1158,6 @@ export async function dispatch(method: string, segs: string[], rawBody: unknown,
         if (role === "faculty") {
           const deptSuffix = userDept ? ` · ${userDept.startsWith("Department of") ? userDept : `Dept of ${userDept}`}` : "";
           res.greeting = `${greet}, ${session.name}${deptSuffix}`;
-        } else if (role === "hod") {
-          const deptLabel = userDept ? (userDept.startsWith("Department of") ? userDept : `Department of ${userDept}`) : "Department Intelligence";
-          res.greeting = `${greet}, ${session.name} · ${deptLabel}`;
         } else if (role === "placement") {
           res.greeting = `${greet}, ${session.name} · Training & Placement`;
         } else if (role === "recruiter") {
