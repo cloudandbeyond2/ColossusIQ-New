@@ -66,220 +66,42 @@ const EMPTY_POSTING: RotationEntry = {
   clinicalFocus: "-",
 };
 
-const DEFAULT_ROADMAP: RotationEntry[] = [
-  {
-    id: "ROT-1001",
-    department: "General Medicine",
-    unit: "Unit I · Medical Ward 4",
-    duration: "6 Weeks",
-    dates: "Aug 15, 2026 – Sep 28, 2026",
-    supervisor: "Dr. R. Prakash, MD",
-    attendance: 92,
-    totalDays: 36,
-    attendedDays: 33,
-    competenciesCertified: 14,
-    competenciesRequired: 14,
-    status: "Completed",
-    clinicalFocus: "Bedside history clerking, CVS/RS murmurs, ECG rhythm, Lumbar puncture observation",
-  },
-  {
-    id: "ROT-1002",
-    department: "General Surgery",
-    unit: "Unit II · Male Surgical Ward 14",
-    duration: "4 Weeks",
-    dates: "Oct 01, 2026 – Oct 28, 2026",
-    supervisor: "Dr. R. Prakash, MD",
-    attendance: 88,
-    totalDays: 25,
-    attendedDays: 22,
-    competenciesCertified: 6,
-    competenciesRequired: 8,
-    status: "Ongoing",
-    clinicalFocus: "Pre/post-op care, sterile scrubbing, suturing, Ryle's tube, Foley catheterization",
-  },
-  {
-    id: "ROT-1003",
-    department: "Obstetrics & Gynaecology",
-    unit: "Unit III · Labour Ward & Antenatal OPD",
-    duration: "4 Weeks",
-    dates: "Nov 01, 2026 – Nov 28, 2026",
-    supervisor: "Dr. K. Meenakshi, MD (OBG)",
-    attendance: 0,
-    totalDays: 24,
-    attendedDays: 0,
-    competenciesCertified: 0,
-    competenciesRequired: 10,
-    status: "Scheduled",
-    clinicalFocus: "Antenatal examination, Leopold manoeuvres, Partograph monitoring, Normal delivery assistance",
-  },
-  {
-    id: "ROT-1004",
-    department: "Paediatrics",
-    unit: "Unit I · Child Ward & NICU",
-    duration: "4 Weeks",
-    dates: "Dec 01, 2026 – Dec 28, 2026",
-    supervisor: "Dr. S. Ramesh, MD (Paed)",
-    attendance: 0,
-    totalDays: 24,
-    attendedDays: 0,
-    competenciesCertified: 0,
-    competenciesRequired: 8,
-    status: "Scheduled",
-    clinicalFocus: "Developmental milestones, neonatal reflex testing, pediatric drug calculation, immunization",
-  },
-  {
-    id: "ROT-1005",
-    department: "Emergency Medicine / Casualty",
-    unit: "24x7 Acute Trauma Centre & Triage",
-    duration: "2 Weeks",
-    dates: "Jan 02, 2027 – Jan 15, 2027",
-    supervisor: "Dr. V. Karthik, MD (Emergency)",
-    attendance: 0,
-    totalDays: 12,
-    attendedDays: 0,
-    competenciesCertified: 0,
-    competenciesRequired: 6,
-    status: "Scheduled",
-    clinicalFocus: "BLS/ACLS resuscitation, trauma primary survey, IV cannula, airway management",
-  },
-  {
-    id: "ROT-1006",
-    department: "Orthopaedics",
-    unit: "Unit II · Fracture Clinic & Ortho Ward",
-    duration: "2 Weeks",
-    dates: "Jan 16, 2027 – Jan 29, 2027",
-    supervisor: "Dr. M. Soundararajan, MS (Ortho)",
-    attendance: 0,
-    totalDays: 12,
-    attendedDays: 0,
-    competenciesCertified: 0,
-    competenciesRequired: 5,
-    status: "Scheduled",
-    clinicalFocus: "Plaster slab application, Thomas splint, joint examination, fracture X-ray interpretation",
-  },
-];
-
 interface ProcedureSkill {
   id: string;
   name: string;
   code: string;
   level: "Shows How" | "Performs";
-  status: "Certified" | "Pending Review" | "To be Attempted";
+  status: "Certified" | "Pending Review" | "Rejected";
   certifier?: string;
   date?: string;
   notes?: string;
   studentName?: string;
 }
 
-const DEFAULT_COMPETENCIES: ProcedureSkill[] = [
-  {
-    id: "SK-01",
-    name: "Aseptic hand scrubbing, gowning and sterile gloving",
-    code: "SU11.1",
-    level: "Shows How",
-    status: "Certified",
-    certifier: "Dr. R. Prakash, MD",
-    date: "04 Oct 2026",
-  },
-  {
-    id: "SK-02",
-    name: "Simple interrupted surgical suturing & instrument knot tying",
-    code: "SU14.3",
-    level: "Performs",
-    status: "Certified",
-    certifier: "Dr. R. Prakash, MD",
-    date: "08 Oct 2026",
-  },
-  {
-    id: "SK-03",
-    name: "Nasogastric (Ryle's) tube insertion and verification",
-    code: "SU17.2",
-    level: "Performs",
-    status: "Certified",
-    certifier: "Dr. S. Anbarasu (SR)",
-    date: "11 Oct 2026",
-  },
-  {
-    id: "SK-04",
-    name: "Urinary Foley catheterization with sterile precautions",
-    code: "SU20.1",
-    level: "Performs",
-    status: "Certified",
-    certifier: "Dr. R. Prakash, MD",
-    date: "14 Oct 2026",
-  },
-  {
-    id: "SK-05",
-    name: "Pre-operative evaluation & WHO Surgical Safety Checklist",
-    code: "SU10.2",
-    level: "Shows How",
-    status: "Certified",
-    certifier: "Dr. S. Anbarasu (SR)",
-    date: "16 Oct 2026",
-  },
-  {
-    id: "SK-06",
-    name: "Post-operative surgical wound dressing & drain inspection",
-    code: "SU14.5",
-    level: "Performs",
-    status: "Certified",
-    certifier: "Dr. R. Prakash, MD",
-    date: "19 Oct 2026",
-  },
-  {
-    id: "SK-07",
-    name: "Digital rectal examination & proctoscopy assist",
-    code: "SU22.4",
-    level: "Shows How",
-    status: "Pending Review",
-    certifier: "Submitted to Dr. Anbarasu",
-    date: "Yesterday",
-    studentName: "Aishwarya V.",
-    notes: "Observed and assisted Senior Resident during proctoscopy. Anal sphincteric tone assessed, no external haemorrhoids, rectal mucosa inspected under proper illumination.",
-  },
-  {
-    id: "SK-08",
-    name: "Incision and drainage of superficial cutaneous abscess",
-    code: "SU15.1",
-    level: "Performs",
-    status: "To be Attempted",
-  },
-];
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
-const DEFAULT_PATIENTS = [
-  {
-    bed: "Bed 14",
-    patient: "Murugesan K., 42 M",
-    diagnosis: "Acute Appendicitis with Localized Peritonitis",
-    date: "21 Oct 2026",
-    status: "Approved",
-    faculty: "Dr. R. Prakash, MD",
-  },
-  {
-    bed: "Bed 19",
-    patient: "Selvam P., 56 M",
-    diagnosis: "Right Inguinal Hernia (Direct) - For Lichtenstein Mesh Repair",
-    date: "18 Oct 2026",
-    status: "Approved",
-    faculty: "Dr. S. Anbarasu (SR)",
-  },
-  {
-    bed: "Bed 22",
-    patient: "Ganesan R., 61 M",
-    diagnosis: "Diabetic Foot Ulcer (Wagner Grade 3) with Neuropathy",
-    date: "15 Oct 2026",
-    status: "Approved",
-    faculty: "Dr. R. Prakash, MD",
-  },
-];
+/** "2026-10-21" -> "21 Oct 2026"; anything else is shown as given. */
+function fmtDay(v: unknown): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(v ?? ""));
+  if (!m) return v ? String(v) : "-";
+  return `${Number(m[3])} ${MONTHS[Number(m[2]) - 1] ?? ""} ${m[1]}`;
+}
+
+function weeksBetween(a: unknown, b: unknown): string {
+  const s = Date.parse(String(a ?? ""));
+  const e = Date.parse(String(b ?? ""));
+  if (!Number.isFinite(s) || !Number.isFinite(e) || e < s) return "-";
+  const weeks = Math.max(1, Math.ceil((Math.round((e - s) / 86400000) + 1) / 7));
+  return `${weeks} Week${weeks > 1 ? "s" : ""}`;
+}
 
 export function ClinicalRotationsModule({ role }: { role?: Role }) {
   const isFacultyOrAdmin = role === "faculty" || role === "hod" || role === "institution" || role === "admin";
   const [activeTab, setActiveTab] = useState<StudentTab>("active");
   const [caseModalOpen, setCaseModalOpen] = useState(false);
   const [procedureModalOpen, setProcedureModalOpen] = useState(false);
-  const [newPatient, setNewPatient] = useState({ bed: "", name: "", age: "", diagnosis: "", complaints: "" });
-  const [newProcedure, setNewProcedure] = useState({ procedure: "SU15.1", notes: "", supervisor: "Dr. R. Prakash, MD" });
+  const [newPatient, setNewPatient] = useState({ bed: "", name: "", age: "", diagnosis: "", complaints: "", faculty: "" });
+  const [newProcedure, setNewProcedure] = useState({ code: "", name: "", level: "Performs", notes: "", supervisor: "" });
   const [viewingSkillNotes, setViewingSkillNotes] = useState<ProcedureSkill | null>(null);
   const [toast, setToast] = useState<string | null>(null);
 
@@ -296,14 +118,14 @@ export function ClinicalRotationsModule({ role }: { role?: Role }) {
     queryKey: ["clinical", "cases"],
     queryFn: () => apiFetch("/api/v1/clinical/cases", z.any()),
   });
-  const caseList = casesData?.cases ?? DEFAULT_PATIENTS;
+  const caseList = casesData?.cases ?? [];
 
   // ── 3. Live Procedural Skills via API ──
   const { data: dopsData } = useQuery({
     queryKey: ["clinical", "dops"],
     queryFn: () => apiFetch("/api/v1/clinical/dops", z.any()),
   });
-  const skillsList: ProcedureSkill[] = dopsData?.skills ?? DEFAULT_COMPETENCIES;
+  const skillsList: ProcedureSkill[] = dopsData?.skills ?? [];
 
   const createCaseMutation = useMutation({
     mutationFn: (data: any) =>
@@ -315,7 +137,7 @@ export function ClinicalRotationsModule({ role }: { role?: Role }) {
       qc.invalidateQueries({ queryKey: ["clinical", "cases"] });
       showToast("Case sheet logged and submitted for faculty verification!");
       setCaseModalOpen(false);
-      setNewPatient({ bed: "", name: "", age: "", diagnosis: "", complaints: "" });
+      setNewPatient({ bed: "", name: "", age: "", diagnosis: "", complaints: "", faculty: "" });
     },
   });
 
@@ -341,18 +163,37 @@ export function ClinicalRotationsModule({ role }: { role?: Role }) {
       qc.invalidateQueries({ queryKey: ["clinical", "dops"] });
       showToast("DOPS skill submitted to supervisor for digital sign-off!");
       setProcedureModalOpen(false);
+      setNewProcedure({ code: "", name: "", level: "Performs", notes: "", supervisor: "" });
     },
   });
 
   const approveDopsMutation = useMutation({
-    mutationFn: (code: string) =>
+    mutationFn: (id: string) =>
       apiFetch("/api/v1/clinical/dops/approve", z.any(), {
         method: "POST",
-        body: { code },
+        body: { id },
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["clinical", "dops"] });
       showToast("DOPS skill signed off and certified!");
+    },
+  });
+
+  const rejectCaseMutation = useMutation({
+    mutationFn: (id: string) =>
+      apiFetch("/api/v1/clinical/cases/reject", z.any(), { method: "POST", body: { id } }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["clinical", "cases"] });
+      showToast("Case sheet returned as rejected.");
+    },
+  });
+
+  const rejectDopsMutation = useMutation({
+    mutationFn: (id: string) =>
+      apiFetch("/api/v1/clinical/dops/reject", z.any(), { method: "POST", body: { id } }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["clinical", "dops"] });
+      showToast("DOPS skill returned as rejected.");
     },
   });
 
@@ -368,33 +209,41 @@ export function ClinicalRotationsModule({ role }: { role?: Role }) {
       return apiData.items.map((item, i) => {
         const isScheduled = item.status === "Scheduled";
         const att = isScheduled ? 0 : (typeof item.attendance === "number" ? item.attendance : 0);
-        const total = 25;
-        const attended = Math.round((att / 100) * total);
+        const total = typeof item.totalDays === "number" ? item.totalDays : 0;
+        const attended = typeof item.attendedDays === "number" ? item.attendedDays : 0;
         const signed = isScheduled ? 0 : (typeof item.competenciesSigned === "number" ? item.competenciesSigned : 0);
         return {
           id: String(item.id || `ROT-${1001 + i}`),
-          department: String(item.department || "General Surgery"),
-          unit: String(item.unit || "Unit II · Ward 14"),
-          duration: "4 Weeks",
-          dates: `${item.startDate || "2026-10-01"} – ${item.endDate || "2026-10-28"}`,
-          supervisor: String(item.supervisor || "Dr. R. Prakash, MD"),
+          department: String(item.department || "-"),
+          unit: String(item.unit || "-"),
+          duration: weeksBetween(item.startDate, item.endDate),
+          dates: item.startDate && item.endDate ? `${fmtDay(item.startDate)} - ${fmtDay(item.endDate)}` : "-",
+          supervisor: String(item.supervisor || "-"),
           attendance: att,
           totalDays: total,
           attendedDays: attended,
           competenciesCertified: signed,
-          competenciesRequired: 8,
+          competenciesRequired: typeof item.competenciesRequired === "number" ? item.competenciesRequired : 0,
           status: (item.status as any) || "Ongoing",
-          clinicalFocus: String(item.remarks || "Bedside clinical training & case clerking"),
+          clinicalFocus: String(item.remarks || ""),
         };
       });
     }
-    return DEFAULT_ROADMAP;
+    return [];
   }, [apiData]);
 
   // Active ongoing posting
   const activePosting = useMemo(() => {
-    return roadmap.find((r) => r.status === "Ongoing") ?? roadmap[0] ?? DEFAULT_ROADMAP[1] ?? EMPTY_POSTING;
+    return roadmap.find((r) => r.status === "Ongoing") ?? roadmap[0] ?? EMPTY_POSTING;
   }, [roadmap]);
+
+  // Cases and skills waiting for a doctor's sign-off
+  const pendingSignoffs = useMemo(
+    () =>
+      caseList.filter((c: { status?: string }) => c.status === "Pending").length +
+      skillsList.filter((x) => x.status === "Pending Review").length,
+    [caseList, skillsList],
+  );
 
   // Dynamic count of DOPS certified
   const totalCertifiedSkills = useMemo(() => {
@@ -523,7 +372,7 @@ export function ClinicalRotationsModule({ role }: { role?: Role }) {
             <span className="text-2xl font-semibold text-ink">
               {isApiLoading ? "..." : `${activePosting.attendance}%`}
             </span>
-            <span className="text-xs text-ink-3">({activePosting.attendedDays}/{activePosting.totalDays}d)</span>
+            {activePosting.totalDays > 0 ? <span className="text-xs text-ink-3">({activePosting.attendedDays}/{activePosting.totalDays}d)</span> : null}
           </div>
           <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-line">
             <div className="h-full rounded-full bg-brand transition-all" style={{ width: `${activePosting.attendance}%` }} />
@@ -541,16 +390,16 @@ export function ClinicalRotationsModule({ role }: { role?: Role }) {
             </span>
             <span className="text-xs text-ink-3">/ {skillsList.length} Signed</span>
           </div>
-          <p className="mt-1 text-xs text-ink-3">Surgery Unit II Logbook</p>
+          <p className="mt-1 text-xs text-ink-3">Signed-off procedures</p>
         </Card>
 
         {/* Daily Rounds Status */}
         <Card className="p-5">
           <p className="flex items-center gap-2 text-sm text-ink-3">
-            <Clock className="size-4" /> Daily Rounds
+            <Clock className="size-4" /> Awaiting Sign-off
           </p>
-          <p className="mt-1 text-2xl font-semibold text-ink">09:00 AM – 01:00 PM</p>
-          <p className="mt-1 text-xs text-ink-3 truncate">Unit Chief: {activePosting.supervisor}</p>
+          <p className="mt-1 text-2xl font-semibold text-ink">{pendingSignoffs}</p>
+          <p className="mt-1 text-xs text-ink-3 truncate">Cases and DOPS skills pending</p>
         </Card>
       </div>
 
@@ -559,7 +408,7 @@ export function ClinicalRotationsModule({ role }: { role?: Role }) {
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <div className="flex items-center gap-2">
-              <Badge tone="brand">MBBS Phase III Part 1</Badge>
+              <Badge tone="brand">{activePosting.status}</Badge>
               <span className="text-xs text-ink-3">Posting Duration: {activePosting.dates}</span>
               {apiData?.total ? (
                 <span className="rounded-md bg-surface-2 px-2 py-0.5 text-[10px] text-ink-3 font-mono">
@@ -722,17 +571,20 @@ export function ClinicalRotationsModule({ role }: { role?: Role }) {
                       <Badge tone={c.status === "Approved" ? "brand" : "gold"}>{c.status}</Badge>
                       {c.status === "Pending" && (
                         isFacultyOrAdmin ? (
-                          <button
-                            type="button"
-                            onClick={() => approveCaseMutation.mutate(c.id)}
+<>
+<button type="button" onClick={() => rejectCaseMutation.mutate(c.id)} disabled={rejectCaseMutation.isPending} className="rounded-lg border border-line px-2.5 py-1 text-[11px] font-semibold text-ink-3 hover:bg-surface-2" title="Return this case to the student">Reject</button>
+<button
+ type="button"
+ onClick={() => approveCaseMutation.mutate(c.id)}
                             disabled={approveCaseMutation.isPending}
                             className="rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-semibold px-2.5 py-1 flex items-center gap-1 shadow-sm transition-all"
                             title="Faculty sign-off on bedside case"
                           >
                             <Check className="size-3" />
                             Approve Case
-                          </button>
-                        ) : (
+</button>
+</>
+) : (
                           <span className="text-[11px] text-amber-600 font-medium italic">Awaiting Doctor Sign-off</span>
                         )
                       )}
@@ -757,13 +609,13 @@ export function ClinicalRotationsModule({ role }: { role?: Role }) {
                     </span>
                     <span className="flex items-center gap-1">
                       <Clock className="size-3.5" />
-                      <span>{c.date}</span>
+                      <span>{fmtDay(c.date)}</span>
                     </span>
                   </div>
                   {c.status === "Approved" && (
                     <div className="mt-2 flex items-center gap-1 text-[11px] font-medium text-emerald-600">
                       <CheckCircle2 className="size-3.5" />
-                      <span>Verified by {c.faculty}</span>
+                      <span>Verified by {c.verifiedBy || c.faculty || "faculty"}</span>
                     </div>
                   )}
                 </Card>
@@ -895,7 +747,7 @@ export function ClinicalRotationsModule({ role }: { role?: Role }) {
                           {s.certifier ? (
                             <div>
                               <p className="font-medium text-ink">{s.certifier}</p>
-                              {s.date ? <p className="mt-0.5 text-ink-3">{s.date}</p> : null}
+                              {s.date ? <p className="mt-0.5 text-ink-3">{fmtDay(s.date)}</p> : null}
                             </div>
                           ) : (
                             <span className="text-ink-3">—</span>
@@ -908,30 +760,24 @@ export function ClinicalRotationsModule({ role }: { role?: Role }) {
                             </span>
                           ) : s.status === "Pending Review" ? (
                             isFacultyOrAdmin ? (
-                              <button
-                                type="button"
-                                onClick={() => approveDopsMutation.mutate(s.code)}
+<span className="inline-flex items-center gap-2">
+<button type="button" onClick={() => rejectDopsMutation.mutate(s.id)} disabled={rejectDopsMutation.isPending} className="rounded-lg border border-line px-3 py-1.5 text-xs font-semibold text-ink-3 hover:bg-surface-2" title="Return this skill to the student">Reject</button>
+<button
+ type="button"
+ onClick={() => approveDopsMutation.mutate(s.id)}
                                 disabled={approveDopsMutation.isPending}
                                 className="rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 text-xs font-semibold inline-flex items-center gap-1.5 shadow-sm transition-all"
                                 title="Supervisor digital sign-off"
                               >
                                 <Check className="size-3.5" />
                                 Sign Off
-                              </button>
-                            ) : (
+</button>
+</span>
+) : (
                               <span className="text-xs text-amber-600 font-medium italic">Awaiting Sign-off</span>
                             )
                           ) : (
-                            <Button
-                              size="sm"
-                              variant="secondary"
-                              onClick={() => {
-                                setNewProcedure({ ...newProcedure, procedure: s.code });
-                                setProcedureModalOpen(true);
-                              }}
-                            >
-                              Submit DOPS
-                            </Button>
+                            <span className="text-xs font-medium text-red-600">Rejected</span>
                           )}
                         </td>
                       </tr>
@@ -1159,7 +1005,7 @@ export function ClinicalRotationsModule({ role }: { role?: Role }) {
 
                   <div className="mt-3 flex items-baseline justify-between text-xs">
                     <span className="text-ink-3">Attendance</span>
-                    <span className="font-semibold text-ink">{r.attendance}% ({r.attendedDays}/{r.totalDays}d)</span>
+                    <span className="font-semibold text-ink">{r.attendance}%{r.totalDays > 0 ? ` (${r.attendedDays}/${r.totalDays}d)` : ""}</span>
                   </div>
 
                   <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-line">
@@ -1244,10 +1090,13 @@ export function ClinicalRotationsModule({ role }: { role?: Role }) {
 
               <div>
                 <label className="font-semibold text-ink">Supervising Faculty</label>
-                <select className={cn(inputClass, "mt-1 w-full")}>
-                  <option>{activePosting.supervisor}</option>
-                  <option>Dr. S. Anbarasu (Senior Resident)</option>
-                </select>
+                <input
+                  type="text"
+                  placeholder={activePosting.supervisor !== "-" ? activePosting.supervisor : "Doctor who will verify this case"}
+                  value={newPatient.faculty}
+                  onChange={(e) => setNewPatient({ ...newPatient, faculty: e.target.value })}
+                  className={cn(inputClass, "mt-1 w-full")}
+                />
               </div>
             </div>
 
@@ -1263,11 +1112,11 @@ export function ClinicalRotationsModule({ role }: { role?: Role }) {
                     return;
                   }
                   createCaseMutation.mutate({
-                    bed: newPatient.bed || "Bed 27",
+                    bed: newPatient.bed,
                     patient: newPatient.name,
                     diagnosis: newPatient.diagnosis,
                     complaints: newPatient.complaints,
-                    faculty: activePosting.supervisor,
+                    faculty: newPatient.faculty || (activePosting.supervisor !== "-" ? activePosting.supervisor : ""),
                   });
                 }}
               >
@@ -1297,33 +1146,50 @@ export function ClinicalRotationsModule({ role }: { role?: Role }) {
             </div>
 
             <div className="mt-4 space-y-3 text-xs">
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="font-semibold text-ink">NMC Code</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. SU15.1"
+                    value={newProcedure.code}
+                    onChange={(e) => setNewProcedure({ ...newProcedure, code: e.target.value })}
+                    className={cn(inputClass, "mt-1 w-full")}
+                  />
+                </div>
+                <div className="col-span-2">
+                  <label className="font-semibold text-ink">Procedural Skill</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Incision and drainage of superficial abscess"
+                    value={newProcedure.name}
+                    onChange={(e) => setNewProcedure({ ...newProcedure, name: e.target.value })}
+                    className={cn(inputClass, "mt-1 w-full")}
+                  />
+                </div>
+              </div>
+
               <div>
-                <label className="font-semibold text-ink">Procedural Skill</label>
+                <label className="font-semibold text-ink">Competency Level</label>
                 <select
-                  value={newProcedure.procedure}
-                  onChange={(e) => setNewProcedure({ ...newProcedure, procedure: e.target.value })}
+                  value={newProcedure.level}
+                  onChange={(e) => setNewProcedure({ ...newProcedure, level: e.target.value })}
                   className={cn(inputClass, "mt-1 w-full")}
                 >
-                  {skillsList
-                    .filter((s) => s.status !== "Certified" || s.code === newProcedure.procedure)
-                    .map((s) => (
-                      <option key={s.id} value={s.code}>
-                        {s.code}: {s.name} ({s.level})
-                      </option>
-                    ))}
+                  <option value="Shows How">Shows How</option>
+                  <option value="Performs">Performs</option>
                 </select>
               </div>
 
               <div>
                 <label className="font-semibold text-ink">Observing Doctor</label>
-                <select
+                <input
+                  type="text"
+                  placeholder={activePosting.supervisor !== "-" ? activePosting.supervisor : "Doctor who observed the procedure"}
                   value={newProcedure.supervisor}
                   onChange={(e) => setNewProcedure({ ...newProcedure, supervisor: e.target.value })}
                   className={cn(inputClass, "mt-1 w-full")}
-                >
-                  <option>{activePosting.supervisor}</option>
-                  <option>Dr. S. Anbarasu (Senior Resident)</option>
-                </select>
+                />
               </div>
 
               <div>
@@ -1345,8 +1211,14 @@ export function ClinicalRotationsModule({ role }: { role?: Role }) {
               <Button
                 disabled={submitDopsMutation.isPending}
                 onClick={() => {
+                  if (!newProcedure.code.trim() || !newProcedure.name.trim() || !newProcedure.supervisor.trim()) {
+                    alert("Please enter the NMC code, the procedure and the observing doctor.");
+                    return;
+                  }
                   submitDopsMutation.mutate({
-                    code: newProcedure.procedure,
+                    code: newProcedure.code,
+                    name: newProcedure.name,
+                    level: newProcedure.level,
                     notes: newProcedure.notes,
                     supervisor: newProcedure.supervisor,
                   });
@@ -1375,7 +1247,7 @@ export function ClinicalRotationsModule({ role }: { role?: Role }) {
                   {viewingSkillNotes.name}
                 </h3>
                 <p className="mt-0.5 text-xs text-ink-3">
-                  Student: <strong className="text-ink">{viewingSkillNotes.studentName || "Aishwarya V."}</strong> · Level: {viewingSkillNotes.level}
+                  Student: <strong className="text-ink">{viewingSkillNotes.studentName || "Student"}</strong> · Level: {viewingSkillNotes.level}
                 </p>
               </div>
               <button
@@ -1408,7 +1280,7 @@ export function ClinicalRotationsModule({ role }: { role?: Role }) {
                   <button
                     type="button"
                     onClick={() => {
-                      approveDopsMutation.mutate(viewingSkillNotes.code);
+                      approveDopsMutation.mutate(viewingSkillNotes.id);
                       setViewingSkillNotes(null);
                     }}
                     disabled={approveDopsMutation.isPending}

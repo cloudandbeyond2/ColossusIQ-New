@@ -339,6 +339,8 @@ model College {
   placementDrives       PlacementDrive[]
   placementEmployers    PlacementEmployer[]
   incubationVentures    IncubationVenture[]
+  clinicalCases         ClinicalCase[]
+  clinicalSkills        ClinicalSkill[]
   incubationStartups    IncubationStartup[]
   incubationMentors     IncubationMentor[]
   incubationAssignments IncubationMentorAssignment[]
@@ -2588,4 +2590,48 @@ model IncubationMentorSession {
   mentor IncubationMentor @relation(fields: [mentorId], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@map("incubation_mentor_sessions")
+}
+
+model ClinicalCase {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  collegeId String @map("college_id") @db.Uuid
+  studentSub String @default("") @map("student_sub")
+  studentName String @map("student_name")
+  bed String @default("")
+  patient String
+  diagnosis String
+  complaints String @default("")
+  faculty String @default("")
+  status String @default("Pending")
+  caseDate DateTime @default(dbgenerated("CURRENT_DATE")) @map("case_date") @db.Date
+  verifiedBy String @default("") @map("verified_by")
+  verifiedAt DateTime? @map("verified_at") @db.Timestamptz(6)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  college College @relation(fields: [collegeId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([collegeId, caseDate(sort: Desc)], map: "clinical_cases_college_idx")
+  @@index([collegeId, studentSub], map: "clinical_cases_student_idx")
+  @@map("clinical_cases")
+}
+
+model ClinicalSkill {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  collegeId String @map("college_id") @db.Uuid
+  studentSub String @default("") @map("student_sub")
+  studentName String @map("student_name")
+  code String
+  name String
+  level String
+  notes String @default("")
+  supervisor String
+  status String @default("Pending Review")
+  performedOn DateTime @default(dbgenerated("CURRENT_DATE")) @map("performed_on") @db.Date
+  certifiedBy String @default("") @map("certified_by")
+  certifiedAt DateTime? @map("certified_at") @db.Timestamptz(6)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  college College @relation(fields: [collegeId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([collegeId, performedOn(sort: Desc)], map: "clinical_skills_college_idx")
+  @@index([collegeId, studentSub], map: "clinical_skills_student_idx")
+  @@map("clinical_skills")
 }
