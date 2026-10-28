@@ -56,7 +56,7 @@ function MiniBar({ data, seriesKey, color }: {
   color: string;
 }) {
   const values = data.map((d) => Number(d[seriesKey]) || 0);
-  const max = Math.max(...values, 1);
+  const max = values.reduce((a, b) => (b > a ? b : a), 1);
   return (
     <div className="flex items-end gap-1 h-16">
       {data.map((d, i) => {
@@ -186,7 +186,7 @@ export function AdmissionInsightsModule({ role: _role }: { role?: Role }) {
 
   const funnelData = funnelChart?.data ?? [];
   const funnelSeriesKey = funnelChart?.series[0] ?? "Applicants";
-  const funnelMax = Math.max(...funnelData.map((d) => Number(d[funnelSeriesKey] ?? 0)), 1);
+  const funnelMax = funnelData.reduce((a, d) => { const v = Number(d[funnelSeriesKey] ?? 0); return v > a ? v : a; }, 1);
 
   const categoryData = useMemo(
     () => (categoryChart?.data ?? []).map((d) => ({ name: String(d.name ?? ""), value: Number(d.value ?? 0) })),
@@ -195,7 +195,7 @@ export function AdmissionInsightsModule({ role: _role }: { role?: Role }) {
 
   const programData = (programChart?.data ?? []).slice(0, 8);
   const programSeriesKey = programChart?.series[0] ?? "Applications";
-  const programMax = Math.max(...programData.map((d) => Number(d[programSeriesKey] ?? 0)), 1);
+  const programMax = programData.reduce((a, d) => { const v = Number(d[programSeriesKey] ?? 0); return v > a ? v : a; }, 1);
 
   if (isLoading) return <TemplateSkeleton />;
   if (isError || !data) return <LoadError error={error} onRetry={() => refetch()} />;
