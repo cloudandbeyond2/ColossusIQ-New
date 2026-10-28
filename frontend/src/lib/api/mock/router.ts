@@ -17,6 +17,7 @@ import { getDeliveryLogs, recordDeliveryLog } from "./notifications-engine";
 import { ROLE_HOMES } from "./homes";
 import { roleHomeFor, studentCourses, studentDashboard } from "./stream-content";
 import { dynamicInstitutionHome } from "./institution-home";
+import { dynamicFacultyHome } from "./faculty-home";
 import { placementHome, placementSnapshot } from "./placement-stats";
 import { dynamicBiAnalytics } from "./bi-analytics";
 import { moduleData } from "./module-data";
@@ -1089,6 +1090,13 @@ export async function dispatch(method: string, segs: string[], rawBody: unknown,
           return ok(await dynamicIncubationHome(session));
         } catch (e) {
           return incubationFail(e);
+        }
+      }
+      if (role === "faculty") {
+        try {
+          return ok(await dynamicFacultyHome(session));
+        } catch (e) {
+          console.error("[GET home/faculty] Error:", e);
         }
       }
       const inCollege = session.college !== ALL_COLLEGES;
