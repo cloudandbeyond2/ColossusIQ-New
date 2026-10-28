@@ -46,11 +46,11 @@ export async function dynamicFacultyHome(session: SessionPayload): Promise<RoleH
   let classesTodayHint = "";
 
   if (classesTodayCount > 0) {
-    classesTodayHint = todaySlots.map((s) => s.shortName || s.section.split(" · ")[0]).join(", ");
+    classesTodayHint = todaySlots.map((s) => s.shortName || String(s.section.split(" · ")[0] || s.section)).join(", ");
   } else if (assigned.length > 0) {
     // If weekend or no timetable slot today, show total active teaching sections
     classesTodayCount = Math.min(assigned.length, 3);
-    classesTodayHint = assigned.slice(0, 3).map((s) => s.shortName || s.section.split(" · ")[0]).join(", ");
+    classesTodayHint = assigned.slice(0, 3).map((s) => s.shortName || String(s.section.split(" · ")[0] || s.section)).join(", ");
   } else {
     classesTodayCount = 0;
     classesTodayHint = "No classes scheduled today";
@@ -121,7 +121,7 @@ export async function dynamicFacultyHome(session: SessionPayload): Promise<RoleH
       ? "BCNF"
       : u.title.includes("ACID") || u.title.includes("Transaction")
       ? "ACID"
-      : u.title.split(/[:\s-]/)[0]?.slice(0, 6) || "Unit";
+      : String(u.title.split(/[:\s-]/)[0] || "Unit").slice(0, 6);
 
     return {
       name: label,
@@ -129,7 +129,7 @@ export async function dynamicFacultyHome(session: SessionPayload): Promise<RoleH
     };
   });
 
-  const secName = primarySec ? primarySec.section.split(" · ")[0] : "CSE-A";
+  const secName: string = String(primarySec?.section ? primarySec.section.split(" · ")[0] : "CSE-A") || "CSE-A";
   const topicMasteryChart: ChartSpec = {
     type: "bar",
     title: `Topic mastery — ${secName}`,
@@ -139,8 +139,8 @@ export async function dynamicFacultyHome(session: SessionPayload): Promise<RoleH
   };
 
   // Class Average Trend Line Chart
-  const sec1Label = primarySec ? primarySec.section.split(" · ")[0] : "CSE-A";
-  const sec2Label = secondarySec ? secondarySec.section.split(" · ")[0] : "CSE-B";
+  const sec1Label: string = String(primarySec?.section ? primarySec.section.split(" · ")[0] : "CSE-A") || "CSE-A";
+  const sec2Label: string = String(secondarySec?.section ? secondarySec.section.split(" · ")[0] : "CSE-B") || "CSE-B";
   const sec1Score = primarySec ? primarySec.averageScore : 68;
   const sec2Score = secondarySec ? secondarySec.averageScore : 64;
 
@@ -166,6 +166,7 @@ export async function dynamicFacultyHome(session: SessionPayload): Promise<RoleH
   };
 
   // ── Queue ("Needs your attention") ──────────────────────────────────
+  const nextLessonTitle: string = String(units[units.length - 2]?.title?.split(" ")[0] || "BCNF");
   const queue: QueueItem[] = [
     {
       title: `Review AI-evaluated answers (${pendingCount})`,
@@ -180,7 +181,7 @@ export async function dynamicFacultyHome(session: SessionPayload): Promise<RoleH
       tone: "brand",
     },
     {
-      title: `Lesson plan: ${units[units.length - 2]?.title.split(" ")[0] || "BCNF"}`,
+      title: `Lesson plan: ${nextLessonTitle}`,
       meta: `Tomorrow, ${secName}`,
       href: "/faculty/copilot",
       tone: "teal",
