@@ -92,6 +92,9 @@ import { OsceModule } from "./bespoke/osce";
 import { QuestionBankModule } from "./bespoke/question-bank";
 import { ClinicalRotationsModule } from "./bespoke/clinical-rotations";
 import { DepartmentAcademicsModule } from "./bespoke/department-academics";
+import { StaffModule } from "./bespoke/staff";
+import { CourseManagementModule } from "./bespoke/course-management";
+import { EventsModule } from "./bespoke/events";
 
 const BESPOKE: Record<string, (props: { role: Role }) => React.ReactNode> = {
   "question-bank": ({ role }) => <QuestionBankModule role={role} />,
@@ -184,6 +187,9 @@ const BESPOKE: Record<string, (props: { role: Role }) => React.ReactNode> = {
   "naac-readiness": ({ role }) => <NaacReadinessModule role={role} />,
   "admission-insights": ({ role }) => <AdmissionInsightsModule role={role} />,
   "department-academics": ({ role }) => <DepartmentAcademicsModule role={role} />,
+  staff: ({ role }) => <StaffModule role={role} />,
+  "course-management": ({ role }) => <CourseManagementModule role={role} />,
+  events: ({ role }) => <EventsModule role={role} />,
 };
 
 
