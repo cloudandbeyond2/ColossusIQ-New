@@ -91,6 +91,7 @@ import { PlacementAnalyticsModule } from "./bespoke/placement-analytics";
 import { OsceModule } from "./bespoke/osce";
 import { QuestionBankModule } from "./bespoke/question-bank";
 import { ClinicalRotationsModule } from "./bespoke/clinical-rotations";
+import { DepartmentAcademicsModule } from "./bespoke/department-academics";
 
 const BESPOKE: Record<string, (props: { role: Role }) => React.ReactNode> = {
   "question-bank": ({ role }) => <QuestionBankModule role={role} />,
@@ -119,7 +120,7 @@ const BESPOKE: Record<string, (props: { role: Role }) => React.ReactNode> = {
   reports: ({ role }) => <ReportsModule role={role} />,
   "event-generator": ({ role }) => <EventGeneratorModule role={role} />,
   "academic-calendar": ({ role }) => <AcademicCalendarModule role={role} />,
-  "bi-analytics": () => <BiAnalyticsModule />,
+  "bi-analytics": ({ role }) => <BiAnalyticsModule role={role} />,
   clubs: ({ role }) => <ClubsModule role={role} />,
   sports: () => <SportsModule />,
   "security-settings": () => <SecuritySettingsModule />,
@@ -182,6 +183,7 @@ const BESPOKE: Record<string, (props: { role: Role }) => React.ReactNode> = {
   "funding-readiness": ({ role }) => <FundingReadinessModule role={role} />,
   "naac-readiness": ({ role }) => <NaacReadinessModule role={role} />,
   "admission-insights": ({ role }) => <AdmissionInsightsModule role={role} />,
+  "department-academics": ({ role }) => <DepartmentAcademicsModule role={role} />,
 };
 
 
