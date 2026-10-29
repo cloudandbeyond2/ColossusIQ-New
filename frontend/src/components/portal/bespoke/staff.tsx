@@ -132,37 +132,39 @@ function StaffModal({
         </div>
 
         <div className="grid sm:grid-cols-2 gap-4">
-          <Field label="Full Name *">
-            <input className={inputClass} value={form.name} onChange={(e) => set("name", e.target.value)} placeholder="Dr. Name" />
+          <Field label="Full Name *" htmlFor="staff-name">
+            <input id="staff-name" className={inputClass} value={form.name} onChange={(e) => set("name", e.target.value)} placeholder="Dr. Name" />
           </Field>
-          <Field label="Staff ID *">
-            <input className={inputClass} value={form.staffId} onChange={(e) => set("staffId", e.target.value)} placeholder="STF001" />
+          <Field label="Staff ID *" htmlFor="staff-id">
+            <input id="staff-id" className={inputClass} value={form.staffId} onChange={(e) => set("staffId", e.target.value)} placeholder="STF001" />
           </Field>
-          <Field label="Role *">
-            <select className={inputClass} value={form.role} onChange={(e) => set("role", e.target.value)}>
+          <Field label="Role *" htmlFor="staff-role">
+            <select id="staff-role" className={inputClass} value={form.role} onChange={(e) => set("role", e.target.value)}>
               {STAFF_ROLES.map((r) => <option key={r}>{r}</option>)}
             </select>
           </Field>
-          <Field label="Department">
-            <input className={inputClass} value={form.department} onChange={(e) => set("department", e.target.value)} placeholder="CSE" />
+          <Field label="Department" htmlFor="staff-dept">
+            <input id="staff-dept" className={inputClass} value={form.department} onChange={(e) => set("department", e.target.value)} placeholder="CSE" />
           </Field>
-          <Field label="Email">
-            <input className={inputClass} type="email" value={form.email ?? ""} onChange={(e) => set("email", e.target.value)} placeholder="staff@college.edu" />
+          <Field label="Email" htmlFor="staff-email">
+            <input id="staff-email" className={inputClass} type="email" value={form.email ?? ""} onChange={(e) => set("email", e.target.value)} placeholder="staff@college.edu" />
           </Field>
-          <Field label="Phone">
-            <input className={inputClass} value={form.phone ?? ""} onChange={(e) => set("phone", e.target.value)} placeholder="9876543210" />
+          <Field label="Phone" htmlFor="staff-phone">
+            <input id="staff-phone" className={inputClass} value={form.phone ?? ""} onChange={(e) => set("phone", e.target.value)} placeholder="9876543210" />
           </Field>
-          <Field label="Status">
-            <select className={inputClass} value={form.status} onChange={(e) => set("status", e.target.value)}>
+          <Field label="Status" htmlFor="staff-status">
+            <select id="staff-status" className={inputClass} value={form.status} onChange={(e) => set("status", e.target.value)}>
               {STAFF_STATUSES.map((s) => <option key={s}>{s}</option>)}
             </select>
           </Field>
-          <Field label="Date Joined">
-            <input className={inputClass} type="date" value={form.joinedDate ?? ""} onChange={(e) => set("joinedDate", e.target.value)} />
+          <Field label="Date Joined" htmlFor="staff-joined">
+            <input id="staff-joined" className={inputClass} type="date" value={form.joinedDate ?? ""} onChange={(e) => set("joinedDate", e.target.value)} />
           </Field>
-          <Field label="Qualifications" className="sm:col-span-2">
-            <input className={inputClass} value={form.qualifications ?? ""} onChange={(e) => set("qualifications", e.target.value)} placeholder="PhD, M.Tech..." />
-          </Field>
+          <div className="sm:col-span-2">
+            <Field label="Qualifications" htmlFor="staff-qual">
+              <input id="staff-qual" className={inputClass} value={form.qualifications ?? ""} onChange={(e) => set("qualifications", e.target.value)} placeholder="PhD, M.Tech..." />
+            </Field>
+          </div>
         </div>
 
         <div className="flex justify-end gap-2 pt-2">

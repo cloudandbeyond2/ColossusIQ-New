@@ -90,7 +90,7 @@ export function AiObservabilityModule({ role }: Props) {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
-  const { data: raw, isLoading, error } = useQuery({
+  const { data: raw, isLoading, error, refetch } = useQuery({
     queryKey: ["ai-observability"],
     queryFn: async () => {
       const res = await apiFetch("/api/admin/ai-observability/logs", ResponseSchema);
@@ -152,7 +152,7 @@ export function AiObservabilityModule({ role }: Props) {
   }
 
   if (isLoading) return <TemplateSkeleton />;
-  if (error && !logs.length) return <LoadError message="Could not load AI observability logs." />;
+  if (error && !logs.length) return <LoadError error={error} onRetry={() => refetch()} />;
 
   return (
     <div className="space-y-6">
@@ -163,10 +163,10 @@ export function AiObservabilityModule({ role }: Props) {
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Every AI request across all tenants — agent, model, tokens, latency and cost.</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={copyJson}>
+          <Button variant="secondary" size="sm" onClick={copyJson}>
             {copied ? "Copied!" : "Copy JSON"}
           </Button>
-          <Button variant="outline" size="sm" onClick={exportCsv}>
+          <Button variant="secondary" size="sm" onClick={exportCsv}>
             Export CSV
           </Button>
         </div>

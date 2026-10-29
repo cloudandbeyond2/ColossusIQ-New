@@ -96,7 +96,7 @@ export function AuditLogModule({ role }: Props) {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
-  const { data: raw, isLoading, error } = useQuery({
+  const { data: raw, isLoading, error, refetch } = useQuery({
     queryKey: ["audit-log"],
     queryFn: async () => {
       const res = await apiFetch("/api/admin/audit-log", ResponseSchema);
@@ -159,7 +159,7 @@ export function AuditLogModule({ role }: Props) {
   }
 
   if (isLoading) return <TemplateSkeleton />;
-  if (error && !entries.length) return <LoadError message="Could not load audit log entries." />;
+  if (error && !entries.length) return <LoadError error={error} onRetry={() => refetch()} />;
 
   return (
     <div className="space-y-6">
@@ -172,8 +172,8 @@ export function AuditLogModule({ role }: Props) {
           </p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={copyJson}>{copied ? "Copied!" : "Copy JSON"}</Button>
-          <Button variant="outline" size="sm" onClick={exportCsv}>Export CSV</Button>
+          <Button variant="secondary" size="sm" onClick={copyJson}>{copied ? "Copied!" : "Copy JSON"}</Button>
+          <Button variant="secondary" size="sm" onClick={exportCsv}>Export CSV</Button>
         </div>
       </div>
 

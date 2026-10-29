@@ -135,45 +135,48 @@ function CourseModal({
           <button onClick={onClose}><X className="h-5 w-5 text-[var(--fg-muted)]" /></button>
         </div>
         <div className="grid sm:grid-cols-2 gap-4">
-          <Field label="Course Code *">
-            <input className={inputClass} value={form.code} onChange={(e) => set("code", e.target.value)} placeholder="CS301" />
+          <Field label="Course Code *" htmlFor="course-code">
+            <input id="course-code" className={inputClass} value={form.code} onChange={(e) => set("code", e.target.value)} placeholder="CS301" />
           </Field>
-          <Field label="Course Name *">
-            <input className={inputClass} value={form.name} onChange={(e) => set("name", e.target.value)} placeholder="Data Structures" />
+          <Field label="Course Name *" htmlFor="course-name">
+            <input id="course-name" className={inputClass} value={form.name} onChange={(e) => set("name", e.target.value)} placeholder="Data Structures" />
           </Field>
-          <Field label="Type">
-            <select className={inputClass} value={form.type} onChange={(e) => set("type", e.target.value as CourseType)}>
+          <Field label="Type" htmlFor="course-type">
+            <select id="course-type" className={inputClass} value={form.type} onChange={(e) => set("type", e.target.value as CourseType)}>
               {COURSE_TYPES.map((t) => <option key={t}>{t}</option>)}
             </select>
           </Field>
-          <Field label="Status">
-            <select className={inputClass} value={form.status} onChange={(e) => set("status", e.target.value as CourseStatus)}>
+          <Field label="Status" htmlFor="course-status">
+            <select id="course-status" className={inputClass} value={form.status} onChange={(e) => set("status", e.target.value as CourseStatus)}>
               {COURSE_STATUSES.map((s) => <option key={s}>{s}</option>)}
             </select>
           </Field>
-          <Field label="Credits">
-            <input className={inputClass} type="number" min={1} max={10} value={form.credits} onChange={(e) => set("credits", Number(e.target.value))} />
+          <Field label="Credits" htmlFor="course-credits">
+            <input id="course-credits" className={inputClass} type="number" min={1} max={10} value={form.credits} onChange={(e) => set("credits", Number(e.target.value))} />
           </Field>
-          <Field label="Hours / Semester">
-            <input className={inputClass} type="number" min={0} value={form.hours} onChange={(e) => set("hours", Number(e.target.value))} />
+          <Field label="Hours / Semester" htmlFor="course-hours">
+            <input id="course-hours" className={inputClass} type="number" min={0} value={form.hours} onChange={(e) => set("hours", Number(e.target.value))} />
           </Field>
-          <Field label="Semester">
-            <select className={inputClass} value={form.semester} onChange={(e) => set("semester", Number(e.target.value))}>
+          <Field label="Semester" htmlFor="course-sem">
+            <select id="course-sem" className={inputClass} value={form.semester} onChange={(e) => set("semester", Number(e.target.value))}>
               {[1,2,3,4,5,6,7,8].map((n) => <option key={n} value={n}>Semester {n}</option>)}
             </select>
           </Field>
-          <Field label="Faculty Assigned">
-            <input className={inputClass} value={form.facultyAssigned ?? ""} onChange={(e) => set("facultyAssigned", e.target.value)} placeholder="Dr. Name" />
+          <Field label="Faculty Assigned" htmlFor="course-fac">
+            <input id="course-fac" className={inputClass} value={form.facultyAssigned ?? ""} onChange={(e) => set("facultyAssigned", e.target.value)} placeholder="Dr. Name" />
           </Field>
-          <Field label="Description" className="sm:col-span-2">
-            <textarea
-              className={cn(inputClass, "resize-none")}
-              rows={2}
-              value={form.description ?? ""}
-              onChange={(e) => set("description", e.target.value)}
-              placeholder="Brief course description..."
-            />
-          </Field>
+          <div className="sm:col-span-2">
+            <Field label="Description" htmlFor="course-desc">
+              <textarea
+                id="course-desc"
+                className={cn(inputClass, "resize-none")}
+                rows={2}
+                value={form.description ?? ""}
+                onChange={(e) => set("description", e.target.value)}
+                placeholder="Brief course description..."
+              />
+            </Field>
+          </div>
         </div>
         <div className="flex justify-end gap-2 pt-2">
           <Button variant="ghost" onClick={onClose} disabled={saving}>Cancel</Button>

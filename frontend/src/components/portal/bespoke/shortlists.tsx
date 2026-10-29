@@ -99,6 +99,7 @@ export function ShortlistsModule({ role: _role }: { role?: Role }) {
       }),
     onSuccess: (updated) => {
       qc.invalidateQueries({ queryKey: ["recruiter-shortlists"] });
+      qc.invalidateQueries({ queryKey: ["home"] });
       setEditingCandidate(null);
       showToast(`Updated stage for ${updated.candidateName} to "${updated.stage}"`);
     },
@@ -116,6 +117,7 @@ export function ShortlistsModule({ role: _role }: { role?: Role }) {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["recruiter-shortlists"] });
       qc.invalidateQueries({ queryKey: ["recruiter-candidates"] });
+      qc.invalidateQueries({ queryKey: ["home"] });
       showToast("Removed candidate from shortlist requisition.");
     },
     onError: (err) => {
@@ -133,6 +135,7 @@ export function ShortlistsModule({ role: _role }: { role?: Role }) {
     onSuccess: (created) => {
       qc.invalidateQueries({ queryKey: ["recruiter-shortlists"] });
       qc.invalidateQueries({ queryKey: ["recruiter-interviews"] });
+      qc.invalidateQueries({ queryKey: ["home"] });
       setSchedulingFor(null);
       showToast(`Interview scheduled for ${created.candidateName} (${created.dateTime})!`);
     },

@@ -186,11 +186,14 @@ function KpiCard({ label, value, delta, tone }: {
 
 // ── insight card ──────────────────────────────────────────────────────────────
 
-function InsightCard({ text, tone }: { text: string; tone?: string }) {
+function InsightCard({ title, text, tone }: { title?: string; text: string; tone?: string }) {
   return (
     <div className={cn("rounded-xl border px-4 py-3 flex gap-3 items-start", toneBg(tone))}>
       <Lightbulb className={cn("w-4 h-4 mt-0.5 shrink-0", toneText(tone))} />
-      <p className="text-sm text-ink-2 leading-relaxed">{text}</p>
+      <div className="space-y-0.5">
+        {title && <p className="text-xs font-semibold text-ink-1">{title}</p>}
+        <p className="text-sm text-ink-2 leading-relaxed">{text}</p>
+      </div>
     </div>
   );
 }
@@ -199,20 +202,23 @@ function InsightCard({ text, tone }: { text: string; tone?: string }) {
 
 interface ChartDef {
   title: string;
-  kind: string;
+  kind?: string;
+  type?: string;
   tone?: string;
   xAxis?: string;
+  xKey?: string;
   yAxis?: string;
-  series?: { key: string; label: string; color?: string }[];
+  series?: ({ key: string; label: string; color?: string } | string)[];
   data?: Record<string, string | number>[];
 }
 
 function ChartCard({ chart }: { chart: ChartDef }) {
   const [open, setOpen] = useState(true);
 
-  const xKey = chart.xAxis ?? "label";
-  const series = chart.series?.length
-    ? chart.series
+  const xKey = chart.xKey ?? chart.xAxis ?? "label";
+  const rawSeries = chart.series ?? [];
+  const series: { key: string; label: string; color?: string }[] = rawSeries.length
+    ? rawSeries.map((s) => typeof s === "string" ? { key: s, label: s, color: chart.tone } : s)
     : [{ key: chart.yAxis ?? "value", label: chart.title, color: chart.tone }];
   const data = chart.data ?? [];
 
@@ -224,7 +230,7 @@ function ChartCard({ chart }: { chart: ChartDef }) {
     return m > topMax ? m : topMax;
   }, 1);
 
-  const isBar = chart.kind === "bar";
+  const isBar = (chart.kind ?? chart.type) === "bar";
 
   return (
     <Card className="rounded-xl border p-4 space-y-3">
@@ -328,8 +334,8 @@ export function BiAnalyticsModule({ role: _role }: Props) {
   if (isLoading) return <TemplateSkeleton />;
   if (isError)   return (
     <LoadError
-      message={String((error as Error)?.message ?? "Failed to load analytics.")}
-      onRetry={() => refetch()}
+      error={error}
+      onRetry={() => { refetch(); }}
     />
   );
 
@@ -433,7 +439,7 @@ export function BiAnalyticsModule({ role: _role }: Props) {
           <h2 className="text-xs font-semibold text-ink-3 uppercase tracking-wider">Insights</h2>
           <div className="space-y-2">
             {insights.map((ins, i) => (
-              <InsightCard key={i} text={ins.text} tone={ins.tone} />
+              <InsightCard key={i} title={ins.title} text={ins.body} tone={ins.tone} />
             ))}
           </div>
         </div>

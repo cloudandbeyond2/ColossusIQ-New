@@ -125,6 +125,7 @@ export function TalentSearchModule({ role: _role }: { role?: Role }) {
     onSuccess: (_, vars) => {
       qc.invalidateQueries({ queryKey: ["recruiter-candidates"] });
       qc.invalidateQueries({ queryKey: ["recruiter-shortlists"] });
+      qc.invalidateQueries({ queryKey: ["home"] });
       const cand = shortlistingCandidate;
       setShortlistingCandidate(null);
       showToast(

@@ -81,7 +81,7 @@ const EMPTY_FORM: EventForm = {
 
 /* ── Demo data ───────────────────────────────────────── */
 
-const TODAY = new Date().toISOString().split("T")[0];
+const TODAY = new Date().toISOString().split("T")[0] ?? "";
 const DEMO: CalEvent[] = [
   { id: "1", title: "End Semester Examination", type: "Exam", status: "Upcoming", date: "2026-11-10", endDate: "2026-11-25", time: "09:00", venue: "Main Examination Hall", organizer: "Controller of Exams", capacity: 300, registered: 240, description: "End semester exams for all departments." },
   { id: "2", title: "Tech Symposium 2026", type: "Academic", status: "Upcoming", date: "2026-11-05", time: "10:00", venue: "Auditorium", organizer: "CSE Department", capacity: 500, registered: 320 },
@@ -153,40 +153,44 @@ function EventModal({ initial, onClose, onSave, saving }: {
           <button onClick={onClose}><X className="h-5 w-5 text-[var(--fg-muted)]" /></button>
         </div>
         <div className="grid sm:grid-cols-2 gap-4">
-          <Field label="Event Title *" className="sm:col-span-2">
-            <input className={inputClass} value={form.title} onChange={(e) => set("title", e.target.value)} placeholder="Annual Tech Symposium" />
-          </Field>
-          <Field label="Type">
-            <select className={inputClass} value={form.type} onChange={(e) => set("type", e.target.value as EventType)}>
+          <div className="sm:col-span-2">
+            <Field label="Event Title *" htmlFor="event-title">
+              <input id="event-title" className={inputClass} value={form.title} onChange={(e) => set("title", e.target.value)} placeholder="Annual Tech Symposium" />
+            </Field>
+          </div>
+          <Field label="Type" htmlFor="event-type">
+            <select id="event-type" className={inputClass} value={form.type} onChange={(e) => set("type", e.target.value as EventType)}>
               {EVENT_TYPES.map((t) => <option key={t}>{t}</option>)}
             </select>
           </Field>
-          <Field label="Status">
-            <select className={inputClass} value={form.status} onChange={(e) => set("status", e.target.value as EventStatus)}>
+          <Field label="Status" htmlFor="event-status">
+            <select id="event-status" className={inputClass} value={form.status} onChange={(e) => set("status", e.target.value as EventStatus)}>
               {EVENT_STATUSES.map((s) => <option key={s}>{s}</option>)}
             </select>
           </Field>
-          <Field label="Start Date *">
-            <input className={inputClass} type="date" value={form.date} onChange={(e) => set("date", e.target.value)} />
+          <Field label="Start Date *" htmlFor="event-start-date">
+            <input id="event-start-date" className={inputClass} type="date" value={form.date} onChange={(e) => set("date", e.target.value)} />
           </Field>
-          <Field label="End Date">
-            <input className={inputClass} type="date" value={form.endDate ?? ""} onChange={(e) => set("endDate", e.target.value)} />
+          <Field label="End Date" htmlFor="event-end-date">
+            <input id="event-end-date" className={inputClass} type="date" value={form.endDate ?? ""} onChange={(e) => set("endDate", e.target.value)} />
           </Field>
-          <Field label="Time">
-            <input className={inputClass} type="time" value={form.time ?? ""} onChange={(e) => set("time", e.target.value)} />
+          <Field label="Time" htmlFor="event-time">
+            <input id="event-time" className={inputClass} type="time" value={form.time ?? ""} onChange={(e) => set("time", e.target.value)} />
           </Field>
-          <Field label="Venue">
-            <input className={inputClass} value={form.venue ?? ""} onChange={(e) => set("venue", e.target.value)} placeholder="Auditorium, Hall A..." />
+          <Field label="Venue" htmlFor="event-venue">
+            <input id="event-venue" className={inputClass} value={form.venue ?? ""} onChange={(e) => set("venue", e.target.value)} placeholder="Auditorium, Hall A..." />
           </Field>
-          <Field label="Organizer">
-            <input className={inputClass} value={form.organizer ?? ""} onChange={(e) => set("organizer", e.target.value)} placeholder="Department / Faculty" />
+          <Field label="Organizer" htmlFor="event-organizer">
+            <input id="event-organizer" className={inputClass} value={form.organizer ?? ""} onChange={(e) => set("organizer", e.target.value)} placeholder="Department / Faculty" />
           </Field>
-          <Field label="Capacity">
-            <input className={inputClass} type="number" min={0} value={form.capacity ?? 0} onChange={(e) => set("capacity", Number(e.target.value))} />
+          <Field label="Capacity" htmlFor="event-capacity">
+            <input id="event-capacity" className={inputClass} type="number" min={0} value={form.capacity ?? 0} onChange={(e) => set("capacity", Number(e.target.value))} />
           </Field>
-          <Field label="Description" className="sm:col-span-2">
-            <textarea className={cn(inputClass, "resize-none")} rows={2} value={form.description ?? ""} onChange={(e) => set("description", e.target.value)} placeholder="Brief event description..." />
-          </Field>
+          <div className="sm:col-span-2">
+            <Field label="Description" htmlFor="event-description">
+              <textarea id="event-description" className={cn(inputClass, "resize-none")} rows={2} value={form.description ?? ""} onChange={(e) => set("description", e.target.value)} placeholder="Brief event description..." />
+            </Field>
+          </div>
         </div>
         <div className="flex justify-end gap-2 pt-2">
           <Button variant="ghost" onClick={onClose} disabled={saving}>Cancel</Button>

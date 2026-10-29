@@ -250,6 +250,7 @@ import { dispatchRolesPermissions } from "./roles-permissions";
 import { dispatchEmployers } from "./employers";
 import { IncubationError } from "./incubation-common";
 import { dynamicIncubationHome } from "./incubation-home";
+import { dynamicRecruiterHome } from "./recruiter-home";
 import { dispatchJobs } from "./jobs";
 import { dispatchAlumni } from "./alumni";
 import { dispatchInterview } from "./interview";
@@ -1130,6 +1131,14 @@ export async function dispatch(method: string, segs: string[], rawBody: unknown,
           return err(500, "home_failed", "The department dashboard could not be loaded.");
         }
       }
+      if (role === "recruiter") {
+        try {
+          return ok(await dynamicRecruiterHome(session));
+        } catch (e) {
+          console.error("[GET home/recruiter] Error:", e);
+          return err(500, "home_failed", "The recruiter dashboard could not be loaded.");
+        }
+      }
       const inCollege = session.college !== ALL_COLLEGES;
       const staticHome = ROLE_HOMES[role as Exclude<typeof session.role, "student">];
       // Placement works from live readiness and drive data; the other roles still show their sample home.
@@ -1161,8 +1170,7 @@ export async function dispatch(method: string, segs: string[], rawBody: unknown,
           res.greeting = `${greet}, ${session.name}${deptSuffix}`;
         } else if (role === "placement") {
           res.greeting = `${greet}, ${session.name} · Training & Placement`;
-        } else if (role === "recruiter") {
-          res.greeting = `Welcome, ${session.name} — Talent Workspace`;
+
         } else if (role === "admin") {
           res.greeting = `${greet}, ${session.name} · Central University Operations`;
         }

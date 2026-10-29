@@ -107,6 +107,7 @@ export function RecruiterInterviewsModule({ role: _role }: { role?: Role }) {
     onSuccess: (updated) => {
       qc.invalidateQueries({ queryKey: ["recruiter-interviews"] });
       qc.invalidateQueries({ queryKey: ["recruiter-shortlists"] });
+      qc.invalidateQueries({ queryKey: ["home"] });
       setFeedbackInterview(null);
       showToast(
         `Feedback recorded for ${updated.candidateName}: recommendation "${updated.recommendation}"`
@@ -125,6 +126,7 @@ export function RecruiterInterviewsModule({ role: _role }: { role?: Role }) {
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["recruiter-interviews"] });
+      qc.invalidateQueries({ queryKey: ["home"] });
       showToast("Interview round cancelled.");
     },
     onError: (err) => {

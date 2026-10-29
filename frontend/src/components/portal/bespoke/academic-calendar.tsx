@@ -116,7 +116,7 @@ function datesInRange(start: string, end?: string): Set<string> {
   const to = end ? new Date(end) : from;
   const cur = new Date(from);
   while (cur <= to) {
-    s.add(cur.toISOString().split("T")[0]);
+    s.add(cur.toISOString().split("T")[0] ?? "");
     cur.setDate(cur.getDate() + 1);
   }
   return s;
@@ -145,37 +145,43 @@ function EventModal({ initial, onClose, onSave, saving, canEdit }: {
           <button onClick={onClose}><X className="h-5 w-5 text-[var(--fg-muted)]" /></button>
         </div>
         <div className="grid sm:grid-cols-2 gap-4">
-          <Field label="Title *" className="sm:col-span-2">
-            <input className={inputClass} value={form.title} onChange={(e) => set("title", e.target.value)} placeholder="Internal Assessment I" disabled={!canEdit} />
-          </Field>
-          <Field label="Type">
-            <select className={inputClass} value={form.type} onChange={(e) => set("type", e.target.value as CalEventType)} disabled={!canEdit}>
+          <div className="sm:col-span-2">
+            <Field label="Title *" htmlFor="cal-title">
+              <input id="cal-title" className={inputClass} value={form.title} onChange={(e) => set("title", e.target.value)} placeholder="Internal Assessment I" disabled={!canEdit} />
+            </Field>
+          </div>
+          <Field label="Type" htmlFor="cal-type">
+            <select id="cal-type" className={inputClass} value={form.type} onChange={(e) => set("type", e.target.value as CalEventType)} disabled={!canEdit}>
               {CAL_EVENT_TYPES.map((t) => <option key={t} value={t}>{TYPE_META[t].label}</option>)}
             </select>
           </Field>
-          <Field label="All Day">
+          <Field label="All Day" htmlFor="cal-allday">
             <label className="flex items-center gap-2 mt-2 cursor-pointer">
-              <input type="checkbox" checked={form.allDay} onChange={(e) => set("allDay", e.target.checked)} disabled={!canEdit} className="rounded" />
+              <input id="cal-allday" type="checkbox" checked={form.allDay} onChange={(e) => set("allDay", e.target.checked)} disabled={!canEdit} className="rounded" />
               <span className="text-sm">All day event</span>
             </label>
           </Field>
-          <Field label="Start Date *">
-            <input className={inputClass} type="date" value={form.date} onChange={(e) => set("date", e.target.value)} disabled={!canEdit} />
+          <Field label="Start Date *" htmlFor="cal-start">
+            <input id="cal-start" className={inputClass} type="date" value={form.date} onChange={(e) => set("date", e.target.value)} disabled={!canEdit} />
           </Field>
-          <Field label="End Date">
-            <input className={inputClass} type="date" value={form.endDate ?? ""} onChange={(e) => set("endDate", e.target.value)} disabled={!canEdit} />
+          <Field label="End Date" htmlFor="cal-end">
+            <input id="cal-end" className={inputClass} type="date" value={form.endDate ?? ""} onChange={(e) => set("endDate", e.target.value)} disabled={!canEdit} />
           </Field>
           {!form.allDay && (
-            <Field label="Time">
-              <input className={inputClass} type="time" value={form.time ?? ""} onChange={(e) => set("time", e.target.value)} disabled={!canEdit} />
+            <Field label="Time" htmlFor="cal-time">
+              <input id="cal-time" className={inputClass} type="time" value={form.time ?? ""} onChange={(e) => set("time", e.target.value)} disabled={!canEdit} />
             </Field>
           )}
-          <Field label="Venue" className={form.allDay ? "sm:col-span-2" : ""}>
-            <input className={inputClass} value={form.venue ?? ""} onChange={(e) => set("venue", e.target.value)} placeholder="Room / Hall / Online" disabled={!canEdit} />
-          </Field>
-          <Field label="Description" className="sm:col-span-2">
-            <textarea className={cn(inputClass, "resize-none")} rows={2} value={form.description ?? ""} onChange={(e) => set("description", e.target.value)} disabled={!canEdit} />
-          </Field>
+          <div className={form.allDay ? "sm:col-span-2" : ""}>
+            <Field label="Venue" htmlFor="cal-venue">
+              <input id="cal-venue" className={inputClass} value={form.venue ?? ""} onChange={(e) => set("venue", e.target.value)} placeholder="Room / Hall / Online" disabled={!canEdit} />
+            </Field>
+          </div>
+          <div className="sm:col-span-2">
+            <Field label="Description" htmlFor="cal-desc">
+              <textarea id="cal-desc" className={cn(inputClass, "resize-none")} rows={2} value={form.description ?? ""} onChange={(e) => set("description", e.target.value)} disabled={!canEdit} />
+            </Field>
+          </div>
         </div>
         <div className="flex justify-end gap-2 pt-2">
           <Button variant="ghost" onClick={onClose}>{canEdit ? "Cancel" : "Close"}</Button>
@@ -197,7 +203,7 @@ function DayCell({ day, isCurrentMonth, isToday, events, onAdd, onSelect }: {
   day: Date; isCurrentMonth: boolean; isToday: boolean;
   events: CalEvent[]; onAdd: (date: string) => void; onSelect: (e: CalEvent) => void;
 }) {
-  const dateStr = day.toISOString().split("T")[0];
+  const dateStr = day.toISOString().split("T")[0] ?? "";
   const shown = events.slice(0, 3);
   const extra = events.length - shown.length;
 
@@ -306,7 +312,7 @@ export function AcademicCalendarModule({ role }: { role: Role }) {
   for (let d = 1; d <= lastDay.getDate(); d++) cells.push(new Date(year, month, d));
   while (cells.length % 7 !== 0) cells.push(new Date(year, month + 1, cells.length - lastDay.getDate() - startPad + 1));
 
-  const todayStr = today.toISOString().split("T")[0];
+  const todayStr = today.toISOString().split("T")[0] ?? "";
 
   const filteredEvents = useMemo(() =>
     typeFilter === "All" ? events : events.filter((e) => e.type === typeFilter),
@@ -432,7 +438,7 @@ export function AcademicCalendarModule({ role }: { role: Role }) {
           {/* Cells */}
           <div className="grid grid-cols-7">
             {cells.map((day, i) => {
-              const dateStr = day.toISOString().split("T")[0];
+              const dateStr = day.toISOString().split("T")[0] ?? "";
               const dayEvents = eventsForDate(filteredEvents, dateStr);
               const isCurrentMonth = day.getMonth() === month;
               const isToday = dateStr === todayStr;
