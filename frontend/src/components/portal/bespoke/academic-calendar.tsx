@@ -24,6 +24,8 @@ import {
   CalendarDays,
   Sparkles,
   Layers,
+  Users,
+  Bell,
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { apiFetch, ApiError } from "@/lib/api/client";
@@ -72,10 +74,15 @@ function tagTone(tag: string): "rose" | "teal" | "brand" | "gold" | "sky" | "amb
   }
 }
 
-/** "all students in Computer Science", "everyone on campus", ... */
+/** Reach text helper: "everyone in Computer Science & Engineering", "all students in Computer Science & Engineering", etc. */
 function reachOf(audience: AcademicCalendarItem["audience"], department: string): string {
-  const who = audience === "All" ? "everyone on campus" : audience === "Students" ? "all students" : audience === "Faculty" ? "all faculty" : "all staff";
-  return department && department !== "All Departments" && (audience === "All" || audience === "Students") ? `${who} in ${department}` : who;
+  if (department && department !== "All Departments") {
+    if (audience === "All") return `everyone in ${department} (students & faculty)`;
+    if (audience === "Students") return `all students in ${department}`;
+    if (audience === "Faculty") return `all faculty in ${department}`;
+    return `all staff in ${department}`;
+  }
+  return audience === "All" ? "everyone on campus" : audience === "Students" ? "all students on campus" : audience === "Faculty" ? "all faculty on campus" : "all staff on campus";
 }
 
 function getVisiblePageNumbers(current: number, total: number): (number | "...")[] {
@@ -95,6 +102,7 @@ const fmtLong = (iso: string) => new Date(`${iso}T00:00:00`).toLocaleDateString(
 
 export function AcademicCalendarModule({ role }: { role: Role }) {
   const qc = useQueryClient();
+  const isHod = role === "hod";
   /** A change to the calendar also changes the bell (new notifications) and the module overview. */
   const refreshCalendar = () => {
     void qc.invalidateQueries({ queryKey: ["academic-calendar"] });
@@ -123,10 +131,10 @@ export function AcademicCalendarModule({ role }: { role: Role }) {
   const [formEndDate, setFormEndDate] = useState("");
   const [formTime, setFormTime] = useState("");
   const [formTag, setFormTag] = useState<AcademicCalendarItem["tag"]>("Event");
-  const [formDept, setFormDept] = useState("All Departments");
+  const [formDept, setFormDept] = useState(isHod ? "Computer Science & Engineering" : "All Departments");
   const [formVenue, setFormVenue] = useState("");
   const [formDesc, setFormDesc] = useState("");
-  const [formAudience, setFormAudience] = useState<AcademicCalendarItem["audience"]>("All");
+  const [formAudience, setFormAudience] = useState<AcademicCalendarItem["audience"]>(isHod ? "Students" : "All");
   const [formNotify, setFormNotify] = useState(true);
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -207,16 +215,19 @@ export function AcademicCalendarModule({ role }: { role: Role }) {
     },
   });
 
+  const myDepartment = data?.userDepartment || (isHod ? "Computer Science & Engineering" : null);
+
   const resetForm = () => {
+    const defaultDept = isHod ? (myDepartment || "Computer Science & Engineering") : "All Departments";
     setFormTitle("");
     setFormDate(data?.today ?? "");
     setFormEndDate("");
     setFormTime("");
     setFormTag("Event");
-    setFormDept("All Departments");
+    setFormDept(defaultDept);
     setFormVenue("");
     setFormDesc("");
-    setFormAudience("All");
+    setFormAudience(isHod ? "Students" : "All");
     setFormNotify(true);
     setFormError(null);
   };
@@ -234,10 +245,10 @@ export function AcademicCalendarModule({ role }: { role: Role }) {
     setFormEndDate(item.endDate || "");
     setFormTime(item.time || "Full day");
     setFormTag(item.tag);
-    setFormDept(item.department || "All Departments");
+    setFormDept(item.department || (isHod ? (myDepartment || "Computer Science & Engineering") : "All Departments"));
     setFormVenue(item.venue || "");
     setFormDesc(item.description || "");
-    setFormAudience(item.audience || "All");
+    setFormAudience(item.audience || (isHod ? "Students" : "All"));
     setFormNotify(item.notify);
     setFormError(null);
     setShowAddModal(true);
@@ -254,13 +265,17 @@ export function AcademicCalendarModule({ role }: { role: Role }) {
       return;
     }
 
+    const effectiveDept = isHod
+      ? (myDepartment || formDept || "Computer Science & Engineering")
+      : (formDept.trim() || "All Departments");
+
     const payload: CreateCalendarItemInput = {
       title: formTitle.trim(),
       date: formDate,
       endDate: formEndDate.trim() ? formEndDate.trim() : undefined,
       time: formTime.trim() || "Full day",
       tag: formTag,
-      department: formDept.trim() || "All Departments",
+      department: effectiveDept,
       venue: formVenue.trim() ? formVenue.trim() : undefined,
       description: formDesc.trim() ? formDesc.trim() : undefined,
       audience: formAudience,
@@ -275,13 +290,18 @@ export function AcademicCalendarModule({ role }: { role: Role }) {
   };
 
   const departments = useMemo(() => {
-    if (!data?.items) return ["All Departments"];
-    const set = new Set<string>();
-    for (const it of data.items) {
-      if (it.department) set.add(it.department);
+    const set = new Set<string>(["All Departments"]);
+    if (data?.departments) {
+      for (const d of data.departments) if (d) set.add(d);
     }
-    return ["All Departments", ...Array.from(set).filter((d) => d !== "All Departments").sort()];
-  }, [data?.items]);
+    if (data?.items) {
+      for (const it of data.items) {
+        if (it.department) set.add(it.department);
+      }
+    }
+    if (myDepartment) set.add(myDepartment);
+    return Array.from(set).filter(Boolean);
+  }, [data?.departments, data?.items, myDepartment]);
 
   const filteredItems = useMemo(() => {
     if (!data?.items || data.items.length === 0) return [];
@@ -377,8 +397,16 @@ export function AcademicCalendarModule({ role }: { role: Role }) {
   if (error || !data) return <LoadError error={error} onRetry={() => refetch()} />;
 
   const canManage = data.canManage;
-  const deptOptions = Array.from(new Set([...data.departments, formDept]));
-  const reachText = `${reachOf(formAudience, formDept)}${formDept !== "All Departments" && formAudience !== "Students" && formAudience !== "All" ? " (the department narrows students only)" : ""}`;
+  const canManageItem = (item: AcademicCalendarItem) => {
+    if (!canManage || item.readOnly) return false;
+    if (role === "institution" || role === "admin") return true;
+    if (isHod && myDepartment) {
+      return item.department === myDepartment || item.department?.toLowerCase() === myDepartment.toLowerCase();
+    }
+    return true;
+  };
+  const deptOptions = Array.from(new Set(["All Departments", ...(data.departments ?? []), ...(myDepartment ? [myDepartment] : []), formDept].filter(Boolean)));
+  const reachText = reachOf(formAudience, formDept);
 
   // Month grid helpers
   const currentMonthDate = monthAnchor ?? new Date(`${data.today.slice(0, 7)}-01T00:00:00`);
@@ -413,11 +441,17 @@ export function AcademicCalendarModule({ role }: { role: Role }) {
       <div className="rounded-2xl border border-line bg-surface p-6 shadow-sm">
         <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
           <div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <span className="inline-flex items-center gap-1.5 rounded-full bg-brand/10 px-2.5 py-0.5 text-xs font-semibold text-brand">
                 <Sparkles className="size-3" />
                 {data.semester.name}
               </span>
+              {isHod && myDepartment && (
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-brand/10 border border-brand/20 px-2.5 py-0.5 text-xs font-semibold text-brand">
+                  <Building2 className="size-3" />
+                  {myDepartment}
+                </span>
+              )}
               <span className="text-xs font-medium text-ink-3">
                 Week {data.semester.currentWeek} of {data.semester.totalWeeks}
               </span>
@@ -567,7 +601,7 @@ export function AcademicCalendarModule({ role }: { role: Role }) {
             onClick={() => setViewMode("timeline")}
             className={cn(
               "flex items-center gap-1 rounded-lg px-3 py-1.5 transition-all",
-              viewMode === "timeline" ? "bg-surface text-brand shadow-xs font-bold" : "text-ink-2 hover:text-ink",
+              viewMode === "timeline" ? "bg-brand-gradient text-white shadow-xs font-bold" : "text-ink-2 hover:text-ink",
             )}
           >
             <Layers className="size-3.5" />
@@ -577,7 +611,7 @@ export function AcademicCalendarModule({ role }: { role: Role }) {
             onClick={() => setViewMode("month")}
             className={cn(
               "flex items-center gap-1 rounded-lg px-3 py-1.5 transition-all",
-              viewMode === "month" ? "bg-surface text-brand shadow-xs font-bold" : "text-ink-2 hover:text-ink",
+              viewMode === "month" ? "bg-brand-gradient text-white shadow-xs font-bold" : "text-ink-2 hover:text-ink",
             )}
           >
             <CalendarIcon className="size-3.5" />
@@ -735,7 +769,7 @@ export function AcademicCalendarModule({ role }: { role: Role }) {
                             </div>
 
                             {/* Actions for Manager */}
-                            {canManage && !item.readOnly && (
+                            {canManageItem(item) && (
                               <div className="flex items-center gap-1.5 self-end sm:self-center shrink-0">
                                 <Button
                                   variant="secondary"
@@ -996,7 +1030,7 @@ export function AcademicCalendarModule({ role }: { role: Role }) {
                           {ev.venue}
                         </p>
                       )}
-                      {canManage && !ev.readOnly && (
+                      {canManageItem(ev) && (
                         <div className="flex items-center justify-end gap-1.5 pt-2 border-t border-line/60">
                           <button
                             type="button"
@@ -1144,7 +1178,7 @@ export function AcademicCalendarModule({ role }: { role: Role }) {
                           className={cn(
                             "flex flex-col items-start rounded-xl border p-2.5 text-left transition-all",
                             isSelected
-                              ? "border-brand bg-brand/5 ring-2 ring-brand/20 shadow-xs"
+                              ? "border-brand-2 bg-brand-soft ring-2 ring-brand-2/40 shadow-xs"
                               : "border-line bg-surface hover:bg-surface-2/60",
                           )}
                         >
@@ -1216,62 +1250,102 @@ export function AcademicCalendarModule({ role }: { role: Role }) {
                   />
                 </div>
 
-                {/* Target Audience & Department */}
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                {/* Publishing Scope, Target Audience & Notification Card */}
+                <div className="rounded-2xl border border-line bg-surface-2/30 p-4 space-y-3.5">
+                  {/* Department Scope Header */}
+                  {isHod ? (
+                    <div className="flex items-center justify-between gap-3 rounded-xl border border-brand/20 bg-brand-soft/60 px-3.5 py-2.5">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-brand text-white shadow-xs">
+                          <Building2 className="size-3.5" />
+                        </div>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-xs font-bold text-ink">
+                              {formDept || myDepartment || "Commerce"}
+                            </span>
+                            <span className="rounded-full bg-brand/10 border border-brand/20 px-2 py-0.5 text-[10px] font-bold text-brand">
+                              Your Department Scope
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-ink-3">
+                            Published and notified exclusively within your department.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div>
+                      <label className="block text-xs font-semibold text-ink mb-1.5">Department / Scope</label>
+                      <select
+                        value={formDept}
+                        onChange={(e) => setFormDept(e.target.value)}
+                        className={inputClass}
+                      >
+                        {deptOptions.map((d) => (
+                          <option key={d} value={d}>
+                            {d === "All Departments" ? "All Departments (Campus Wide)" : d}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  {/* Target Audience Tabs */}
                   <div>
                     <label className="block text-xs font-semibold text-ink mb-1.5">Target Audience</label>
-                    <div className="grid grid-cols-2 gap-1 rounded-xl border border-line bg-surface-2/40 p-1 text-xs">
-                      {(["All", "Students", "Faculty", "Staff"] as const).map((aud) => (
-                        <button
-                          key={aud}
-                          type="button"
-                          onClick={() => setFormAudience(aud)}
-                          className={cn(
-                            "rounded-lg py-1.5 text-center text-xs font-medium transition-all",
-                            formAudience === aud
-                              ? "bg-surface text-brand font-bold shadow-xs"
-                              : "text-ink-2 hover:text-ink",
-                          )}
-                        >
-                          {aud === "All" ? "All Campus" : aud}
-                        </button>
-                      ))}
+                    <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4 rounded-xl border border-line bg-surface p-1">
+                      {[
+                        { id: "All" as const, label: isHod ? "All in Dept" : "All Campus", icon: Users },
+                        { id: "Students" as const, label: "Students", icon: GraduationCap },
+                        { id: "Faculty" as const, label: "Faculty", icon: BookOpen },
+                        { id: "Staff" as const, label: "Staff", icon: Building2 },
+                      ].map((tab) => {
+                        const isSelected = formAudience === tab.id;
+                        const Icon = tab.icon;
+                        return (
+                          <button
+                            key={tab.id}
+                            type="button"
+                            onClick={() => setFormAudience(tab.id)}
+                            className={cn(
+                              "flex items-center justify-center gap-1.5 rounded-lg py-2 px-2 text-xs transition-all",
+                              isSelected
+                                ? "bg-brand text-white font-bold shadow-sm scale-[1.01]"
+                                : "text-ink-2 hover:bg-surface-2 hover:text-ink font-medium",
+                            )}
+                          >
+                            <Icon className={cn("size-3.5", isSelected ? "text-white" : "text-ink-3")} />
+                            <span>{tab.label}</span>
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
 
-                  <div>
-                    <label className="block text-xs font-semibold text-ink mb-1.5">Department / Scope</label>
-                    <select
-                      value={formDept}
-                      onChange={(e) => setFormDept(e.target.value)}
-                      className={inputClass}
-                    >
-                      {deptOptions.map((d) => (
-                        <option key={d} value={d}>
-                          {d === "All Departments" ? "All Departments (Campus Wide)" : d}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+                  {/* Notice Board & Notification Delivery Preview */}
+                  <label className="flex items-start gap-3 rounded-xl border border-line bg-surface p-3 cursor-pointer select-none hover:border-brand/30 transition-colors">
+                    <input
+                      type="checkbox"
+                      checked={formNotify}
+                      onChange={(e) => setFormNotify(e.target.checked)}
+                      className="mt-0.5 size-4 accent-brand cursor-pointer rounded"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <Bell className={cn("size-3.5", formNotify ? "text-brand" : "text-ink-3")} />
+                        <span className="text-xs font-bold text-ink">
+                          {editingItem ? "Notify again about this update" : "Post to Notice Board & Notify"}
+                        </span>
+                      </div>
+                      <span className="block text-[11px] text-ink-3 mt-0.5">
+                        {formNotify
+                          ? `Will be posted to the Notice Board and delivered to ${reachText}.`
+                          : "Saved on the academic calendar only; notice board posting is skipped."}
+                      </span>
+                    </div>
+                  </label>
                 </div>
-
-                {/* Notify the selected people */}
-                <label className="flex items-start gap-3 rounded-xl border border-line bg-surface-2/40 p-3 text-xs">
-                  <input
-                    type="checkbox"
-                    checked={formNotify}
-                    onChange={(e) => setFormNotify(e.target.checked)}
-                    className="mt-0.5 size-4 accent-brand"
-                  />
-                  <span>
-                    <span className="block font-semibold text-ink">
-                      {editingItem ? "Notify again about this change" : "Notify the selected people"}
-                    </span>
-                    <span className="text-ink-3">
-                      {formNotify ? `Posted to the Notice Board and notified: ${reachText}.` : "Saved on the calendar only; nothing is posted to the Notice Board."}
-                    </span>
-                  </span>
-                </label>
 
                 {/* Venue */}
                 <div>

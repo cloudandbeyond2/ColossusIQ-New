@@ -13,6 +13,9 @@ import { ALL_COLLEGES } from "@/config/tenancy";
 import { calendarStore, type CalendarRow } from "./calendar-store";
 import { noticeStore } from "./notice-store";
 import { getStudentAcademicProfile } from "./student-profile";
+import { resolveUserDepartment } from "@/lib/auth/department";
+import { getCollege } from "./records";
+import { streamOfType, streamOptions } from "@/config/streams";
 
 /*
  * Academic Calendar. Entries are stored with their real category (Assessment, Holiday, Exam cell, Event, Milestone),
@@ -90,9 +93,16 @@ const kindOf = (role: Role): Viewer["kind"] => (role === "student" ? "Students" 
 
 async function viewerOf(s: SessionPayload): Promise<Viewer> {
   const kind = kindOf(s.role);
-  if (kind !== "Students") return { kind, department: "" };
+  if (kind === "Students") {
+    try {
+      return { kind, department: (await getStudentAcademicProfile(s)).department };
+    } catch {
+      return { kind, department: "" };
+    }
+  }
   try {
-    return { kind, department: (await getStudentAcademicProfile(s)).department };
+    const dept = await resolveUserDepartment(s);
+    return { kind, department: dept ?? "" };
   } catch {
     return { kind, department: "" };
   }
@@ -163,7 +173,7 @@ function semesterFor(today: string): AcademicCalendarOverview["semester"] {
   return { name, startDate, endDate, currentWeek: Math.min(totalWeeks, Math.max(0, week)), totalWeeks };
 }
 
-async function departmentsOf(college: string, rows: CalendarRow[]): Promise<string[]> {
+async function departmentsOf(college: string, rows: CalendarRow[], userDept?: string | null): Promise<string[]> {
   const names = new Set<string>();
   try {
     for (const r of await getStore().records.all(RESOURCES.departments!, college)) {
@@ -173,6 +183,18 @@ async function departmentsOf(college: string, rows: CalendarRow[]): Promise<stri
   } catch {
     // fall back to what the calendar already uses
   }
+  try {
+    const col = await getCollege(college);
+    if (col?.type) {
+      const stream = streamOfType(col.type);
+      for (const d of streamOptions("department", stream)) {
+        names.add(d);
+      }
+    }
+  } catch {
+    // ignore
+  }
+  if (userDept) names.add(userDept);
   for (const r of rows) if (r.department && r.department !== ALL_DEPARTMENTS) names.add(r.department);
   return [ALL_DEPARTMENTS, ...[...names].sort()];
 }
@@ -184,6 +206,7 @@ export async function getCalendarOverview(session: SessionPayload): Promise<Acad
   const viewer = await viewerOf(session);
   const stored = await calendarStore().list(college);
   const events = (await campusEvents(college)).filter((e) => !stored.some((r) => sameSlot(r, e)));
+  const userDept = (session.role === "hod" || session.role === "faculty") ? await resolveUserDepartment(session) : null;
 
   const visible = [...stored, ...events].filter((r) => meantFor(r, session, viewer));
   const items = visible
@@ -205,7 +228,8 @@ export async function getCalendarOverview(session: SessionPayload): Promise<Acad
     items,
     canManage: canManageCalendar(session.role),
     today,
-    departments: await departmentsOf(college, stored),
+    departments: await departmentsOf(college, stored, userDept),
+    userDepartment: userDept,
   };
 }
 
@@ -232,7 +256,7 @@ function describeReach(r: Pick<CalendarRow, "audience" | "department">): string 
 async function announce(session: SessionPayload, row: CalendarRow, changed: boolean): Promise<void> {
   const audience = row.audience === "All" ? "everyone" : row.audience === "Students" ? "students" : "staff";
   const category = row.tag === "Holiday" ? "Holiday" : row.tag === "Event" ? "Event" : row.tag === "Assessment" || row.tag === "Exam cell" ? "Examination" : "Academic";
-  const narrowed = row.department !== ALL_DEPARTMENTS && audience !== "staff";
+  const narrowed = row.department !== ALL_DEPARTMENTS;
   const details = [`${row.tag} · ${span(row)} · ${row.time}`, row.venue ? `Venue: ${row.venue}` : "", row.description].filter(Boolean).join("\n");
   try {
     await noticeStore().create({
@@ -258,6 +282,12 @@ async function announce(session: SessionPayload, row: CalendarRow, changed: bool
 }
 
 export async function createCalendarItem(session: SessionPayload, input: CreateCalendarItemInput): Promise<AcademicCalendarItem> {
+  const userDept = (session.role === "hod" || session.role === "faculty") ? await resolveUserDepartment(session) : null;
+  // If HOD, strictly enforce that items are created for their own department only
+  const targetDepartment = (session.role === "hod")
+    ? (userDept || (input.department && input.department !== ALL_DEPARTMENTS ? input.department.trim() : "Computer Science & Engineering"))
+    : (input.department?.trim() || ALL_DEPARTMENTS);
+
   const endDate = input.endDate?.trim() || undefined;
   checkDates(input.date, endDate);
   const row = await calendarStore().create({
@@ -267,7 +297,7 @@ export async function createCalendarItem(session: SessionPayload, input: CreateC
     endDate,
     time: input.time.trim() || "Full day",
     tag: input.tag,
-    department: input.department.trim() || ALL_DEPARTMENTS,
+    department: targetDepartment,
     venue: input.venue?.trim() ?? "",
     description: input.description?.trim() ?? "",
     audience: input.audience,
@@ -290,9 +320,20 @@ export async function updateCalendarItem(
   const current = await store.get(id);
   if (!current || current.college !== collegeOf(session)) return undefined;
 
+  const userDept = (session.role === "hod" || session.role === "faculty") ? await resolveUserDepartment(session) : null;
+  if (session.role === "hod" && userDept) {
+    if (current.department && current.department !== ALL_DEPARTMENTS && !sameDepartment(current.department, userDept) && current.createdBySub !== session.sub) {
+      throw new CalendarError("You can only edit calendar items for your department.");
+    }
+  }
+
   const date = patch.date ?? current.date;
   const endDate = patch.endDate !== undefined ? patch.endDate.trim() || undefined : current.endDate;
   checkDates(date, endDate);
+
+  const targetDept = session.role === "hod"
+    ? (userDept || (current.department !== ALL_DEPARTMENTS ? current.department : "Computer Science & Engineering"))
+    : (patch.department !== undefined ? patch.department.trim() || ALL_DEPARTMENTS : current.department);
 
   const row = await store.update(id, {
     title: patch.title?.trim() ?? current.title,
@@ -300,7 +341,7 @@ export async function updateCalendarItem(
     endDate,
     time: patch.time !== undefined ? patch.time.trim() || "Full day" : current.time,
     tag: patch.tag ?? current.tag,
-    department: patch.department !== undefined ? patch.department.trim() || ALL_DEPARTMENTS : current.department,
+    department: targetDept,
     venue: patch.venue !== undefined ? patch.venue.trim() : current.venue,
     description: patch.description !== undefined ? patch.description.trim() : current.description,
     audience: patch.audience ?? current.audience,

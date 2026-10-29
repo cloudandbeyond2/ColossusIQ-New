@@ -775,6 +775,8 @@ export const AcademicCalendarOverview = z.object({
   today: z.string(),
   /** Departments of this college, for the department picker. */
   departments: z.array(z.string()),
+  /** Department of the current caller (e.g. HOD or faculty), if any. */
+  userDepartment: z.string().nullable().optional(),
 });
 export type AcademicCalendarOverview = z.infer<typeof AcademicCalendarOverview>;
 

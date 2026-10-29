@@ -89,7 +89,8 @@ export async function resolveUserDepartment(session: SessionPayload): Promise<st
     const persona = ROLE_META.hod.persona;
     const parts = persona.split("·");
     if (parts[1]?.includes("HOD,")) {
-      return parts[1].replace(/.*HOD,\s*/i, "").trim();
+      const parsed = parts[1].replace(/.*HOD,\s*/i, "").trim();
+      return parsed === "Computer Science" ? "Computer Science & Engineering" : parsed;
     }
   }
   if (session.role === "faculty") {
