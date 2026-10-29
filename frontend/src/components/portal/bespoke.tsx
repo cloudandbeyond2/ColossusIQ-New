@@ -96,6 +96,7 @@ import { StaffModule } from "./bespoke/staff";
 import { CourseManagementModule } from "./bespoke/course-management";
 import { EventsModule } from "./bespoke/events";
 import { AiObservabilityModule } from "./bespoke/ai-observability";
+import { AuditLogModule } from "./bespoke/audit-log";
 
 const BESPOKE: Record<string, (props: { role: Role }) => React.ReactNode> = {
   "question-bank": ({ role }) => <QuestionBankModule role={role} />,
@@ -192,6 +193,7 @@ const BESPOKE: Record<string, (props: { role: Role }) => React.ReactNode> = {
   "course-management": ({ role }) => <CourseManagementModule role={role} />,
   events: ({ role }) => <EventsModule role={role} />,
   "ai-observability": ({ role }) => <AiObservabilityModule role={role} />,
+  "audit-log": ({ role }) => <AuditLogModule role={role} />,
 };
 
 
