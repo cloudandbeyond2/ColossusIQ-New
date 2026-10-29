@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { apiFetch } from "@/lib/api/client";
 import type { Role } from "@/lib/auth/roles";
+import { streamOfType, streamOptions } from "@/config/streams";
 import {
   Badge,
   Button,
@@ -178,6 +179,7 @@ export function StudentsModule({ role: _role }: { role: Role }) {
       setNewStudent({
         name: "",
         roll: "",
+        department: "",
         section: "CSE-A",
         cgpa: 7.5,
         readiness: 60,
@@ -250,7 +252,76 @@ export function StudentsModule({ role: _role }: { role: Role }) {
     },
   });
 
+  const activeCollegeId = newStudent.collegeId || (collegeFilter !== "all" ? collegeFilter : colleges[0]?.id || "");
+  const selectedCollege = useMemo(() => {
+    return colleges.find((c) => c.id === activeCollegeId);
+  }, [colleges, activeCollegeId]);
+
+  const selectedStream = useMemo(() => {
+    return streamOfType(selectedCollege?.type || selectedCollege?.name);
+  }, [selectedCollege]);
+
+  const availableDepartments = useMemo(() => {
+    const depts = new Set<string>();
+    const streamDepts = streamOptions("department", selectedStream).filter((d) => !/Administration/.test(d));
+    streamDepts.forEach((d) => depts.add(d));
+
+    students.forEach((s) => {
+      if ((s.collegeId === activeCollegeId || !activeCollegeId) && s.department) {
+        depts.add(s.department);
+      }
+    });
+
+    return Array.from(depts);
+  }, [selectedStream, activeCollegeId, students]);
+
+  const editActiveCollegeId = editingStudent?.collegeId || "";
+  const editSelectedCollege = useMemo(() => {
+    return colleges.find((c) => c.id === editActiveCollegeId || c.name === editingStudent?.collegeName);
+  }, [colleges, editActiveCollegeId, editingStudent?.collegeName]);
+
+  const editSelectedStream = useMemo(() => {
+    return streamOfType(editSelectedCollege?.type || editSelectedCollege?.name);
+  }, [editSelectedCollege]);
+
+  const editAvailableDepartments = useMemo(() => {
+    const depts = new Set<string>();
+    const streamDepts = streamOptions("department", editSelectedStream).filter((d) => !/Administration/.test(d));
+    streamDepts.forEach((d) => depts.add(d));
+
+    if (editingStudent?.department) {
+      depts.add(editingStudent.department);
+    }
+
+    students.forEach((s) => {
+      if ((s.collegeId === editActiveCollegeId || !editActiveCollegeId) && s.department) {
+        depts.add(s.department);
+      }
+    });
+
+    return Array.from(depts);
+  }, [editSelectedStream, editActiveCollegeId, editingStudent?.department, students]);
+
   const departmentsList = useMemo(() => {
+    const set = new Set<string>();
+    if (collegeFilter !== "all") {
+      const col = colleges.find((c) => c.id === collegeFilter);
+      if (col) {
+        const st = streamOfType(col.type || col.name);
+        streamOptions("department", st).filter((d) => !/Administration/.test(d)).forEach((d) => set.add(d));
+      }
+    }
+    students.forEach((s) => {
+      if ((collegeFilter === "all" || s.collegeId === collegeFilter) && s.department) {
+        set.add(s.department);
+      }
+    });
+    return Array.from(set).sort();
+  }, [students, collegeFilter, colleges]);
+
+  const _legacyDepts = useMemo(() => {
+
+
     const set = new Set<string>();
     students.forEach((s) => {
       if (s.department) set.add(s.department);
@@ -309,6 +380,8 @@ export function StudentsModule({ role: _role }: { role: Role }) {
     const signalIdx = header.findIndex((h) => h.includes("signal") || h.includes("support"));
     const emailIdx = header.findIndex((h) => h.includes("email"));
     const phoneIdx = header.findIndex((h) => h.includes("phone") || h.includes("mobile"));
+    const deptIdx = header.findIndex((h) => h.includes("dept") || h.includes("department"));
+    const collegeIdx = header.findIndex((h) => h.includes("college") || h.includes("institution"));
 
     const parsed: StudentItem[] = [];
 
@@ -346,6 +419,7 @@ export function StudentsModule({ role: _role }: { role: Role }) {
         signal,
         email: emailIdx !== -1 ? parts[emailIdx] : undefined,
         phone: phoneIdx !== -1 ? parts[phoneIdx] : undefined,
+        department: deptIdx !== -1 && parts[deptIdx] ? parts[deptIdx] : undefined,
       });
     }
 
@@ -852,7 +926,13 @@ export function StudentsModule({ role: _role }: { role: Role }) {
                 onSubmit={(e) => {
                   e.preventDefault();
                   if (!newStudent.name || !newStudent.roll) return;
-                  createMutation.mutate(newStudent);
+                  const colId = newStudent.collegeId || (collegeFilter !== "all" ? collegeFilter : colleges[0]?.id || "");
+                  const colObj = colleges.find((c) => c.id === colId);
+                  createMutation.mutate({
+                    ...newStudent,
+                    collegeId: colId,
+                    collegeName: colObj?.name || newStudent.collegeName,
+                  });
                 }}
                 className="space-y-4"
               >
@@ -888,7 +968,13 @@ export function StudentsModule({ role: _role }: { role: Role }) {
                     <select
                       id="inp-college"
                       value={newStudent.collegeId || (collegeFilter !== "all" ? collegeFilter : colleges[0]?.id || "")}
-                      onChange={(e) => setNewStudent({ ...newStudent, collegeId: e.target.value })}
+                      onChange={(e) => {
+                        const newColId = e.target.value;
+                        const colObj = colleges.find((c) => c.id === newColId);
+                        const st = streamOfType(colObj?.type || colObj?.name);
+                        const defaultSec = st === "medical" ? "Phase I · Batch A" : "CSE-A";
+                        setNewStudent({ ...newStudent, collegeId: newColId, department: "", section: defaultSec });
+                      }}
                       className={inputClass}
                     >
                       {colleges.map((col) => (
@@ -901,7 +987,24 @@ export function StudentsModule({ role: _role }: { role: Role }) {
                 )}
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <Field label="Department" htmlFor="inp-dept">
+                  <Field label="Department *" htmlFor="inp-dept">
+                    <select
+                      id="inp-dept"
+                      required
+                      value={newStudent.department || ""}
+                      onChange={(e) => setNewStudent({ ...newStudent, department: e.target.value })}
+                      className={inputClass}
+                    >
+                      <option value="">Select Department...</option>
+                      {availableDepartments.map((dept) => (
+                        <option key={dept} value={dept}>
+                          {dept}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                  {/*
+                  <Field label="Old Dept" htmlFor="inp-dept-old">
                     <input
                       id="inp-dept"
                       type="text"
@@ -911,6 +1014,8 @@ export function StudentsModule({ role: _role }: { role: Role }) {
                       className={inputClass}
                     />
                   </Field>
+
+                  */ null}
 
                   <Field label="Section *" htmlFor="inp-sec">
                     <input
@@ -1169,7 +1274,24 @@ export function StudentsModule({ role: _role }: { role: Role }) {
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <Field label="Department" htmlFor="edit-dept">
+                <Field label="Department *" htmlFor="edit-dept">
+                  <select
+                    id="edit-dept"
+                    required
+                    value={editingStudent.department || ""}
+                    onChange={(e) => setEditingStudent({ ...editingStudent, department: e.target.value })}
+                    className={inputClass}
+                  >
+                    <option value="">Select Department...</option>
+                    {editAvailableDepartments.map((dept) => (
+                      <option key={dept} value={dept}>
+                        {dept}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+                {/*
+                <Field label="Department" htmlFor="edit-dept-old">
                   <input
                     id="edit-dept"
                     type="text"
@@ -1178,6 +1300,8 @@ export function StudentsModule({ role: _role }: { role: Role }) {
                     className={inputClass}
                   />
                 </Field>
+
+                */ null}
 
                 <Field label="Section *" htmlFor="edit-sec">
                   <input
