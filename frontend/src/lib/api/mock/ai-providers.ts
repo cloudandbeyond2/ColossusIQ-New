@@ -30,6 +30,7 @@ const REASONS: Record<string, string> = {
   no_key: "No API key is set.",
   http_400: "The provider rejected the request. Check the model id.",
   http_401: "The API key was rejected. Check that it is correct and active.",
+  http_402: "The AI provider account prepayment credits are depleted. Please top up at Google AI Studio or use a new key.",
   http_403: "The API key is not allowed to use this model.",
   http_404: "The model was not found. Check the model id.",
   http_429: "The provider is rate-limiting this key or the account is out of credit.",

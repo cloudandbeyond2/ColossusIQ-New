@@ -125,7 +125,7 @@ async function jsonFrom<S extends z.ZodTypeAny>(id: ProviderId, schema: S, opts:
     const r = await callProvider(id, opts);
     if (!r.ok) {
       last = r.reason;
-      if (["no_key", "blocked", "timeout", "truncated", "http_400", "http_401", "http_403", "http_404"].includes(r.reason)) break; // retrying will not help
+      if (["no_key", "blocked", "timeout", "truncated", "http_400", "http_401", "http_402", "http_403", "http_404"].includes(r.reason)) break; // retrying will not help
       if (r.reason === "http_429" || r.reason === "http_503" || r.reason === "http_529") await new Promise((res) => setTimeout(res, 3000)); // rate-limited or overloaded: brief back-off
       continue;
     }

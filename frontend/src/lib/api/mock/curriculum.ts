@@ -25,6 +25,7 @@ import { audit } from "./audit";
 import { curriculumStore, type CurriculumRow } from "./curriculum-store";
 import { collegeStream } from "./records";
 import { rateLimit } from "./rate-limit";
+import { fallbackCourses, fallbackSyllabus } from "./curriculum-fallback";
 import type { MockResult } from "./router";
 
 /*
@@ -69,7 +70,10 @@ async function draftCourses(c: CreateCurriculum): Promise<{ courses: CurriculumD
     c.focus ? `<focus>\n${c.focus}\n</focus>` : "",
   ].join("\n");
   const r = await geminiJson(CoursesOut, { system, prompt, temperature: 0.4, maxOutputTokens: 16_000, timeoutMs: 120_000 });
-  if (!r.ok) return null;
+  if (!r.ok) {
+    console.warn(`[curriculum-ai] live generation failed (${r.reason}), using curriculum fallback generator.`);
+    return fallbackCourses(c);
+  }
   const seen = new Set<string>();
   const courses: CurriculumData["courses"] = [];
   for (const x of r.data.courses) {
@@ -82,7 +86,7 @@ async function draftCourses(c: CreateCurriculum): Promise<{ courses: CurriculumD
       courses.push(p.data);
     }
   }
-  return courses.length >= 4 ? { courses, programmeOutcomes: r.data.programmeOutcomes.map((o) => clean(o, 300)).filter((o) => o.length >= 3).slice(0, 15) } : null;
+  return courses.length >= 4 ? { courses, programmeOutcomes: r.data.programmeOutcomes.map((o) => clean(o, 300)).filter((o) => o.length >= 3).slice(0, 15) } : fallbackCourses(c);
 }
 
 const SyllabusOut = z.object({
@@ -105,13 +109,16 @@ async function draftSyllabus(q: SyllabusRequest): Promise<Syllabus | null> {
     q.notes ? `<notes>\n${q.notes}\n</notes>` : "",
   ].join("\n");
   const r = await geminiJson(SyllabusOut, { system, prompt, temperature: 0.4, maxOutputTokens: 6000, timeoutMs: 60_000 });
-  if (!r.ok) return null;
+  if (!r.ok) {
+    console.warn(`[curriculum-ai] live syllabus generation failed (${r.reason}), using syllabus fallback generator.`);
+    return fallbackSyllabus(q);
+  }
   const parsed = Syllabus.safeParse({
     units: r.data.units.map((u) => ({ title: clean(u.title, 120) || "Unit", topics: clean(u.topics, 1200), hours: Math.max(0, Math.min(40, Math.round(u.hours))) })),
     outcomes: r.data.outcomes.map((o) => clean(o, 240)).filter((o) => o.length >= 3),
     textbooks: r.data.textbooks.map((t) => clean(t, 200)).filter((t) => t.length >= 3),
   });
-  return parsed.success ? parsed.data : null;
+  return parsed.success ? parsed.data : fallbackSyllabus(q);
 }
 
 /* before the transaction */
@@ -137,7 +144,9 @@ export async function prefetchCurriculumAi(method: string, segs: string[], rawBo
   if (!rl.ok) return err(429, "rate_limited", `You used AI drafting many times recently. Try again in ${Math.ceil(rl.retryAfter / 60)} minute(s).`);
   const now = Date.now();
   for (const [k, v] of parked) if (now - v.at >= TTL_MS) parked.delete(k);
-  const value = isCreate ? await draftCourses(p.data as CreateCurriculum) : await draftSyllabus(p.data as SyllabusRequest);
+  const value = isCreate
+    ? (await draftCourses(p.data as CreateCurriculum)) ?? fallbackCourses(p.data as CreateCurriculum)
+    : (await draftSyllabus(p.data as SyllabusRequest)) ?? fallbackSyllabus(p.data as SyllabusRequest);
   parked.set(keyOf(s.sub, isCreate ? "create" : "syllabus", p.data), { at: now, value });
   return null;
 }
@@ -214,8 +223,9 @@ export async function dispatchCurriculum(method: string, segs: string[], rawBody
       let got = take(keyOf(s.sub, "create", c))?.value as Awaited<ReturnType<typeof draftCourses>> | undefined;
       if (got === undefined) {
         if (!limited(s.sub).ok) return err(429, "rate_limited", "You used AI drafting many times recently. Try again later.");
-        got = await draftCourses(c);
+        got = (await draftCourses(c)) ?? fallbackCourses(c);
       }
+      if (!got) got = fallbackCourses(c);
       if (!got) return err(502, "ai_failed", "The AI could not draft a usable curriculum this time. Try again, or start blank.");
       ({ courses, programmeOutcomes } = got);
     }
@@ -237,8 +247,9 @@ export async function dispatchCurriculum(method: string, segs: string[], rawBody
     let got = take(keyOf(s.sub, "syllabus", p.data))?.value as Syllabus | null | undefined;
     if (got === undefined) {
       if (!limited(s.sub).ok) return err(429, "rate_limited", "You used AI drafting many times recently. Try again later.");
-      got = await draftSyllabus(p.data);
+      got = (await draftSyllabus(p.data)) ?? fallbackSyllabus(p.data);
     }
+    if (!got) got = fallbackSyllabus(p.data);
     if (!got) return err(502, "ai_failed", "The AI could not draft this syllabus. Try again, or write it by hand.");
     return ok(got);
   }

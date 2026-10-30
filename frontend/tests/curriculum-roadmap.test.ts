@@ -73,6 +73,23 @@ describe("Curriculum Studio", () => {
     expect(w.some((x) => x.includes("AB1234 is used 2 times"))).toBe(true);
     expect(w.some((x) => x.includes("does not match L-T-P"))).toBe(true);
   });
+
+  it("generates fallback curriculum and syllabus for ECE and other disciplines when AI is offline", async () => {
+    const { fallbackCourses, fallbackSyllabus } = await import("@/lib/api/mock/curriculum-fallback");
+    const ece = fallbackCourses({ degree: "B.E.", discipline: "ECE", regulation: "R2026", semesters: 8, start: "ai", focus: "" });
+    expect(ece.courses.length).toBeGreaterThanOrEqual(30);
+    expect(ece.programmeOutcomes.length).toBeGreaterThanOrEqual(8);
+    // Check semester 1 to 8 presence
+    for (let s = 1; s <= 8; s++) {
+      expect(ece.courses.some((c) => c.semester === s)).toBe(true);
+    }
+    // Syllabus fallback
+    const syl = fallbackSyllabus({ code: "EC2102", title: "Electronic Devices and Circuits", programme: "B.E. ECE", hours: 45, notes: "" });
+    expect(syl.units).toHaveLength(5);
+    expect(syl.outcomes.length).toBeGreaterThanOrEqual(4);
+    expect(syl.textbooks.length).toBeGreaterThanOrEqual(2);
+    expect(syl.units.reduce((acc, u) => acc + u.hours, 0)).toBe(45);
+  });
 });
 
 describe("Course Roadmap", () => {

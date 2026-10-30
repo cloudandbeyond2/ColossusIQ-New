@@ -171,9 +171,28 @@ function NewCurriculum({ aiReady, onCreated }: { aiReady: boolean; onCreated: (i
             </Field>
           ) : null}
           {error ? (
-            <p role="alert" className="rounded-xl bg-rose-soft px-3 py-2 text-sm text-rose">
-              {error}
-            </p>
+            <div role="alert" className="rounded-xl bg-rose-soft px-3.5 py-2.5 text-sm text-rose space-y-1">
+              <p className="font-medium">{error}</p>
+              {b.start === "ai" ? (
+                <p className="text-xs text-ink-3">
+                  Tip: You can select{" "}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setB((prev) => ({ ...prev, start: "blank" }));
+                      setError(null);
+                    }}
+                    className="underline font-semibold text-brand"
+                  >
+                    Blank
+                  </button>{" "}
+                  to start with an empty curriculum structure, or manage active keys in{" "}
+                  <Link href="/admin/ai-providers" className="underline font-semibold text-brand">
+                    AI Providers
+                  </Link>.
+                </p>
+              ) : null}
+            </div>
           ) : null}
           <Button type="submit" disabled={create.isPending || (b.start === "ai" && !aiReady)}>
             {create.isPending ? <Spinner /> : <Fi name={b.start === "ai" ? "sparkles" : "plus"} />} {create.isPending && b.start === "ai" ? "Drafting the curriculum… this can take a minute" : "Create curriculum"}
