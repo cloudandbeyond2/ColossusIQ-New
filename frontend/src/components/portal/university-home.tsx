@@ -6,15 +6,16 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { z } from "zod";
 import { apiFetch, ApiError } from "@/lib/api/client";
-import { RecordEnvelope, ResourceRecordSchema, UniversityOverview } from "@/lib/api/schemas";
+import { RecordEnvelope, ResourceRecordSchema, RoleHome, UniversityOverview } from "@/lib/api/schemas";
 import { RESOURCES, type RecordValue } from "@/config/resources";
 import { TOGGLEABLE_GROUPS } from "@/config/tenancy";
 import { STREAM_DEFS, STREAMS, streamOfType, type Stream } from "@/config/streams";
 import { ChartCard } from "@/components/charts/chart-card";
-import { KpiGrid, TemplateSkeleton } from "@/components/modules/shared";
+import { InsightList, KpiGrid, TemplateSkeleton } from "@/components/modules/shared";
 import { Fi } from "@/components/ui/icon";
-import { RefreshCw, Sparkles } from "lucide-react";
-import { Badge, Button, Card, CardBody, CardHeader, LinkButton, Spinner, toneForStatus } from "@/components/ui/primitives";
+import { ArrowRight, RefreshCw, Sparkles } from "lucide-react";
+import { Badge, Button, Card, CardBody, CardHeader, LinkButton, Spinner, toneBar, toneForStatus } from "@/components/ui/primitives";
+import { safeNextPath } from "@/lib/security/redirect";
 import { cn, formatNumber } from "@/lib/utils";
 import { PlatformPanel } from "./platform-panel";
 import { InstitutionalSetupWizard } from "./institutional-setup-wizard";
@@ -29,6 +30,13 @@ export function UniversityHome() {
   const { data, isLoading, isRefetching, error, refetch, dataUpdatedAt } = useQuery({
     queryKey: ["university-overview"],
     queryFn: () => apiFetch("/api/v1/university/overview", UniversityOverview),
+    refetchInterval: 30_000,
+    refetchIntervalInBackground: false,
+  });
+
+  const homeQuery = useQuery({
+    queryKey: ["home", "admin"],
+    queryFn: () => apiFetch("/api/v1/home/admin", RoleHome),
     refetchInterval: 30_000,
     refetchIntervalInBackground: false,
   });
@@ -55,6 +63,7 @@ export function UniversityHome() {
       setNotice(`${String(rec.name)} is now ${String(rec.status).toLowerCase()}.${rec.status === "Suspended" ? " All of its users have been signed out." : ""}`);
       void qc.invalidateQueries({ queryKey: ["university-overview"] });
       void qc.invalidateQueries({ queryKey: ["college-options"] });
+      void qc.invalidateQueries({ queryKey: ["home", "admin"] });
     },
     onError: (e) => setNotice(e instanceof ApiError ? e.message : "Could not change the college status."),
   });
@@ -124,13 +133,16 @@ export function UniversityHome() {
             <Button
               variant="secondary"
               size="lg"
-              onClick={() => void refetch()}
-              disabled={isRefetching}
+              onClick={() => {
+                void refetch();
+                void homeQuery.refetch();
+              }}
+              disabled={isRefetching || homeQuery.isRefetching}
               className="bg-white/15 text-white hover:bg-white/25 border-none backdrop-blur-sm"
               title="Sync metrics in real-time"
             >
-              <RefreshCw className={cn("size-4 mr-1.5", isRefetching && "animate-spin")} />
-              {isRefetching ? "Syncing..." : "Sync live"}
+              <RefreshCw className={cn("size-4 mr-1.5", (isRefetching || homeQuery.isRefetching) && "animate-spin")} />
+              {isRefetching || homeQuery.isRefetching ? "Syncing..." : "Sync live"}
             </Button>
             <LinkButton href="/admin/colleges/new" variant="gold" size="lg">
               <Fi name="plus" /> Add college
@@ -307,6 +319,36 @@ export function UniversityHome() {
         <ChartCard spec={comparison} />
         <ChartCard spec={statusMix} />
       </div>
+
+      {homeQuery.data?.queue?.length ? (
+        <Card className="h-fit">
+          <CardHeader
+            title="Needs system attention"
+            subtitle="High priority items across colleges, AI infrastructure, and system configuration"
+          />
+          <ul className="divide-y divide-line p-2">
+            {homeQuery.data.queue.map((q) => (
+              <li key={q.title}>
+                <Link
+                  href={safeNextPath(q.href, "/admin")}
+                  className="group flex items-center gap-3 rounded-xl px-3 py-3 hover:bg-surface-2 transition"
+                >
+                  <span className={cn("h-9 w-1 rounded-full", toneBar[q.tone])} aria-hidden />
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-sm font-semibold text-ink group-hover:text-brand">{q.title}</span>
+                    <span className="block text-xs text-ink-3">{q.meta}</span>
+                  </span>
+                  <ArrowRight className="size-4 text-ink-3 transition-transform group-hover:translate-x-0.5" aria-hidden />
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      ) : null}
+
+      {homeQuery.data?.insights?.length ? (
+        <InsightList insights={homeQuery.data.insights} />
+      ) : null}
 
       <Card>
         <CardHeader title="Recent university activity" subtitle="From the audit log" action={<LinkButton href="/admin/audit-log" size="sm" variant="secondary">Full audit log</LinkButton>} />

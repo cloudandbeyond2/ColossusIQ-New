@@ -251,6 +251,7 @@ import { dispatchEmployers } from "./employers";
 import { IncubationError } from "./incubation-common";
 import { dynamicIncubationHome } from "./incubation-home";
 import { dynamicRecruiterHome } from "./recruiter-home";
+import { dynamicAdminHome } from "./admin-home";
 import { dispatchJobs } from "./jobs";
 import { dispatchAlumni } from "./alumni";
 import { dispatchInterview } from "./interview";
@@ -1137,6 +1138,14 @@ export async function dispatch(method: string, segs: string[], rawBody: unknown,
         } catch (e) {
           console.error("[GET home/recruiter] Error:", e);
           return err(500, "home_failed", "The recruiter dashboard could not be loaded.");
+        }
+      }
+      if (role === "admin") {
+        try {
+          return ok(await dynamicAdminHome(session));
+        } catch (e) {
+          console.error("[GET home/admin] Error:", e);
+          return err(500, "home_failed", "The admin dashboard could not be loaded.");
         }
       }
       const inCollege = session.college !== ALL_COLLEGES;
