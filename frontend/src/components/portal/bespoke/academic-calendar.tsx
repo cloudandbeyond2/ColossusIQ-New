@@ -217,7 +217,7 @@ function DayCell({ day, isCurrentMonth, isToday, events, onAdd, onSelect }: {
       <div className="flex items-center justify-between mb-1">
         <span className={cn(
           "text-xs font-medium w-6 h-6 flex items-center justify-center rounded-full",
-          isToday ? "bg-[var(--accent)] text-white" : "text-[var(--fg-muted)]"
+          isToday ? "bg-brand text-white" : "text-ink-3"
         )}>
           {day.getDate()}
         </span>
@@ -383,14 +383,14 @@ export function AcademicCalendarModule({ role }: { role: Role }) {
         </select>
 
         {/* View toggle */}
-        <div className="flex rounded-lg border border-[var(--border)] overflow-hidden text-xs">
+        <div className="flex rounded-lg border border-line bg-surface overflow-hidden text-xs">
           {(["month", "list"] as const).map((v) => (
             <button
               key={v}
               onClick={() => setView(v)}
               className={cn(
-                "px-3 py-1.5 capitalize",
-                view === v ? "bg-[var(--accent)] text-white" : "hover:bg-[var(--bg-subtle)]"
+                "px-3 py-1.5 capitalize font-medium transition-colors",
+                view === v ? "bg-brand text-white" : "text-ink-2 hover:bg-surface-2 hover:text-ink"
               )}
             >
               {v}
