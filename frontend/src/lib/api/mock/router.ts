@@ -252,6 +252,7 @@ import { IncubationError } from "./incubation-common";
 import { dynamicIncubationHome } from "./incubation-home";
 import { dynamicRecruiterHome } from "./recruiter-home";
 import { dynamicAdminHome } from "./admin-home";
+import { dynamicPlacementHome } from "./placement-home";
 import { dispatchJobs } from "./jobs";
 import { dispatchAlumni } from "./alumni";
 import { dispatchInterview } from "./interview";
@@ -1148,11 +1149,17 @@ export async function dispatch(method: string, segs: string[], rawBody: unknown,
           return err(500, "home_failed", "The admin dashboard could not be loaded.");
         }
       }
+      if (role === "placement") {
+        try {
+          return ok(await dynamicPlacementHome(session));
+        } catch (e) {
+          console.error("[GET home/placement] Error:", e);
+          return err(500, "home_failed", "The placement dashboard could not be loaded.");
+        }
+      }
       const inCollege = session.college !== ALL_COLLEGES;
       const staticHome = ROLE_HOMES[role as Exclude<typeof session.role, "student">];
-      // Placement works from live readiness and drive data; the other roles still show their sample home.
-      const home = role === "placement" && inCollege ? placementHome(staticHome, await placementSnapshot(session, session.college)) : staticHome;
-      const res = { ...roleHomeFor(home, role, inCollege ? await collegeStream(session.college) : null, inCollege ? String((await getCollege(session.college))?.name ?? "College") : null) };
+      const res = { ...roleHomeFor(staticHome, role, inCollege ? await collegeStream(session.college) : null, inCollege ? String((await getCollege(session.college))?.name ?? "College") : null) };
       
       const userDept = await resolveUserDepartment(session);
       if (userDept) {

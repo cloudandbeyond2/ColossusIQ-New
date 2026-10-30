@@ -78,13 +78,26 @@ async function loadStudents(scope: string): Promise<Readiness[]> {
 }
 
 async function loadDrives(session: SessionPayload, scope: string): Promise<DriveRow[]> {
-  if (scope === ALL_COLLEGES) return [];
-  try {
-    return await driveStore().list({ ...session, college: scope });
-  } catch (e) {
-    console.warn("[placement-stats] drives unavailable:", e);
-    return [];
+  if (scope !== ALL_COLLEGES) {
+    try {
+      return await driveStore().list({ ...session, college: scope });
+    } catch (e) {
+      console.warn("[placement-stats] drives unavailable:", e);
+      return [];
+    }
   }
+  const out: DriveRow[] = [];
+  try {
+    for (const c of await listColleges()) {
+      try {
+        const rows = await driveStore().list({ ...session, college: String(c.id) });
+        out.push(...rows);
+      } catch {}
+    }
+  } catch (e) {
+    console.warn("[placement-stats] drives unavailable across colleges:", e);
+  }
+  return out;
 }
 
 const DIMENSIONS: Array<{ label: string; of: (r: Readiness) => number }> = [
