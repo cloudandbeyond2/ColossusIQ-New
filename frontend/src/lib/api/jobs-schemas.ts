@@ -121,3 +121,91 @@ export const ToggleSaveJobBody = z.object({
   jobId: z.string().min(1, "Job ID is required"),
 });
 export type ToggleSaveJobBody = z.infer<typeof ToggleSaveJobBody>;
+
+export const MatchedCandidate = z.object({
+  id: z.string(),
+  name: z.string(),
+  rollNo: z.string(),
+  department: z.string(),
+  semester: z.number().default(8),
+  cgpa: z.number().default(7.5),
+  readinessTotal: z.number(),
+  resumeScore: z.number().default(0),
+  interviewScore: z.number().default(0),
+  status: z.string(),
+  collegeName: z.string().optional(),
+});
+export type MatchedCandidate = z.infer<typeof MatchedCandidate>;
+
+export const PlacementJobItem = z.object({
+  id: z.string(),
+  company: z.string(),
+  companyLogo: z.string().optional(),
+  role: z.string(),
+  type: z.string(),
+  category: z.enum(["campus-drive", "industry-job", "internship"]),
+  location: z.string(),
+  venue: z.string().optional(),
+  packageMin: z.number().default(0),
+  packageMax: z.number().default(0),
+  packageText: z.string(),
+  openings: z.number().default(0),
+  departments: z.array(z.string()).default([]),
+  minReadiness: z.number().default(0),
+  minCgpa: z.number().default(0),
+  date: z.string().default(""),
+  deadline: z.string().default(""),
+  description: z.string(),
+  responsibilities: z.array(z.string()).default([]),
+  skills: z.array(z.string()).default([]),
+  status: z.enum(["Open", "Upcoming", "Closing Soon", "Closed"]).default("Open"),
+  isDrive: z.boolean().default(false),
+  driveId: z.string().optional(),
+  eligibleCount: z.number(),
+  candidates: z.array(MatchedCandidate).default([]),
+});
+export type PlacementJobItem = z.infer<typeof PlacementJobItem>;
+
+export const PlacementJobsOverview = z.object({
+  summary: z.object({
+    totalJobs: z.number(),
+    corporateOpenings: z.number(),
+    campusDrives: z.number(),
+    totalMatches: z.number(),
+    partnerCompanies: z.number(),
+    highestPackageLpa: z.number(),
+    averagePackageLpa: z.number(),
+  }),
+  jobs: z.array(PlacementJobItem),
+  employers: z
+    .array(
+      z.object({
+        id: z.string(),
+        company: z.string(),
+        sector: z.string().optional(),
+        tier: z.string().optional(),
+      })
+    )
+    .default([]),
+  departments: z.array(z.string()).default([]),
+});
+export type PlacementJobsOverview = z.infer<typeof PlacementJobsOverview>;
+
+export const CreateJobBody = z.object({
+  company: z.string().trim().min(2, "Company name is required"),
+  role: z.string().trim().min(2, "Role is required"),
+  type: z.string().default("On-campus"),
+  category: z.enum(["campus-drive", "industry-job", "internship"]).default("industry-job"),
+  location: z.string().trim().min(2, "Location is required"),
+  packageMin: z.number().min(0).default(5),
+  packageMax: z.number().min(0).default(8),
+  openings: z.number().min(1).default(10),
+  departments: z.array(z.string()).min(1, "Select at least one department"),
+  minReadiness: z.number().min(0).max(100).default(65),
+  minCgpa: z.number().min(0).max(10).default(6.0),
+  deadline: z.string().min(4, "Deadline is required"),
+  description: z.string().trim().min(10, "Description is required"),
+  skills: z.array(z.string()).default([]),
+});
+export type CreateJobBody = z.infer<typeof CreateJobBody>;
+

@@ -53,6 +53,7 @@ import {
 import { cn } from "@/lib/utils";
 import type { Role } from "@/lib/auth/roles";
 import { Modal } from "./assignments-shared";
+import { PlacementJobsModule } from "./placement-jobs";
 
 const JOBS_KEY = ["jobs-overview"] as const;
 const Ok = z.object({ ok: z.boolean() });
@@ -61,6 +62,13 @@ type FilterTab = "matched" | "all" | "drives" | "internships" | "applications" |
 type SortOption = "match" | "package" | "deadline" | "company";
 
 export function JobsModule({ role }: { role: Role }) {
+  if (role === "placement" || role === "admin" || role === "institution") {
+    return <PlacementJobsModule role={role} />;
+  }
+  return <StudentJobsView role={role} />;
+}
+
+function StudentJobsView({ role }: { role: Role }) {
   const qc = useQueryClient();
   const q = useQuery({
     queryKey: JOBS_KEY,

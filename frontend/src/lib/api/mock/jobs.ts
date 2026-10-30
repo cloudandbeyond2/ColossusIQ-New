@@ -1,14 +1,19 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
+import { ALL_COLLEGES } from "@/config/tenancy";
 import type { SessionPayload } from "@/lib/auth/session";
 import { getStore } from "@/lib/data";
 import { cleanText } from "@/lib/security/sanitize";
 import { meetsDrive, packageText } from "@/lib/api/drive-schemas";
 import {
   ApplyJobBody,
+  CreateJobBody,
   JobApplication,
   JobItem,
+  MatchedCandidate,
+  PlacementJobItem,
+  PlacementJobsOverview,
   StudentJobsOverview,
   ToggleSaveJobBody,
   WithdrawJobBody,
@@ -16,10 +21,43 @@ import {
 import { computeReadiness, READINESS_RULES, type Readiness } from "./learning";
 import { getStudentAcademicProfile } from "./student-profile";
 import { driveStore } from "./drive-store";
+import { employerStore } from "./employer-store";
+import { placementSnapshot } from "./placement-stats";
 import { studentStateStore } from "./student-state-store";
+import { sharedState } from "./global-state";
 import type { MockResult } from "./router";
 
 const STATE_KEY = "jobs_state";
+
+interface CustomJobRecord {
+  id: string;
+  college: string;
+  company: string;
+  companyLogo?: string;
+  role: string;
+  type: string;
+  category: "campus-drive" | "industry-job" | "internship";
+  location: string;
+  venue?: string;
+  packageMin: number;
+  packageMax: number;
+  packageText: string;
+  openings: number;
+  departments: string[];
+  minReadiness: number;
+  minCgpa: number;
+  deadline: string;
+  date: string;
+  description: string;
+  responsibilities: string[];
+  skills: string[];
+  status: "Open" | "Upcoming" | "Closing Soon" | "Closed";
+  isDrive: boolean;
+  createdAt: string;
+}
+
+const customJobs = sharedState("jobs.custom", () => new Map<string, CustomJobRecord>());
+const deletedJobIds = sharedState("jobs.deleted", () => new Set<string>());
 
 const ok = (body: unknown, status = 200): MockResult => ({ status, body });
 const err = (status: number, code: string, message: string, fields?: Record<string, string>): MockResult => ({
@@ -392,6 +430,223 @@ export async function dispatchJobs(
   s: SessionPayload,
   query: URLSearchParams
 ): Promise<MockResult> {
+  // ── Placement Officer & Management Staff Perspective ──────────────────
+  if (s.role === "placement" || s.role === "admin" || s.role === "institution") {
+    // 1. GET /api/v1/jobs - Placement Overview with live candidate matches
+    if (method === "GET" && segs.length === 1) {
+      const collegeScope = s.college;
+      const [snapshot, employersList, liveDrives] = await Promise.all([
+        placementSnapshot(s, collegeScope),
+        employerStore.list(s).catch(() => []),
+        driveStore().list(s).catch(() => []),
+      ]);
+
+      const allCustom = [...customJobs.values()].filter(
+        (j) => (collegeScope === ALL_COLLEGES || j.college === collegeScope || j.college === ALL_COLLEGES) && !deletedJobIds.has(j.id)
+      );
+      const activeCurated = CURATED_JOBS.filter((j) => !deletedJobIds.has(j.id));
+
+      const driveJobs = liveDrives.map((d) => ({
+        id: `drive-${d.id}`,
+        company: d.company,
+        companyLogo: d.company.slice(0, 3).toUpperCase(),
+        role: d.role,
+        type: d.type,
+        category: "campus-drive" as const,
+        location: d.venue || "Campus Venue",
+        venue: d.venue,
+        packageMin: d.packageMin,
+        packageMax: d.packageMax,
+        packageText: packageText(d.packageMin, d.packageMax),
+        openings: d.openings,
+        departments: d.departments,
+        minReadiness: d.minReadiness,
+        minCgpa: 6.0,
+        date: d.date,
+        deadline: d.deadline || d.date,
+        description: d.description || `Campus recruitment drive for ${d.company}.`,
+        responsibilities: [
+          `Participate in campus recruitment assessments and technical interviews for ${d.role}`,
+          "Interact with visiting technical leadership and placement coordinators",
+        ],
+        skills: ["Core Domain", "Problem Solving", "Communication", "Aptitude"],
+        status: (d.status === "Open" ? "Open" : d.status === "Closed" ? "Closed" : "Upcoming") as "Open" | "Upcoming" | "Closing Soon" | "Closed",
+        isDrive: true,
+        driveId: d.id,
+      }));
+
+      type AnyJob = {
+        id: string;
+        company: string;
+        companyLogo?: string;
+        role: string;
+        type: string;
+        category: "campus-drive" | "industry-job" | "internship";
+        location: string;
+        venue?: string;
+        packageMin: number;
+        packageMax: number;
+        packageText: string;
+        openings: number;
+        departments: string[];
+        minReadiness: number;
+        minCgpa: number;
+        deadline: string;
+        date: string;
+        description: string;
+        responsibilities?: string[];
+        skills: string[];
+        status: "Open" | "Upcoming" | "Closing Soon" | "Closed";
+        isDrive: boolean;
+        driveId?: string;
+      };
+
+      const rawJobs: AnyJob[] = [...allCustom, ...driveJobs];
+      for (const cj of activeCurated) {
+        if (!rawJobs.some((x) => x.company.toLowerCase() === cj.company.toLowerCase() && x.role.toLowerCase() === cj.role.toLowerCase())) {
+          rawJobs.push({
+            ...cj,
+            packageText: packageText(cj.packageMin, cj.packageMax),
+            isDrive: cj.isDrive ?? false,
+          });
+        }
+      }
+
+      const placementJobs: PlacementJobItem[] = rawJobs.map((j) => {
+        const matching = snapshot.students.filter((st) => {
+          const deptMatch = j.departments.length === 0 || j.departments.includes(st.department);
+          const readinessMatch = st.total >= (j.minReadiness || 0);
+          const cgpaVal = (st as unknown as { cgpa?: number }).cgpa ?? 7.5;
+          const cgpaMatch = !j.minCgpa || cgpaVal >= j.minCgpa;
+          return deptMatch && readinessMatch && cgpaMatch;
+        });
+
+        const candidates: MatchedCandidate[] = matching
+          .sort((a, b) => b.total - a.total)
+          .map((st) => ({
+            id: st.studentSub || st.rollNo,
+            name: st.name,
+            rollNo: st.rollNo,
+            department: st.department,
+            semester: 8,
+            cgpa: (st as unknown as { cgpa?: number }).cgpa ?? 7.8,
+            readinessTotal: st.total,
+            resumeScore: st.resume,
+            interviewScore: st.interview,
+            status: st.status,
+            collegeName: (st as unknown as { collegeName?: string }).collegeName ?? st.collegeId,
+          }));
+
+        return {
+          id: j.id,
+          company: j.company,
+          companyLogo: j.companyLogo || j.company.slice(0, 3).toUpperCase(),
+          role: j.role,
+          type: j.type,
+          category: j.category,
+          location: j.location,
+          venue: (j as any).venue,
+          packageMin: j.packageMin,
+          packageMax: j.packageMax,
+          packageText: j.packageText || packageText(j.packageMin, j.packageMax),
+          openings: j.openings,
+          departments: j.departments,
+          minReadiness: j.minReadiness,
+          minCgpa: j.minCgpa,
+          date: j.date || "",
+          deadline: j.deadline || "",
+          description: j.description,
+          responsibilities: j.responsibilities || [],
+          skills: j.skills || [],
+          status: j.status,
+          isDrive: j.isDrive,
+          driveId: (j as any).driveId,
+          eligibleCount: matching.length,
+          candidates,
+        };
+      });
+
+      const totalOpportunities = placementJobs.length;
+      const corporateOpenings = placementJobs.filter((j) => j.category === "industry-job").length;
+      const campusDrives = placementJobs.filter((j) => j.category === "campus-drive").length;
+      const totalMatches = placementJobs.reduce((acc, j) => acc + j.eligibleCount, 0);
+      const partnerCompanies = new Set(placementJobs.map((j) => j.company.trim().toLowerCase())).size;
+      const pkgs = placementJobs.map((j) => j.packageMax).filter((p) => p > 0);
+      const highestPackageLpa = pkgs.length ? Math.max(...pkgs) : 0;
+      const averagePackageLpa = pkgs.length ? Math.round((pkgs.reduce((a, b) => a + b, 0) / pkgs.length) * 10) / 10 : 0;
+
+      const overview: PlacementJobsOverview = {
+        summary: {
+          totalJobs: totalOpportunities,
+          corporateOpenings,
+          campusDrives,
+          totalMatches,
+          partnerCompanies,
+          highestPackageLpa,
+          averagePackageLpa,
+        },
+        jobs: placementJobs,
+        employers: employersList.map((e) => ({
+          id: e.id,
+          company: e.company,
+          sector: e.sector,
+          tier: e.tier,
+        })),
+        departments: snapshot.departments.map((d) => d.name),
+      };
+
+      return ok(overview);
+    }
+
+    // 2. POST /api/v1/jobs - Placement officer posts a corporate opening
+    if (method === "POST" && segs.length === 1) {
+      const parse = CreateJobBody.safeParse(rawBody);
+      if (!parse.success) {
+        return err(422, "validation", "Invalid job posting fields.");
+      }
+      const b = parse.data;
+      const newJob: CustomJobRecord = {
+        id: `custom-job-${randomUUID().slice(0, 8)}`,
+        college: s.college,
+        company: cleanText(b.company, 100),
+        companyLogo: cleanText(b.company, 4).toUpperCase(),
+        role: cleanText(b.role, 100),
+        type: b.type,
+        category: b.category,
+        location: cleanText(b.location, 100),
+        packageMin: b.packageMin,
+        packageMax: b.packageMax,
+        packageText: packageText(b.packageMin, b.packageMax),
+        openings: b.openings,
+        departments: b.departments,
+        minReadiness: b.minReadiness,
+        minCgpa: b.minCgpa,
+        deadline: b.deadline,
+        date: new Date().toISOString().slice(0, 10),
+        description: cleanText(b.description, 2000),
+        responsibilities: [
+          `Collaborate with cross-functional technical teams on ${b.role} responsibilities`,
+          "Meet delivery milestones and adhere to production engineering standards",
+        ],
+        skills: b.skills.map((sk) => cleanText(sk, 50)),
+        status: "Open",
+        isDrive: b.category === "campus-drive",
+        createdAt: new Date().toISOString(),
+      };
+      customJobs.set(newJob.id, newJob);
+      return ok({ ok: true, job: newJob, message: "Corporate job opening posted successfully!" }, 201);
+    }
+
+    // 3. DELETE /api/v1/jobs/:id - Placement officer removes/closes job opening
+    if (method === "DELETE" && segs.length === 2) {
+      const jobId = segs[1]!;
+      deletedJobIds.add(jobId);
+      customJobs.delete(jobId);
+      return ok({ ok: true, message: "Job opening closed." });
+    }
+  }
+
+  // ── Student Job Portal Perspective ────────────────────────────────────
   const store = getStore();
 
   // 1. Fetch Student Profile and Readiness
