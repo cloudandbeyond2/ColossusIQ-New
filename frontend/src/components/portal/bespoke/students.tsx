@@ -24,6 +24,7 @@ import {
 import { apiFetch } from "@/lib/api/client";
 import type { Role } from "@/lib/auth/roles";
 import { streamOfType, streamOptions } from "@/config/streams";
+import * as XLSX from "xlsx";
 import {
   Badge,
   Button,
@@ -114,6 +115,27 @@ export function StudentsModule({ role: _role }: { role: Role }) {
     staleTime: 5 * 60 * 1000,
   });
 
+  // Query Session for Active College Context
+  const { data: session } = useQuery({
+    queryKey: ["auth-session"],
+    queryFn: async () => {
+      try {
+        return await apiFetch(
+          "/api/v1/auth/session",
+          z.object({
+            role: z.string(),
+            name: z.string(),
+            college: z.string().optional(),
+            collegeName: z.string().optional(),
+          })
+        );
+      } catch {
+        return null;
+      }
+    },
+    staleTime: 10 * 60 * 1000,
+  });
+
   // Modals state
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [importTab, setImportTab] = useState<"form" | "excel">("form");
@@ -169,7 +191,7 @@ export function StudentsModule({ role: _role }: { role: Role }) {
     mutationFn: async (payload: Partial<StudentItem>) => {
       return apiFetch("/api/v1/students", z.any(), {
         method: "POST",
-        body: { data: payload },
+        body: { data: { ...payload, collegeId: payload.collegeId || activeCollegeId } },
       });
     },
     onSuccess: () => {
@@ -199,7 +221,10 @@ export function StudentsModule({ role: _role }: { role: Role }) {
     mutationFn: async (items: StudentItem[]) => {
       return apiFetch("/api/v1/students/import", z.any(), {
         method: "POST",
-        body: { items },
+        body: {
+          items: items.map((it) => ({ ...it, collegeId: it.collegeId || activeCollegeId })),
+          collegeId: activeCollegeId,
+        },
       });
     },
     onSuccess: (res: any) => {
@@ -252,7 +277,10 @@ export function StudentsModule({ role: _role }: { role: Role }) {
     },
   });
 
-  const activeCollegeId = newStudent.collegeId || (collegeFilter !== "all" ? collegeFilter : colleges[0]?.id || "");
+  const sessionCollegeId = session?.college && session.college !== "all" ? session.college : "";
+  const activeCollegeId =
+    newStudent.collegeId ||
+    (collegeFilter !== "all" ? collegeFilter : sessionCollegeId || colleges[0]?.id || "");
   const selectedCollege = useMemo(() => {
     return colleges.find((c) => c.id === activeCollegeId);
   }, [colleges, activeCollegeId]);
@@ -274,6 +302,54 @@ export function StudentsModule({ role: _role }: { role: Role }) {
 
     return Array.from(depts);
   }, [selectedStream, activeCollegeId, students]);
+
+  const isNursingCollege = useMemo(() => {
+    const colName = (selectedCollege?.name || '').toLowerCase();
+    const colType = (selectedCollege?.type || '').toLowerCase();
+    return colName.includes('nurs') || colType.includes('nurs');
+  }, [selectedCollege]);
+
+  const rollNumberPlaceholder = useMemo(() => {
+    if (isNursingCollege) return 'e.g. 25NUR101';
+    if (selectedStream === 'medical') return 'e.g. 26MED101';
+    if (selectedStream === 'management') return 'e.g. 24MBA101';
+    if (selectedStream === 'arts_science') return 'e.g. 23BSC101';
+    return 'e.g. 21CS1157';
+  }, [isNursingCollege, selectedStream]);
+
+  const sectionPlaceholder = useMemo(() => {
+    if (isNursingCollege || selectedStream === 'medical') return 'e.g. Phase I · Batch A';
+    if (selectedStream === 'management') return 'e.g. Section A';
+    return 'e.g. CSE-A';
+  }, [isNursingCollege, selectedStream]);
+
+  const emailPlaceholder = useMemo(() => {
+    if (isNursingCollege) return 'e.g. rohan.s@cinahs.ac.in';
+    if (selectedStream === 'medical') return 'e.g. rohan.s@medcollege.ac.in';
+    return 'e.g. rohan.s@campus.edu';
+  }, [isNursingCollege, selectedStream]);
+
+  const openAddStudentModal = () => {
+    const initColId = collegeFilter !== 'all' ? collegeFilter : sessionCollegeId || colleges[0]?.id || '';
+    const colObj = colleges.find((c) => c.id === initColId);
+    const isNurs = (colObj?.name || '').toLowerCase().includes('nurs') || (colObj?.type || '').toLowerCase().includes('nurs');
+    const st = streamOfType(colObj?.type || colObj?.name);
+    const defaultSec = isNurs || st === 'medical' ? 'Phase I · Batch A' : 'CSE-A';
+    setNewStudent({
+      name: '',
+      roll: '',
+      department: '',
+      section: defaultSec,
+      cgpa: 7.5,
+      readiness: 60,
+      signal: 'None',
+      email: '',
+      phone: '',
+      collegeId: initColId,
+    });
+    setImportTab('form');
+    setIsImportModalOpen(true);
+  };
 
   const editActiveCollegeId = editingStudent?.collegeId || "";
   const editSelectedCollege = useMemo(() => {
@@ -437,6 +513,27 @@ export function StudentsModule({ role: _role }: { role: Role }) {
     if (!file) return;
 
     setUploadFileName(file.name);
+    if (/\.(xlsx|xls)$/i.test(file.name)) {
+      const reader = new FileReader();
+      reader.onload = (evt) => {
+        try {
+          const buffer = evt.target?.result as ArrayBuffer;
+          const wb = XLSX.read(new Uint8Array(buffer), { type: "array" });
+          const firstSheet = wb.SheetNames[0];
+          if (!firstSheet) {
+            setUploadError("The uploaded Excel workbook contains no sheets.");
+            return;
+          }
+          const csvText = XLSX.utils.sheet_to_csv(wb.Sheets[firstSheet]);
+          parseCsvText(csvText);
+        } catch (err: any) {
+          setUploadError("Could not read Excel file: " + (err?.message || "Invalid workbook format."));
+        }
+      };
+      reader.readAsArrayBuffer(file);
+      return;
+    }
+
     const reader = new FileReader();
     reader.onload = (evt) => {
       const content = evt.target?.result as string;
@@ -474,11 +571,33 @@ export function StudentsModule({ role: _role }: { role: Role }) {
 
   // Download Sample CSV template for easy uploading
   const handleDownloadSampleTemplate = () => {
-    const sampleHeaders = "Student Name,Roll Number,Section,CGPA,Career Readiness,Support Signal,Email,Phone";
+    const colName = (selectedCollege?.name || "").toLowerCase();
+    const colType = (selectedCollege?.type || "").toLowerCase();
+    const isNursing = colName.includes("nurs") || colType.includes("nurs");
+    const isMedical = selectedStream === "medical";
+    const sampleHeaders = "Student Name,Roll Number,Department,Section,CGPA,Career Readiness,Support Signal,Email,Phone";
     const sampleData = [
-      "Aarav Sharma,21CS1180,CSE-A,8.45,78,None,aarav.s@campus.edu,9876543210",
-      "Pooja Venkatesh,21CS1181,CSE-B,6.80,45,Review suggested,pooja.v@campus.edu,9876543211",
-      "Rohan Deshmukh,21CS1182,AI&DS,9.20,92,High performer,rohan.d@campus.edu,9876543212",
+      ...(isNursing
+        ? [
+            "Aarav Sharma,25NUR101,Nursing,Phase I · Batch A,8.45,78,None,aarav.s101@cinahs.ac.in,9876543210",
+            "Pooja Venkatesh,25NUR102,Paediatrics,Phase I · Batch A,6.80,45,Review suggested,pooja.v102@cinahs.ac.in,9876543211",
+            "Rohan Deshmukh,25NUR103,Physiology,Phase I · Batch B,9.20,92,High performer,rohan.d103@cinahs.ac.in,9876543212",
+            "Kavya Nair,25NUR104,Pathology,Phase I · Batch B,7.80,70,None,kavya.n104@cinahs.ac.in,9876543213",
+            "Mohammed Asif,25NUR105,Community Medicine,Phase I · Batch A,7.10,65,None,asif.m105@cinahs.ac.in,9876543214",
+          ]
+        : isMedical
+        ? [
+            "Aarav Sharma,26MED101,Nursing,Phase I · Batch A,8.45,78,None,aarav.s@campus.edu,9876543210",
+            "Pooja Venkatesh,26MED102,Paediatrics,Phase I · Batch A,6.80,45,Review suggested,pooja.v@campus.edu,9876543211",
+            "Rohan Deshmukh,26MED103,Physiology,Phase I · Batch B,9.20,92,High performer,rohan.d@campus.edu,9876543212",
+          ]
+        : [
+            "Aarav Sharma,21CS1180,Computer Science & Engineering,CSE-A,8.45,78,None,aarav.s@campus.edu,9876543210",
+            "Pooja Venkatesh,21CS1181,Information Technology,CSE-B,6.80,45,Review suggested,pooja.v@campus.edu,9876543211",
+            "Rohan Deshmukh,21CS1182,Artificial Intelligence & Data Science,AI&DS,9.20,92,High performer,rohan.d@campus.edu,9876543212",
+          ]),
+
+
     ].join("\r\n");
 
     const content = "\uFEFF" + sampleHeaders + "\r\n" + sampleData;
@@ -486,7 +605,8 @@ export function StudentsModule({ role: _role }: { role: Role }) {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.setAttribute("download", "sample_students_template.csv");
+    const templateTag = isNursing ? "nursing" : selectedStream;
+    link.setAttribute("download", `sample_students_template_${templateTag}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -623,10 +743,7 @@ export function StudentsModule({ role: _role }: { role: Role }) {
             <Button
               variant="primary"
               size="md"
-              onClick={() => {
-                setIsImportModalOpen(true);
-                setImportTab("form");
-              }}
+              onClick={openAddStudentModal}
               className="flex items-center gap-1.5 text-sm font-semibold shadow-xs"
               title="Add a new student"
             >
@@ -673,10 +790,7 @@ export function StudentsModule({ role: _role }: { role: Role }) {
               <Button
                 variant="primary"
                 size="sm"
-                onClick={() => {
-                  setImportTab("form");
-                  setIsImportModalOpen(true);
-                }}
+                onClick={openAddStudentModal}
               >
                 <UserPlus className="size-3.5 mr-1.5" />
                 Add Student
@@ -956,7 +1070,7 @@ export function StudentsModule({ role: _role }: { role: Role }) {
                       type="text"
                       value={newStudent.roll || ""}
                       onChange={(e) => setNewStudent({ ...newStudent, roll: e.target.value })}
-                      placeholder="e.g. 21CS1157"
+                      placeholder={rollNumberPlaceholder}
                       className={inputClass}
                     />
                   </Field>
@@ -967,12 +1081,13 @@ export function StudentsModule({ role: _role }: { role: Role }) {
                   <Field label="College / Institution" htmlFor="inp-college">
                     <select
                       id="inp-college"
-                      value={newStudent.collegeId || (collegeFilter !== "all" ? collegeFilter : colleges[0]?.id || "")}
+                      value={newStudent.collegeId || activeCollegeId}
                       onChange={(e) => {
                         const newColId = e.target.value;
                         const colObj = colleges.find((c) => c.id === newColId);
                         const st = streamOfType(colObj?.type || colObj?.name);
-                        const defaultSec = st === "medical" ? "Phase I · Batch A" : "CSE-A";
+                        const isNurs = (colObj?.name || "").toLowerCase().includes("nurs") || (colObj?.type || "").toLowerCase().includes("nurs");
+                        const defaultSec = isNurs || st === "medical" ? "Phase I · Batch A" : "CSE-A";
                         setNewStudent({ ...newStudent, collegeId: newColId, department: "", section: defaultSec });
                       }}
                       className={inputClass}
@@ -1024,7 +1139,7 @@ export function StudentsModule({ role: _role }: { role: Role }) {
                       type="text"
                       value={newStudent.section || "CSE-A"}
                       onChange={(e) => setNewStudent({ ...newStudent, section: e.target.value })}
-                      placeholder="e.g. CSE-A"
+                      placeholder={sectionPlaceholder}
                       className={inputClass}
                     />
                   </Field>
@@ -1078,7 +1193,7 @@ export function StudentsModule({ role: _role }: { role: Role }) {
                       type="email"
                       value={newStudent.email || ""}
                       onChange={(e) => setNewStudent({ ...newStudent, email: e.target.value })}
-                      placeholder="e.g. rohan.s@campus.edu"
+                      placeholder={emailPlaceholder}
                       className={inputClass}
                     />
                   </Field>
