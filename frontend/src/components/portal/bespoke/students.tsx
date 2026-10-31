@@ -313,7 +313,7 @@ export function StudentsModule({ role: _role }: { role: Role }) {
     if (isNursingCollege) return 'e.g. 25NUR101';
     if (selectedStream === 'medical') return 'e.g. 26MED101';
     if (selectedStream === 'management') return 'e.g. 24MBA101';
-    if (selectedStream === 'arts_science') return 'e.g. 23BSC101';
+    if (selectedStream === 'artsScience') return 'e.g. 23BSC101';
     return 'e.g. 21CS1157';
   }, [isNursingCollege, selectedStream]);
 
@@ -524,7 +524,12 @@ export function StudentsModule({ role: _role }: { role: Role }) {
             setUploadError("The uploaded Excel workbook contains no sheets.");
             return;
           }
-          const csvText = XLSX.utils.sheet_to_csv(wb.Sheets[firstSheet]);
+          const sheet = wb.Sheets[firstSheet];
+          if (!sheet) {
+            setUploadError('The sheet could not be read.');
+            return;
+          }
+          const csvText = XLSX.utils.sheet_to_csv(sheet);
           parseCsvText(csvText);
         } catch (err: any) {
           setUploadError("Could not read Excel file: " + (err?.message || "Invalid workbook format."));
