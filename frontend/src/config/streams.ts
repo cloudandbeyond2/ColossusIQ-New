@@ -259,6 +259,8 @@ export const DEGREE_STREAM: Record<string, Stream[]> = {
   "PGDM": ["management"],
 
   "MBBS": ["medical"],
+  "M.B.B.S.": ["medical"],
+  "M.B.B.S": ["medical"],
   "BDS": ["medical"],
   "B.SC. NURSING": ["medical"],
   "B.SC NURSING": ["medical"],
@@ -275,19 +277,21 @@ export const DEGREE_STREAM: Record<string, Stream[]> = {
 export function streamMatchesCurriculum(stream: Stream, programme: string, degree?: string): boolean {
   const norm = (s: string) => s.trim().toUpperCase();
   const d = degree ? norm(degree) : "";
-  if (d && DEGREE_STREAM[d]) {
-    return DEGREE_STREAM[d].includes(stream);
+  const dClean = d.replace(/\./g, "");
+  if (d && (DEGREE_STREAM[d] || DEGREE_STREAM[dClean])) {
+    return (DEGREE_STREAM[d] || DEGREE_STREAM[dClean])!.includes(stream);
   }
   const progUpper = norm(programme);
+  const progClean = progUpper.replace(/\./g, "");
   for (const [degKey, streams] of Object.entries(DEGREE_STREAM)) {
-    if (progUpper.startsWith(degKey) || progUpper.startsWith(degKey.replace(/\./g, ""))) {
+    const degClean = degKey.replace(/\./g, "");
+    if (progUpper.startsWith(degKey) || progClean.startsWith(degClean)) {
       return streams.includes(stream);
     }
   }
   const def = STREAM_DEFS[stream];
-  if (def && def.programs.some((p) => norm(p) === progUpper || progUpper.includes(norm(p)))) {
+  if (def && def.programs.some((p) => norm(p) === progUpper || progUpper.includes(norm(p)) || progClean.includes(norm(p).replace(/\./g, "")))) {
     return true;
   }
   return false;
 }
-

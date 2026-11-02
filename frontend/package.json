@@ -40,9 +40,11 @@
     "rehype-sanitize": "6.0.0",
     "remark-gfm": "4.0.1",
     "server-only": "0.0.1",
+    "xlsx": "^0.18.5",
     "zod": "3.25.76"
   },
   "devDependencies": {
+    "@tailwindcss/postcss": "4.3.3",
     "@types/node": "20.19.43",
     "@types/qrcode": "^1.5.6",
     "@types/react": "19.3.0",
@@ -50,12 +52,11 @@
     "eslint": "9.39.5",
     "eslint-config-next": "16.3.6",
     "eslint-plugin-security": "4.0.1",
+    "postcss": "8.5.28",
     "prisma": "6.19.3",
+    "tailwindcss": "4.3.3",
     "tsx": "^4.23.15",
     "typescript": "6.0.3",
-    "vitest": "3.2.7",
-    "@tailwindcss/postcss": "4.3.3",
-    "postcss": "8.5.28",
-    "tailwindcss": "4.3.3"
+    "vitest": "3.2.7"
   }
 }

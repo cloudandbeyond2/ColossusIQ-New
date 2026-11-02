@@ -1,6 +1,7 @@
 import { cleanText } from "@/lib/security/sanitize";
 import { dataBackend } from "@/lib/data";
 import { db } from "@/lib/data/postgres/db";
+import { streamOfType } from "@/config/streams";
 
 export interface StudentRecord {
   id: string;
@@ -30,6 +31,7 @@ export interface StudentInput {
   email?: string;
   phone?: string;
   collegeId?: string;
+  department?: string;
 }
 
 // Student store starts empty and is populated through user actions (forms, Excel import)
@@ -298,22 +300,74 @@ export async function createStudent(
     })) || (await t.college.findFirst());
     if (!college) throw new Error("College not found");
 
-    const dept = (await t.department.findFirst({
-      where: { streamKey: college.type.toLowerCase().includes("medical") ? "medical" : "engineering" },
-    })) || (await t.department.findFirst());
-    if (!dept) throw new Error("Department not found");
+    const stream = streamOfType(college.type || college.name);
 
-    const prog = (await t.programme.findFirst({
-      where: { streamKey: dept.streamKey },
-    })) || (await t.programme.findFirst());
-    if (!prog) throw new Error("Programme not found");
+    // 1. Resolve department matching the college stream
+    let dept = null;
+    if (input.department) {
+      const cleanDept = input.department.trim();
+      dept = await t.department.findFirst({
+        where: {
+          streamKey: stream,
+          name: { equals: cleanDept, mode: "insensitive" },
+        },
+      });
+      if (!dept) {
+        dept = await t.department.findFirst({
+          where: {
+            streamKey: stream,
+            name: { contains: cleanDept, mode: "insensitive" },
+          },
+        });
+      }
+    }
+    if (!dept) {
+      dept = await t.department.findFirst({
+        where: { streamKey: stream, name: { not: { contains: "Administration" } } },
+        orderBy: { id: "asc" },
+      });
+    }
+    if (!dept) {
+      dept = await t.department.findFirst({
+        where: { streamKey: stream },
+        orderBy: { id: "asc" },
+      });
+    }
+    if (!dept) throw new Error("No department found for stream " + stream);
+
+    // 2. Resolve programme matching stream & department
+    let prog = null;
+    if (input.section) {
+      const sec = input.section.toLowerCase();
+      if (sec.includes("mbbs")) {
+        prog = await t.programme.findFirst({ where: { streamKey: stream, name: { contains: "MBBS", mode: "insensitive" } } });
+      } else if (sec.includes("nurs") || sec.includes("bsc")) {
+        prog = await t.programme.findFirst({ where: { streamKey: stream, name: { contains: "Nursing", mode: "insensitive" } } });
+      } else if (sec.includes("bpt") || sec.includes("physio")) {
+        prog = await t.programme.findFirst({ where: { streamKey: stream, name: { contains: "Physiotherapy", mode: "insensitive" } } });
+      }
+    }
+    if (!prog) {
+      prog = await t.programme.findFirst({
+        where: { streamKey: stream },
+        orderBy: { id: "asc" },
+      });
+    }
+    if (!prog) throw new Error("No programme found for stream " + stream);
 
     const cleanName = cleanText(input.name, 100).trim();
-    const cleanRoll = cleanText(input.roll, 30).trim().toUpperCase();
+    let cleanRoll = cleanText(input.roll, 30).trim().toUpperCase();
+    if (!/^[A-Z0-9]{4,16}$/.test(cleanRoll)) {
+      const stripped = cleanRoll.replace(/[^A-Z0-9]/g, "");
+      if (stripped.length >= 4 && stripped.length <= 16) {
+        cleanRoll = stripped;
+      }
+    }
     const email = input.email ? cleanText(input.email, 120).trim() : `${cleanRoll.toLowerCase()}@${college.code || "campus"}.edu.in`;
 
     const meta = {
       section: cleanText(input.section || "CSE-A", 30).trim().toUpperCase(),
+    department: input.department ? cleanText(input.department, 80).trim() : undefined,
       cgpa: Math.round(Number(input.cgpa || 7.5) * 100) / 100,
       readiness: Math.min(100, Math.max(0, Math.round(Number(input.readiness || 60)))),
       signal: input.signal || "None",
@@ -342,19 +396,44 @@ export async function createStudent(
       });
     }
 
-    // Create student
-    const student = await t.student.create({
-      data: {
-        userId: user.id,
-        collegeId: college.id,
-        rollNo: cleanRoll,
-        departmentId: dept.id,
-        programmeId: prog.id,
-        batchYear: new Date().getFullYear(),
-        status: "Active",
+    // Upsert student (check if student with this rollNo in this college or this userId already exists)
+    const existingStudent = await t.student.findFirst({
+      where: {
+        OR: [
+          { collegeId: college.id, rollNo: cleanRoll },
+          { userId: user.id },
+        ],
       },
       include: { user: true, college: true, department: true },
     });
+
+    let student;
+    if (existingStudent) {
+      student = await t.student.update({
+        where: { id: existingStudent.id },
+        data: {
+          collegeId: college.id,
+          rollNo: cleanRoll,
+          departmentId: dept.id,
+          programmeId: prog.id,
+          status: "Active",
+        },
+        include: { user: true, college: true, department: true },
+      });
+    } else {
+      student = await t.student.create({
+        data: {
+          userId: user.id,
+          collegeId: college.id,
+          rollNo: cleanRoll,
+          departmentId: dept.id,
+          programmeId: prog.id,
+          batchYear: new Date().getFullYear(),
+          status: "Active",
+        },
+        include: { user: true, college: true, department: true },
+      });
+    }
 
     return {
       id: student.id,
@@ -382,6 +461,7 @@ export async function createStudent(
     name: cleanText(input.name, 100).trim(),
     roll: cleanText(input.roll, 30).trim().toUpperCase(),
     section: cleanText(input.section || "CSE-A", 30).trim().toUpperCase(),
+    department: input.department ? cleanText(input.department, 80).trim() : undefined,
     cgpa: Math.round(Number(input.cgpa || 0) * 100) / 100,
     readiness: Math.min(100, Math.max(0, Math.round(Number(input.readiness || 0)))),
     signal: input.signal || "None",
@@ -421,6 +501,7 @@ export async function importStudents(
       name: cleanText(item.name, 100).trim(),
       roll: cleanText(item.roll, 30).trim().toUpperCase(),
       section: cleanText(item.section || "CSE-A", 30).trim().toUpperCase(),
+      department: item.department ? cleanText(item.department, 80).trim() : undefined,
       cgpa: Math.round(Number(item.cgpa || 7.0) * 100) / 100,
       readiness: Math.min(100, Math.max(0, Math.round(Number(item.readiness || 50)))),
       signal: item.signal || (item.cgpa && item.cgpa < 7.0 ? "Review suggested" : "None"),
@@ -453,7 +534,16 @@ export async function updateStudent(
     if (data.roll) {
       await t.student.update({
         where: { id: student.id },
-        data: { rollNo: cleanText(data.roll, 30).trim().toUpperCase() },
+        data: {
+          rollNo: (() => {
+            const r = cleanText(data.roll, 30).trim().toUpperCase();
+            if (!/^[A-Z0-9]{4,16}$/.test(r)) {
+              const stripped = r.replace(/[^A-Z0-9]/g, "");
+              if (stripped.length >= 4 && stripped.length <= 16) return stripped;
+            }
+            return r;
+          })(),
+        },
       });
     }
 
