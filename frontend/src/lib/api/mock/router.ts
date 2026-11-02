@@ -602,6 +602,7 @@ export async function dispatch(method: string, segs: string[], rawBody: unknown,
     return { status: 200, body: await platformHealth() };
   }
   if (segs[0] === "records") return dispatchRecords(method, segs, rawBody, session, query);
+  if (segs[0] === "modules" && segs[1] === "course-management") return dispatchRecords(method, ["records", "courses", ...segs.slice(2)], rawBody, session, query);
   if (segs[0] === "question-bank" && segs[1] === "generate") return dispatchQuestionAi(method, segs, rawBody, session);
   if (segs[0] === "question-bank" && (segs[1] === "folders" || segs[1] === "overview")) return dispatchQuestionBankFolders(session);
   if (segs[0] === "questions" || segs[0] === "question-bank") return dispatchRecords(method, ["records", "questions", ...segs.slice(1)], rawBody, session, query);

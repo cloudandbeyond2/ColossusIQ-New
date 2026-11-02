@@ -132,7 +132,7 @@ function regBar(registered: number, capacity: number) {
       <div className="flex-1 h-1.5 rounded-full bg-black/10 dark:bg-white/10 overflow-hidden">
         <div className={cn("h-full rounded-full", color)} style={{ width: `${pct}%` }} />
       </div>
-      <span className="text-xs text-[var(--fg-muted)] shrink-0">{registered}/{capacity}</span>
+      <span className="text-xs text-(--fg-muted) shrink-0">{registered}/{capacity}</span>
     </div>
   );
 }
@@ -150,7 +150,7 @@ function EventModal({ initial, onClose, onSave, saving }: {
       <Card className="w-full max-w-xl p-6 space-y-4 max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between">
           <h3 className="font-semibold text-base">{initial.title ? "Edit Event" : "Create Event"}</h3>
-          <button onClick={onClose}><X className="h-5 w-5 text-[var(--fg-muted)]" /></button>
+          <button onClick={onClose}><X className="h-5 w-5 text-(--fg-muted)" /></button>
         </div>
         <div className="grid sm:grid-cols-2 gap-4">
           <div className="sm:col-span-2">

@@ -89,7 +89,7 @@ export type Permission =
 
 export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
   student: ["ai:chat", "assessment:attempt", "student:read-own"],
-  faculty: ["ai:chat", "assessment:create", "assessment:override-score", "student:read-any", "events:manage", "clinical:manage", "prep:publish"],
+  faculty: ["ai:chat", "assessment:create", "assessment:override-score", "student:read-any", "courses:manage", "events:manage", "clinical:manage", "prep:publish"],
   hod: ["ai:chat", "assessment:create", "assessment:override-score", "student:read-any", "department:manage", "courses:manage", "events:manage", "clinical:manage", "prep:publish"],
   placement: ["ai:chat", "student:read-any", "placement:manage"],
   incubation: ["ai:chat", "student:read-any", "incubation:manage"],
