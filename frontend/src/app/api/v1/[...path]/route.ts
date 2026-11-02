@@ -37,7 +37,7 @@ import { refreshAiConfig } from "@/lib/ai/ai-config";
 import { KB_MAX_BODY_BYTES } from "@/lib/api/knowledge-schemas";
 import { rateLimit } from "@/lib/api/mock/rate-limit";
 import { RESOURCES, recordSchema } from "@/config/resources";
-import { collegeName, createRecord, enabledGroups, getCollege, isCollegeActive, listColleges } from "@/lib/api/mock/records";
+import { collegeName, collegeStream, createRecord, enabledGroups, getCollege, isCollegeActive, listColleges } from "@/lib/api/mock/records";
 import { dataBackend, withRequestContext } from "@/lib/data";
 import { dbErrorReason } from "@/lib/data/postgres/db";
 import { EnumLabelError } from "@/lib/data/postgres/enums";
@@ -428,6 +428,7 @@ async function handleSession(req: NextRequest, method: string, segs: string[], r
       tenantName: UNIVERSITY.name,
       college: session.college,
       collegeName: session.college === ALL_COLLEGES ? "All colleges" : await collegeName(session.college),
+      stream: session.college === ALL_COLLEGES ? null : await collegeStream(session.college),
       expiresAt: session.exp,
     });
   }

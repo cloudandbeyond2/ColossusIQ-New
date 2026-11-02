@@ -20,10 +20,19 @@ import type { Role } from "@/lib/auth/roles";
 import { Button, Card, Field, Spinner, inputClass } from "@/components/ui/primitives";
 import { TemplateSkeleton } from "@/components/modules/shared";
 import { cn } from "@/lib/utils";
+import { STREAM_DEFS, type Stream } from "@/config/streams";
 
 /* ── Types ──────────────────────────────────────────── */
 
-const COURSE_TYPES = ["Theory", "Lab", "Theory + Lab", "Elective", "Project"] as const;
+const COURSE_TYPES = [
+  "Theory",
+  "Lab",
+  "Theory + Lab",
+  "Elective",
+  "Project",
+  "Clinical posting",
+  "Practical / skills lab",
+] as const;
 type CourseType = typeof COURSE_TYPES[number];
 
 const COURSE_STATUSES = ["Active", "Inactive", "Draft"] as const;
@@ -36,7 +45,7 @@ interface Course {
   type: CourseType;
   credits: number;
   hours: number;
-  semester: number;
+  semester: string | number;
   status: CourseStatus;
   facultyAssigned?: string;
   enrolled?: number;
@@ -53,10 +62,13 @@ const RawCourseItemSchema = z.object({
   courseType: z.string().optional(),
   type: z.string().optional(),
   credits: z.union([z.number(), z.string()]).optional().transform((v) => Number(v) || 3),
-  hours: z.union([z.number(), z.string()]).optional().transform((v) => Number(v) || 48),
+  hours: z.union([z.number(), z.string()]).optional().transform((v) => (v ? Number(v) : undefined)),
   semester: z.union([z.number(), z.string()]).optional().transform((v) => {
     if (typeof v === "number") return v;
-    return parseInt(String(v || "1").replace(/[^0-9]/g, ""), 10) || 1;
+    if (!v) return 1;
+    const str = String(v);
+    if (/^[0-9]+$/.test(str)) return Number(str);
+    return str;
   }),
   status: z.string().optional().transform((v): CourseStatus => {
     if (v === "Archived" || v === "Inactive") return "Inactive";
@@ -76,16 +88,24 @@ const RawCourseItemSchema = z.object({
     rawType.includes("+") ? "Theory + Lab" :
     rawType === "Lab" ? "Lab" :
     rawType === "Elective" ? "Elective" :
-    rawType === "Project" ? "Project" : "Theory";
+    rawType === "Project" ? "Project" :
+    rawType.toLowerCase().includes("clinical") ? "Clinical posting" :
+    rawType.toLowerCase().includes("practical") || rawType.toLowerCase().includes("skills") ? "Practical / skills lab" :
+    "Theory";
 
   const numCredits = r.credits ?? 3;
+  const multiplier =
+    mappedType === "Lab" || mappedType === "Practical / skills lab" || mappedType === "Clinical posting" ? 30 :
+    mappedType === "Theory + Lab" ? 20 : 15;
+  const calculatedHours = r.hours || numCredits * multiplier;
+
   return {
     id: r.id,
     code: r.code,
     name: r.title || r.name || r.code,
     type: mappedType,
     credits: numCredits,
-    hours: r.hours || numCredits * 15,
+    hours: calculatedHours,
     semester: r.semester ?? 1,
     status: r.status,
     facultyAssigned: r.faculty || r.facultyAssigned || r.facultyName || "",
@@ -151,16 +171,40 @@ function CourseModal({
   onSave,
   saving,
   error,
+  stream,
 }: {
   initial: CourseForm;
   onClose: () => void;
   onSave: (f: CourseForm) => void;
   saving: boolean;
   error?: string | null;
+  stream?: Stream | string | null;
 }) {
+  const currentStream: Stream = (stream && stream in STREAM_DEFS) ? (stream as Stream) : "engineering";
+  const def = STREAM_DEFS[currentStream];
+  const isMedical = currentStream === "medical";
+
   const [form, setForm] = useState<CourseForm>(initial);
   const set = <K extends keyof CourseForm>(k: K, v: CourseForm[K]) =>
     setForm((p) => ({ ...p, [k]: v }));
+
+  const termOptions = def.terms.map((t) => (isMedical ? t : `${def.termLabel} ${t}`));
+
+  const codePlaceholder =
+    currentStream === "medical" ? "e.g. AN101" :
+    currentStream === "polytechnic" ? "e.g. ME301" :
+    currentStream === "management" ? "e.g. MGT501" :
+    currentStream === "artsScience" ? "e.g. MAT201" : "e.g. CS201";
+
+  const namePlaceholder =
+    currentStream === "medical" ? "e.g. Human Gross Anatomy and Osteology" :
+    currentStream === "polytechnic" ? "e.g. Thermal Engineering" :
+    currentStream === "management" ? "e.g. Marketing Management" :
+    currentStream === "artsScience" ? "e.g. Real Analysis and Calculus" : "e.g. Database Management Systems";
+
+  const facultyPlaceholder =
+    currentStream === "medical" ? "e.g. Dr. K. Senthil Kumar" :
+    currentStream === "polytechnic" ? "e.g. Mr. A. Selvam" : "e.g. Dr. R. Rajesh";
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
@@ -186,7 +230,7 @@ function CourseModal({
               className={inputClass}
               value={form.code}
               onChange={(e) => set("code", e.target.value.toUpperCase())}
-              placeholder="e.g. CS201"
+              placeholder={codePlaceholder}
             />
           </Field>
           <Field label="Course Name *" htmlFor="course-name">
@@ -195,7 +239,7 @@ function CourseModal({
               className={inputClass}
               value={form.name}
               onChange={(e) => set("name", e.target.value)}
-              placeholder="e.g. Object-Oriented Programming with Java"
+              placeholder={namePlaceholder}
             />
           </Field>
           <Field label="Type" htmlFor="course-type">
@@ -203,7 +247,13 @@ function CourseModal({
               id="course-type"
               className={inputClass}
               value={form.type}
-              onChange={(e) => set("type", e.target.value as CourseType)}
+              onChange={(e) => {
+                const newType = e.target.value as CourseType;
+                const multiplier =
+                  newType === "Lab" || newType === "Practical / skills lab" || newType === "Clinical posting" ? 30 :
+                  newType === "Theory + Lab" ? 20 : 15;
+                setForm((p) => ({ ...p, type: newType, hours: p.credits * multiplier }));
+              }}
             >
               {COURSE_TYPES.map((t) => <option key={t}>{t}</option>)}
             </select>
@@ -228,12 +278,14 @@ function CourseModal({
               value={form.credits}
               onChange={(e) => {
                 const c = Math.min(Math.max(Number(e.target.value) || 1, 1), 6);
-                set("credits", c);
-                set("hours", c * 15);
+                const multiplier =
+                  form.type === "Lab" || form.type === "Practical / skills lab" || form.type === "Clinical posting" ? 30 :
+                  form.type === "Theory + Lab" ? 20 : 15;
+                setForm((p) => ({ ...p, credits: c, hours: c * multiplier }));
               }}
             />
           </Field>
-          <Field label="Hours / Semester" htmlFor="course-hours">
+          <Field label={`Hours / ${def.termLabel}`} htmlFor="course-hours">
             <input
               id="course-hours"
               className={inputClass}
@@ -243,14 +295,18 @@ function CourseModal({
               onChange={(e) => set("hours", Number(e.target.value))}
             />
           </Field>
-          <Field label="Semester" htmlFor="course-sem">
+          <Field label={def.termLabel} htmlFor="course-sem">
             <select
               id="course-sem"
               className={inputClass}
               value={form.semester}
-              onChange={(e) => set("semester", Number(e.target.value))}
+              onChange={(e) => set("semester", isMedical ? e.target.value : (Number(String(e.target.value).replace(/[^0-9]/g, "")) || 1))}
             >
-              {[1, 2, 3, 4, 5, 6, 7, 8].map((n) => <option key={n} value={n}>Semester {n}</option>)}
+              {termOptions.map((opt) => (
+                <option key={opt} value={isMedical ? opt : (Number(opt.replace(/[^0-9]/g, "")) || 1)}>
+                  {opt}
+                </option>
+              ))}
             </select>
           </Field>
           <Field label="Faculty Assigned" htmlFor="course-fac">
@@ -259,7 +315,7 @@ function CourseModal({
               className={inputClass}
               value={form.facultyAssigned ?? ""}
               onChange={(e) => set("facultyAssigned", e.target.value)}
-              placeholder="e.g. Dr. R. Rajesh"
+              placeholder={facultyPlaceholder}
             />
           </Field>
           <div className="sm:col-span-2">
@@ -293,12 +349,13 @@ export function CourseManagementModule({ role }: { role: Role }) {
   const qc = useQueryClient();
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState<CourseType | "All">("All");
-  const [semFilter, setSemFilter] = useState<number | "All">("All");
+  const [semFilter, setSemFilter] = useState<number | string | "All">("All");
   const [modal, setModal] = useState<{ open: boolean; editing: Course | null; error?: string | null }>({
     open: false,
     editing: null,
     error: null,
   });
+  const [deleteConfirm, setDeleteConfirm] = useState<Course | null>(null);
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
 
   const showToast = (msg: string, ok = true) => {
@@ -306,11 +363,17 @@ export function CourseManagementModule({ role }: { role: Role }) {
     setTimeout(() => setToast(null), 3000);
   };
 
-  const { data: sessionData } = useQuery<{ department?: string; name?: string }>({
+  const { data: sessionData } = useQuery<{ department?: string; name?: string; stream?: string }>({
     queryKey: ["auth-session"],
     queryFn: () => apiFetch("/api/v1/auth/session", z.any()),
     staleTime: 60_000,
   });
+
+  const currentStream: Stream = (sessionData?.stream && sessionData.stream in STREAM_DEFS)
+    ? (sessionData.stream as Stream)
+    : "engineering";
+  const def = STREAM_DEFS[currentStream];
+  const isMedical = currentStream === "medical";
 
   const { data, isPending, isError } = useQuery({
     queryKey: ["records", "courses", role],
@@ -322,9 +385,11 @@ export function CourseManagementModule({ role }: { role: Role }) {
 
   const saveMutation = useMutation({
     mutationFn: async (payload: CourseForm & { id?: string; version?: number }) => {
-      const semStr = String(payload.semester || 1).replace(/[^0-9]/g, "") || "1";
+      const semStr = isMedical
+        ? (String(payload.semester).startsWith("Phase") || String(payload.semester).startsWith("Internship") ? String(payload.semester) : "Phase I")
+        : (String(payload.semester || 1).replace(/[^0-9]/g, "") || "1");
       const statusValue = payload.status === "Inactive" ? "Archived" : payload.status;
-      const dept = payload.department || sessionData?.department || "Computer Science & Engineering";
+      const dept = payload.department || sessionData?.department || def.departments[0] || "General";
       const facultyName = payload.facultyAssigned?.trim() || sessionData?.name || "Dr. Faculty";
 
       const recordData = {
@@ -359,8 +424,10 @@ export function CourseManagementModule({ role }: { role: Role }) {
       setModal({ open: false, editing: null, error: null });
       showToast(modal.editing ? "Course updated." : "Course added.");
     },
-    onError: (err: unknown) => {
-      const e = err as { message?: string; error?: { message?: string }; fields?: Record<string, string> };
+    onError: async (err: unknown) => {
+      qc.invalidateQueries({ queryKey: ["records", "courses"] });
+      qc.invalidateQueries({ queryKey: ["course-management"] });
+      const e = err as { message?: string; error?: { message?: string; code?: string }; fields?: Record<string, string> };
       let msg = e?.message || e?.error?.message || "Could not save course.";
       if (e?.fields) {
         const fieldMsgs = Object.entries(e.fields)
@@ -368,6 +435,31 @@ export function CourseManagementModule({ role }: { role: Role }) {
           .join(", ");
         msg = `${msg} (${fieldMsgs})`;
       }
+
+      // If stale optimistic lock conflict, auto-fetch the fresh version so the user can just save again
+      if (modal.editing?.id && (msg.includes("Someone else updated") || (e as any)?.code === "stale")) {
+        try {
+          const res = await apiFetch(`/api/v1/records/courses/${encodeURIComponent(modal.editing.id)}`, z.any());
+          if (res?.record?.version !== undefined) {
+            setModal((prev) => {
+              if (!prev.open || !prev.editing) return prev;
+              return {
+                ...prev,
+                editing: {
+                  ...prev.editing,
+                  version: res.record.version,
+                },
+                error: "The record was updated on the server. We fetched the latest version. Please click Save Changes again.",
+              };
+            });
+            showToast("Fetched latest version. Click Save Changes again.", false);
+            return;
+          }
+        } catch {
+          // ignore
+        }
+      }
+
       setModal((prev) => ({ ...prev, error: msg }));
       showToast(msg, false);
     },
@@ -379,6 +471,7 @@ export function CourseManagementModule({ role }: { role: Role }) {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["records", "courses"] });
       qc.invalidateQueries({ queryKey: ["course-management"] });
+      setDeleteConfirm(null);
       showToast("Course removed.");
     },
     onError: (err: unknown) => {
@@ -388,13 +481,18 @@ export function CourseManagementModule({ role }: { role: Role }) {
     },
   });
 
-  const semesters = Array.from(new Set(courses.map((c) => c.semester))).sort((a, b) => a - b);
+  const semesters = useMemo(() => {
+    if (isMedical) {
+      return ["Phase I", "Phase II", "Phase III Part 1", "Phase III Part 2", "Internship (CRMI)"];
+    }
+    return def.terms;
+  }, [def, isMedical]);
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
     return courses.filter((c) => {
       if (typeFilter !== "All" && c.type !== typeFilter) return false;
-      if (semFilter !== "All" && c.semester !== semFilter) return false;
+      if (semFilter !== "All" && String(c.semester) !== String(semFilter)) return false;
       if (q && !c.name.toLowerCase().includes(q) && !c.code.toLowerCase().includes(q)) return false;
       return true;
     });
@@ -451,10 +549,14 @@ export function CourseManagementModule({ role }: { role: Role }) {
         <select
           className={cn(inputClass, "w-auto")}
           value={semFilter}
-          onChange={(e) => setSemFilter(e.target.value === "All" ? "All" : Number(e.target.value))}
+          onChange={(e) => setSemFilter(e.target.value === "All" ? "All" : e.target.value)}
         >
-          <option value="All">All Semesters</option>
-          {semesters.map((s) => <option key={s} value={s}>Sem {s}</option>)}
+          <option value="All">{`All ${def.termLabel}s`}</option>
+          {semesters.map((s) => (
+            <option key={String(s)} value={s}>
+              {isMedical ? s : `${def.termLabel} ${s}`}
+            </option>
+          ))}
         </select>
         <Button onClick={() => setModal({ open: true, editing: null, error: null })}>
           <Plus className="h-4 w-4 mr-1.5" /> Add Course
@@ -474,7 +576,7 @@ export function CourseManagementModule({ role }: { role: Role }) {
             <tr className="border-b border-(--border) bg-(--bg-subtle) text-(--fg-muted) text-xs uppercase tracking-wide">
               <th className="py-3 px-4 text-left">Course</th>
               <th className="py-3 px-4 text-center">Type</th>
-              <th className="py-3 px-4 text-center">Sem</th>
+              <th className="py-3 px-4 text-center">{def.termLabel}</th>
               <th className="py-3 px-4 text-center">Credits</th>
               <th className="py-3 px-4 text-left hidden sm:table-cell">Faculty</th>
               <th className="py-3 px-4 text-center hidden md:table-cell">Enrolled</th>
@@ -490,7 +592,7 @@ export function CourseManagementModule({ role }: { role: Role }) {
                   <div className="text-xs font-mono text-(--fg-muted)">{c.code}</div>
                 </td>
                 <td className="py-3 px-4 text-center">{typeBadge(c.type)}</td>
-                <td className="py-3 px-4 text-center text-sm">{c.semester}</td>
+                <td className="py-3 px-4 text-center text-sm">{isMedical ? c.semester : `${def.termLabel} ${c.semester}`}</td>
                 <td className="py-3 px-4 text-center">
                   <span className="font-semibold">{c.credits}</span>
                   {c.hours > 0 && <span className="text-xs text-(--fg-muted) ml-1">/ {c.hours}h</span>}
@@ -501,16 +603,33 @@ export function CourseManagementModule({ role }: { role: Role }) {
                 <td className="py-3 px-4">
                   <div className="flex justify-center gap-1">
                     <button
-                      onClick={() => setModal({ open: true, editing: c, error: null })}
+                      onClick={async () => {
+                        setModal({ open: true, editing: c, error: null });
+                        try {
+                          const res = await apiFetch(`/api/v1/records/courses/${encodeURIComponent(c.id)}`, z.any());
+                          if (res?.record?.version !== undefined) {
+                            setModal((prev) => {
+                              if (!prev.open || prev.editing?.id !== c.id) return prev;
+                              return {
+                                ...prev,
+                                editing: {
+                                  ...prev.editing,
+                                  version: res.record.version,
+                                },
+                              };
+                            });
+                          }
+                        } catch {
+                          // ignore
+                        }
+                      }}
                       className="p-1.5 rounded hover:bg-(--bg-subtle) text-(--fg-muted) hover:text-(--fg)"
                       title="Edit Course"
                     >
                       <Edit3 className="h-4 w-4" />
                     </button>
                     <button
-                      onClick={() => {
-                        if (confirm(`Remove ${c.name}?`)) deleteMutation.mutate(c.id);
-                      }}
+                      onClick={() => setDeleteConfirm(c)}
                       className="p-1.5 rounded hover:bg-rose-50 dark:hover:bg-rose-900/20 text-(--fg-muted) hover:text-rose-600"
                       title="Delete Course"
                     >
@@ -531,18 +650,80 @@ export function CourseManagementModule({ role }: { role: Role }) {
 
       {modal.open && (
         <CourseModal
-          initial={modal.editing ? { ...modal.editing } : EMPTY_FORM}
+          initial={modal.editing ? { ...modal.editing } : (isMedical ? { ...EMPTY_FORM, semester: "Phase I" } : EMPTY_FORM)}
           error={modal.error}
+          stream={sessionData?.stream}
           onClose={() => setModal({ open: false, editing: null, error: null })}
-          onSave={(form) =>
+          onSave={(form) => {
+            const fresh = courses.find((item) => item.id === modal.editing?.id);
+            const currentVersion = modal.editing?.version ?? fresh?.version ?? 1;
             saveMutation.mutate(
               modal.editing
-                ? { ...form, id: modal.editing.id, version: modal.editing.version }
+                ? { ...form, id: modal.editing.id, version: currentVersion }
                 : form
-            )
-          }
+            );
+          }}
           saving={saveMutation.isPending}
         />
+      )}
+
+      {/* Centered Delete Confirmation Modal */}
+      {deleteConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-in fade-in duration-150">
+          <Card className="w-full max-w-md p-6 space-y-4 shadow-2xl border border-(--border)">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-full bg-rose-100 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 flex items-center justify-center shrink-0 mt-0.5">
+                <Trash2 className="h-5 w-5" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="font-semibold text-base text-(--fg)">Delete Course</h3>
+                <p className="text-xs text-(--fg-muted) mt-0.5">
+                  This action cannot be undone.
+                </p>
+              </div>
+              <button
+                onClick={() => !deleteMutation.isPending && setDeleteConfirm(null)}
+                aria-label="Close"
+                disabled={deleteMutation.isPending}
+                className="text-(--fg-muted) hover:text-(--fg) p-1 rounded-lg hover:bg-(--bg-subtle)"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <p className="text-sm text-(--fg-muted)">
+              Are you sure you want to remove{" "}
+              <strong className="text-(--fg) font-medium">{deleteConfirm.name}</strong>{" "}
+              (<span className="font-mono text-xs text-(--fg)">{deleteConfirm.code}</span>)?
+            </p>
+
+            <div className="flex justify-end items-center gap-2 pt-2">
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={deleteMutation.isPending}
+                onClick={() => setDeleteConfirm(null)}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="danger"
+                size="sm"
+                disabled={deleteMutation.isPending}
+                onClick={() => deleteMutation.mutate(deleteConfirm.id)}
+              >
+                {deleteMutation.isPending ? (
+                  <span className="flex items-center gap-1.5">
+                    <Spinner className="h-3.5 w-3.5" />
+                    Deleting...
+                  </span>
+                ) : (
+                  "Delete Course"
+                )}
+              </Button>
+            </div>
+          </Card>
+        </div>
       )}
 
       {/* Toast Notification - placed after modal in DOM to appear cleanly on top */}

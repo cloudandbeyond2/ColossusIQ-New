@@ -11,6 +11,7 @@ import { audit } from "./audit";
 import { collegeIndex, collegeStream, createRecord, enabledGroups, getCollege, recordsInCollege } from "./records";
 import { getStore } from "@/lib/data";
 import { streamRuleErrors } from "@/config/resources";
+import { streamOptions } from "@/config/streams";
 import type { MockResult } from "./router";
 
 const ok = (body: unknown, status = 200): MockResult => ({ status, body });
@@ -100,6 +101,16 @@ async function businessRules(
   // Stream rules: programmes, departments, terms and entrance scores must fit the college's stream.
   const stream = collegeId ? await collegeStream(collegeId) : null;
   if (stream) {
+    if (res.key === "courses") {
+      if (stream === "medical" && (data.semester === "1" || data.semester === "Semester 1")) {
+        data.semester = "Phase I";
+      } else if (stream && stream !== "medical") {
+        const semDigit = String(data.semester ?? "").replace(/[^0-9]/g, "");
+        if (semDigit && streamOptions("semester", stream).includes(semDigit)) {
+          data.semester = semDigit;
+        }
+      }
+    }
     const s = streamRuleErrors(res, data, stream);
     if (Object.keys(s).length) return s;
   }
