@@ -48,6 +48,7 @@ export function CompetencyLogbookModule() {
   const [requesting, setRequesting] = useState<LogbookRow | null>(null);
   const [reqNotes, setReqNotes] = useState("");
   const [reviewing, setReviewing] = useState<LogbookRow | null>(null);
+  const [certifying, setCertifying] = useState<LogbookRow | null>(null);
   const [remarks, setRemarks] = useState("");
 
   const [code, setCode] = useState("");
@@ -85,6 +86,7 @@ export function CompetencyLogbookModule() {
     onSuccess: (_r, v) => {
       refresh();
       setReviewing(null);
+      setCertifying(null);
       setRemarks("");
       note(v.decision === "Certified" ? "Competency certified." : "Returned to the student.");
     },
@@ -168,7 +170,7 @@ export function CompetencyLogbookModule() {
           <div className="text-2xl font-bold text-[var(--ink)]">{reviewer ? summary.certified : summary.pending}</div>
         </CardBody></Card>
         <Card><CardBody className="p-4">
-          <div className="text-xs text-[var(--ink-2)]">Returned</div>
+          <div className="text-xs text-[var(--ink-2)]">{reviewer ? "Returned" : "Returned"}</div>
           <div className="text-2xl font-bold text-[var(--ink)]">{summary.returned}</div>
         </CardBody></Card>
         <Card><CardBody className="p-4">
@@ -246,7 +248,21 @@ export function CompetencyLogbookModule() {
                         <Badge tone={statusTone(r.status)}>{r.status}</Badge>
                         {r.status === "Certified" && r.certifiedBy && <div className="text-[11px] text-[var(--ink-3)] mt-0.5">by {r.certifiedBy}</div>}
                       </td>
-                      <td className="p-3 max-w-[16rem]">{(reviewer ? r.notes : r.remarks) || "—"}</td>
+                      <td className="p-3 max-w-[16rem]">
+                        {reviewer ? (
+                          <div className="space-y-1">
+                            {r.notes ? <div className="text-xs text-[var(--ink)]">{r.notes}</div> : null}
+                            {r.remarks ? (
+                              <div className="text-[11px] text-[var(--ink-3)] italic">
+                                <strong>Remark:</strong> {r.remarks}
+                              </div>
+                            ) : null}
+                            {!r.notes && !r.remarks ? "—" : null}
+                          </div>
+                        ) : (
+                          r.remarks || "—"
+                        )}
+                      </td>
                       <td className="p-3 whitespace-nowrap">
                         {!reviewer && permissions.request && (r.status === "Not attempted" || r.status === "Returned") && (
                           <Button size="sm" variant="secondary" className="text-xs h-7 px-2.5" onClick={() => { setFormError(null); setRequesting(r); }}>
@@ -255,7 +271,7 @@ export function CompetencyLogbookModule() {
                         )}
                         {reviewer && permissions.certify && r.status === "Pending review" && (
                           <div className="flex gap-1.5">
-                            <Button size="sm" variant="primary" className="text-xs h-7 px-2.5" disabled={reviewMutation.isPending} onClick={() => reviewMutation.mutate({ id: r.entryId, decision: "Certified", remarks: "" })}>
+                            <Button size="sm" variant="primary" className="text-xs h-7 px-2.5" disabled={reviewMutation.isPending} onClick={() => { setFormError(null); setRemarks(""); setCertifying(r); }}>
                               Certify
                             </Button>
                             <Button size="sm" variant="secondary" className="text-xs h-7 px-2.5" onClick={() => { setFormError(null); setReviewing(r); }}>
@@ -363,6 +379,52 @@ export function CompetencyLogbookModule() {
               <Button variant="secondary" size="sm" onClick={() => setReviewing(null)} disabled={reviewMutation.isPending}>Cancel</Button>
               <Button variant="primary" size="sm" disabled={reviewMutation.isPending || remarks.trim() === ""} onClick={() => reviewMutation.mutate({ id: reviewing.entryId, decision: "Returned", remarks })} className="flex items-center gap-1.5">
                 {reviewMutation.isPending && <Spinner className="size-3.5" />} Return
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {certifying && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-2xl bg-[var(--surface)] border border-[var(--line)] shadow-xl p-5 space-y-3">
+            <div>
+              <h3 className="font-semibold text-base text-[var(--ink)]">Certify {certifying.code}</h3>
+              <p className="text-xs text-[var(--ink-2)] mt-0.5">{certifying.description}</p>
+            </div>
+            {certifying.studentName && (
+              <div className="p-2.5 rounded-xl bg-[var(--surface-2)] text-xs text-[var(--ink-2)]">
+                <span className="font-semibold text-[var(--ink)]">Student:</span> {certifying.studentName} {certifying.rollNo ? `(${certifying.rollNo})` : ""}
+                {certifying.notes && (
+                  <div className="mt-1 text-[11px] text-[var(--ink-3)] italic">
+                    "{certifying.notes}"
+                  </div>
+                )}
+              </div>
+            )}
+            {formError && <div className="p-2 text-xs rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-600">{formError}</div>}
+            <div>
+              <label className="block text-xs font-semibold text-[var(--ink)] mb-1">
+                Faculty remarks / feedback <span className="text-[var(--ink-3)] font-normal">(optional)</span>
+              </label>
+              <textarea
+                className={cn(inputClass, "w-full text-xs")}
+                rows={3}
+                placeholder="e.g. Well demonstrated on cadaver, accurate landmark identification..."
+                value={remarks}
+                onChange={(e) => setRemarks(e.target.value)}
+              />
+            </div>
+            <div className="flex justify-end gap-2 pt-1">
+              <Button variant="secondary" size="sm" onClick={() => setCertifying(null)} disabled={reviewMutation.isPending}>Cancel</Button>
+              <Button
+                variant="primary"
+                size="sm"
+                disabled={reviewMutation.isPending}
+                onClick={() => reviewMutation.mutate({ id: certifying.entryId, decision: "Certified", remarks: remarks.trim() })}
+                className="flex items-center gap-1.5"
+              >
+                {reviewMutation.isPending && <Spinner className="size-3.5" />} Certify
               </Button>
             </div>
           </div>
