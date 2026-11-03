@@ -147,6 +147,8 @@ function typeBadge(type: CourseType) {
     "Theory + Lab": "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300",
     Elective: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300",
     Project: "bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300",
+    "Clinical posting": "bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-300",
+    "Practical / skills lab": "bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-300",
   };
   return <span className={cn("text-xs px-2 py-0.5 rounded-full font-medium", map[type] || map.Theory)}>{type}</span>;
 }
