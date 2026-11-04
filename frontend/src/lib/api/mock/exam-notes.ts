@@ -113,6 +113,62 @@ export const BUILT_IN_NOTES: Record<string, NoteContent> = {
     mistakes: ["Using real-world knowledge instead of the statements.", "Accepting a conclusion that is only possible, not certain."],
   }),
 
+
+  /* ── Medical Sciences (NEET-PG / INI-CET / NExT) ── */
+  "m-anatomy": n({
+    summary: "Clinical and surgical anatomy forms the backbone of NEET-PG & INI-CET: nerve injuries, facial/cervical fascial planes, triangles of the neck, and cross-sectional radiology.",
+    keyPoints: [
+      "Brachial plexus: Erb's palsy (C5-C6 upper trunk: 'waiter's tip' hand); Klumpke's palsy (C8-T1 lower trunk: total claw hand & Horner's syndrome).",
+      "Peripheral nerves: Radial nerve injury causes wrist drop; Ulnar nerve causes claw hand & Froment sign; Median nerve causes ape thumb & hand of benediction.",
+      "Diaphragm apertures: T8 (IVC, right phrenic); T10 (Esophagus, vagal trunks); T12 (Aorta, thoracic duct, azygos vein).",
+      "Coronary circulation: Posterior descending artery (PDA) arises from RCA in 85-90% (right dominance) and from LCx in 10-15% (left dominance).",
+      "Cranial nerves: CN III palsy (ptosis, 'down and out' eye, mydriasis); CN IV (vertical diplopia on looking down); CN VI (inability to abduct eye); CN VII (Bell's palsy vs UMN facial sparing forehead).",
+    ],
+    formulas: ["Diaphragm openings: I 8 10 Eggs At 12", "Erb's: C5-C6", "Klumpke's: C8-T1"],
+    example: {
+      problem: "A patient presents with inability to abduct arm beyond 15 degrees after dislocation of shoulder. Which muscle and nerve are affected?",
+      solution: "Deltoid muscle supplied by the Axillary nerve (C5-C6) winding around the surgical neck of humerus. Supraspinatus initiates abduction (0-15°), Deltoid continues (15-90°), Serratus anterior & Trapezius elevate above 90°."
+    },
+    mistakes: ["Confusing the nerve injured in surgical neck fracture (axillary) with shaft fracture (radial) and medial epicondyle fracture (ulnar)."],
+    tips: ["Correlate anatomy with clinical case presentations and cross-sectional CT/MRI anatomy."],
+  }),
+  "m-physiology": n({
+    summary: "High-yield physiology focuses on cardiovascular hemodynamics, respiratory mechanics & blood gases, renal clearance/countercurrent systems, and endocrine feedback loops.",
+    keyPoints: [
+      "Wiggers diagram: S1 heart sound = AV valve closure at start of isovolumetric contraction; S2 = Semilunar valve closure at start of isovolumetric relaxation.",
+      "Oxygen dissociation curve: CADET shifts right (CO2, Acid/low pH, 2,3-DPG, Exercise, Temperature). Right shift promotes O2 unloading to tissues.",
+      "Renal: GFR = Kf × Net Filtration Pressure. Clearance = (U × V) / P. Inulin clearance measures GFR; PAH clearance measures Renal Plasma Flow.",
+      "Countercurrent multiplier (Loop of Henle) establishes medullary osmotic gradient; Countercurrent exchanger (Vasa Recta) maintains it without washing away solutes.",
+    ],
+    formulas: ["Cardiac Output = HR × SV = VO2 / (CaO2 − CvO2)", "GFR = (U_inulin × V) / P_inulin", "Alveolar Gas Equation: PAO2 = PiO2 − (PaCO2 / 0.8)"],
+    example: {
+      problem: "Calculate GFR given urine inulin = 100 mg/dL, plasma inulin = 2 mg/dL, and urine flow rate = 2 mL/min.",
+      solution: "Clearance = (100 × 2) / 2 = 100 mL/min."
+    },
+    tips: ["Learn normal lab values: Arterial pH 7.35-7.45, PaCO2 35-45 mmHg, HCO3 22-26 mEq/L."],
+  }),
+  "m-pharmacology": n({
+    summary: "Pharmacokinetics, autonomic receptors, cardiovascular drugs, antimicrobials, and emergency antidotes are standard test items in all PG entrance exams.",
+    keyPoints: [
+      "Antidotes: Paracetamol → N-acetylcysteine; Heparin → Protamine sulphate; Warfarin → Vitamin K; Benzodiazepines → Flumazenil; Opioids → Naloxone; Organophosphates → Atropine + Pralidoxime.",
+      "Autonomic pharmacology: Alpha-1 (vasoconstriction); Beta-1 (inotropic/chronotropic); Beta-2 (bronchodilation); Muscarinic M3 (secretions, bronchoconstriction).",
+      "Antimicrobials: Penicillins/Cephalosporins inhibit cell wall synthesis; Aminoglycosides/Tetracyclines inhibit 30S ribosome; Macrolides/Chloramphenicol inhibit 50S ribosome; Fluoroquinolones inhibit DNA gyrase.",
+      "Pregnancy contraindications: ACE inhibitors (renal dysgenesis), Tetracyclines (bone/teeth staining), Thalidomide (phocomelia), Warfarin (chondrodysplasia).",
+    ],
+    formulas: ["Loading Dose = (Vd × Target Concentration) / Bioavailability", "Maintenance Dose = (Clearance × Target Concentration) / Bioavailability", "Half-life = 0.693 × Vd / Clearance"],
+    tips: ["Always note first-line drugs of choice for common conditions: Anaphylaxis = IM Adrenaline (1:1000); Eclampsia = IV Magnesium Sulphate; Septic Shock = Noradrenaline."],
+  }),
+  "m-medicine": n({
+    summary: "Clinical decision-making in cardiology, pulmonology, endocrinology, nephrology, and neurology using evidence-based guidelines.",
+    keyPoints: [
+      "Acute Coronary Syndrome: STEMI requires immediate reperfusion (PCI within 90-120 min or thrombolysis within 30 min if PCI unavailable); NSTEMI uses GRACE risk stratification.",
+      "DKA: Triad of hyperglycemia (>250), metabolic acidosis (pH < 7.3, HCO3 < 18), and ketosis. Priority 1 is IV 0.9% Normal Saline fluid replacement.",
+      "Stroke: Non-contrast CT brain first to rule out hemorrhage; IV Alteplase (0.9 mg/kg) within 4.5 hours if ischemic.",
+      "Sepsis: Sepsis-3 defines sepsis as life-threatening organ dysfunction (increase in SOFA score >= 2) caused by dysregulated host response to infection.",
+    ],
+    tips: ["Practice case vignette pattern: age, gender, presentation, physical signs, investigation of choice, treatment of choice."],
+  }),
+
   /* ── English ── */
   "e-vocabulary": n({
     summary: "Vocabulary questions test the meaning of less common words used in bank, SSC, CAT and GRE-style papers.",

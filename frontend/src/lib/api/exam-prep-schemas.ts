@@ -102,7 +102,7 @@ export const PrepOverview = z.object({
 export type PrepOverview = z.infer<typeof PrepOverview>;
 
 /* ───────────────────────────── topics ───────────────────────────── */
-export const TOPIC_FAMILIES = ["Quantitative aptitude", "Reasoning", "English", "General awareness", "Subjects", "College topics"] as const;
+export const TOPIC_FAMILIES = ["Medical sciences", "Quantitative aptitude", "Reasoning", "English", "General awareness", "Subjects", "College topics"] as const;
 export const TopicFamily = z.enum(TOPIC_FAMILIES);
 export const TopicList = z.object({
   families: z.array(z.object({ family: TopicFamily, topics: z.array(z.object({ id: z.string(), title: z.string(), items: z.string(), answered: z.number(), accuracy: z.number().nullable() })) })),
@@ -283,6 +283,7 @@ export type CaItem = z.infer<typeof CaItem>;
 export const CaFeed = z.object({
   items: z.array(CaItem),
   canEdit: z.boolean(),
+  stream: z.string().nullable().optional(),
   weekly: z.object({ week: z.string(), questions: z.number(), done: z.boolean(), last: z.number().nullable() }),
   exams: z.array(z.object({ id: z.string(), name: z.string() })),
 });
@@ -445,5 +446,6 @@ export const StudioOverview = z.object({
   exams: z.array(z.object({ id: z.string(), name: z.string(), sections: z.array(z.string()) })),
   aiAvailable: z.boolean(),
   canEdit: z.boolean(),
+  stream: z.string().nullable().optional(),
 });
 export type StudioOverview = z.infer<typeof StudioOverview>;
