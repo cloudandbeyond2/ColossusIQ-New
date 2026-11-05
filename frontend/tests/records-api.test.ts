@@ -68,6 +68,13 @@ describe("records API", () => {
 
     expect((await dispatch("DELETE", ["records", "admissions", rec.id], undefined, inst, q)).status).toBe(200);
     expect((await dispatch("GET", ["records", "admissions", rec.id], undefined, inst, q)).status).toBe(404);
+
+    // Duplicate submission protection (e.g. rapid double-clicks)
+    const first = await dispatch("POST", ["records", "admissions"], { data: { ...validAdmission, email: "double.click@example.com" } }, inst, q);
+    expect(first.status).toBe(201);
+    const second = await dispatch("POST", ["records", "admissions"], { data: { ...validAdmission, email: "double.click@example.com" } }, inst, q);
+    expect(second.status).toBe(200);
+    expect((second.body as { id: string }).id).toBe((first.body as { id: string }).id);
   });
 
   it("returns field errors for invalid input", async () => {

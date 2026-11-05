@@ -22,6 +22,7 @@ const err = (status: number, code: string, message: string, fields?: Record<stri
 const notFound = () => err(404, "not_found", "Record not found.");
 
 const ID = /^[A-Za-z0-9_-]{1,64}$/;
+const recentCreations = new Map<string, { record: ResourceRecord; timestamp: number }>();
 const WriteBody = z
   .object({ data: z.record(z.string(), z.unknown()), version: z.number().int().positive().optional(), collegeId: z.string().regex(COLLEGE_ID_RE).optional() })
   .strict();
@@ -201,7 +202,22 @@ export async function dispatchRecords(method: string, segs: string[], rawBody: u
       }
       const rule = await businessRules(res, data, session, collegeId);
       if (rule) return err(409, "conflict", "Please correct the highlighted fields.", rule);
+
+      // Short-term idempotency: suppress accidental duplicate submissions (e.g. rapid double-clicks)
+      const dedupKey = `${session.sub}:${session.college}:${res.key}:${collegeId ?? ""}:${JSON.stringify(data)}`;
+      const recent = recentCreations.get(dedupKey);
+      if (recent && Date.now() - recent.timestamp < 10000) {
+        return ok(present(res, recent.record, true, colleges), 200);
+      }
+
       const rec = await createRecord(res, data, collegeId);
+      recentCreations.set(dedupKey, { record: rec, timestamp: Date.now() });
+      if (recentCreations.size > 200) {
+        const threshold = Date.now() - 30000;
+        for (const [k, v] of recentCreations.entries()) {
+          if (v.timestamp < threshold) recentCreations.delete(k);
+        }
+      }
       const where = collegeId ? ` in ${String(colleges.get(collegeId)?.name ?? "Unknown college")}` : "";
       await audit(session.name, `${res.singular} created${where}`, rec.id, auditOpts(collegeId));
       return ok(present(res, rec, true, colleges), 201);

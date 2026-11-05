@@ -3,7 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { emptyValues, recordSchema, streamRuleErrors, type RecordValue, type ResourceDef } from "@/config/resources";
 import { streamOfType, type Stream } from "@/config/streams";
 import type { ModuleDef } from "@/config/modules";
@@ -98,6 +98,9 @@ function FormInner({
   const router = useRouter();
   const qc = useQueryClient();
   const isEdit = Boolean(initial);
+  const isSubmittingRef = useRef(false);
+  const [isNavigating, startTransition] = useTransition();
+  const [isSubmitted, setIsSubmitted] = useState(false);
   const isScopedStaff = (role === "hod" || role === "faculty") && Boolean(defaultDepartment);
   const start = useMemo(() => {
     const base = emptyValues(resource);
@@ -118,11 +121,11 @@ function FormInner({
 
   // Warn before leaving with unsaved changes (tab close / reload).
   useEffect(() => {
-    if (!dirty) return;
+    if (!dirty || isSubmitted) return;
     const onBeforeUnload = (e: BeforeUnloadEvent) => e.preventDefault();
     window.addEventListener("beforeunload", onBeforeUnload);
     return () => window.removeEventListener("beforeunload", onBeforeUnload);
-  }, [dirty]);
+  }, [dirty, isSubmitted]);
 
   const save = useMutation({
     mutationFn: (data: Record<string, RecordValue>) =>
@@ -130,12 +133,17 @@ function FormInner({
         ? apiFetch(`/api/v1/records/${resource.key}/${encodeURIComponent(initial!.id)}`, ResourceRecordSchema, { method: "PUT", body: { data, version: initial!.version } })
         : apiFetch(`/api/v1/records/${resource.key}`, ResourceRecordSchema, { method: "POST", body: pickCollege ? { data, collegeId } : { data } }),
     onSuccess: (rec) => {
+      setIsSubmitted(true);
       void qc.invalidateQueries({ queryKey: ["records", resource.key] });
       void qc.invalidateQueries({ queryKey: ["record", resource.key, rec.id] });
       setFlash(isEdit ? `${resource.singular} ${rec.id} was updated.` : `${resource.singular} ${rec.id} was created.`);
-      router.push(`${base}/${encodeURIComponent(rec.id)}`);
+      startTransition(() => {
+        router.push(`${base}/${encodeURIComponent(rec.id)}`);
+      });
     },
     onError: (e) => {
+      isSubmittingRef.current = false;
+      setIsSubmitted(false);
       if (e instanceof ApiError) {
         setErrors(e.fields);
         setFormError(e.message);
@@ -144,8 +152,11 @@ function FormInner({
     },
   });
 
+  const isBusy = save.isPending || isNavigating || isSubmitted;
+
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (isBusy || isSubmittingRef.current) return;
     setFormError(null);
     // Same schema the server uses — instant feedback, server re-validates anyway.
     const parsed = recordSchema(resource).safeParse(values);
@@ -173,6 +184,7 @@ function FormInner({
       return;
     }
     setErrors({});
+    isSubmittingRef.current = true;
     save.mutate(parsed.data as Record<string, RecordValue>);
   };
 
@@ -279,7 +291,7 @@ function FormInner({
                         value={isDeptLocked ? (defaultDepartment ?? values[f.name] ?? null) : (values[f.name] ?? null)}
                         error={errors[f.name]}
                         onChange={(v) => set(f.name, v)}
-                        disabled={save.isPending || (pickCollege && !collegeId) || isDeptLocked}
+                        disabled={isBusy || (pickCollege && !collegeId) || isDeptLocked}
                         stream={stream}
                         collegeId={collegeId || undefined}
                       />
@@ -315,8 +327,17 @@ function FormInner({
               </li>
             </ul>
             <div className="mt-5 flex flex-col gap-2">
-              <Button type="submit" size="lg" disabled={save.isPending || (isEdit && !dirty)}>
-                {save.isPending ? <Spinner /> : <Fi name={isEdit ? "disk" : "check"} />} {isEdit ? "Save changes" : `Create ${resource.singular.toLowerCase()}`}
+              <Button type="submit" size="lg" disabled={isBusy || (isEdit && !dirty)}>
+                {isBusy ? <Spinner /> : <Fi name={isEdit ? "disk" : "check"} />}
+                {isBusy
+                  ? isEdit
+                    ? "Saving changes…"
+                    : isSubmitted
+                      ? "Redirecting…"
+                      : `Creating ${resource.singular.toLowerCase()}…`
+                  : isEdit
+                    ? "Save changes"
+                    : `Create ${resource.singular.toLowerCase()}`}
               </Button>
               <Link
                 href={isEdit ? `${base}/${encodeURIComponent(initial!.id)}` : base}
