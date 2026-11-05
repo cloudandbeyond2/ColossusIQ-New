@@ -22,6 +22,7 @@ import { dynamicHodHome } from "./hod-home";
 import { placementHome, placementSnapshot } from "./placement-stats";
 import { dynamicBiAnalytics } from "./bi-analytics";
 import { moduleData } from "./module-data";
+import { listStaff, createStaff, updateStaff, deleteStaff } from "./staff-store";
 import { ClubError, canCreateClubs, canRemoveClubs, createClub, deleteClub, getClubsOverview, toggleJoinClub, updateClub } from "./clubs";
 import { SportError, canManageSports, createSport, deleteSport, getSportsOverview, toggleRegisterTrial, updateSport } from "./sports";
 import { deleteHackathonTeam, getHackathonsOverview, listHackathonTeams, registerHackathonTeam } from "./hackathons";
@@ -459,6 +460,10 @@ export const PATTERNS = [
   "POST notifications/read-all",
   "GET search",
   "GET home/:id",
+  "GET modules/staff",
+  "POST modules/staff",
+  "PUT modules/staff/:id",
+  "DELETE modules/staff/:id",
   "GET modules/:id",
   "PUT modules/:id",
   "GET clubs",
@@ -1228,6 +1233,24 @@ export async function dispatch(method: string, segs: string[], rawBody: unknown,
       });
 
       return ok({ ok: true, values });
+    }
+
+    case "GET modules/staff": {
+      return ok(listStaff());
+    }
+    case "POST modules/staff": {
+      const parsed = typeof rawBody === "string" ? JSON.parse(rawBody) : rawBody;
+      const created = createStaff(parsed ?? {});
+      return ok(created, 201);
+    }
+    case "PUT modules/staff/:id": {
+      const parsed = typeof rawBody === "string" ? JSON.parse(rawBody) : rawBody;
+      const updated = updateStaff(b, parsed ?? {});
+      return updated ? ok(updated) : notFound();
+    }
+    case "DELETE modules/staff/:id": {
+      const okDelete = deleteStaff(b);
+      return okDelete ? ok({ ok: true }) : notFound();
     }
 
     /* ── branding & white-label ── */

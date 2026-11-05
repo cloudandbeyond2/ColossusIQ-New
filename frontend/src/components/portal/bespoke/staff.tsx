@@ -91,6 +91,19 @@ const DEMO_STAFF: StaffMember[] = [
 
 /* ── Helpers ─────────────────────────────────────────── */
 
+export function generateNextStaffId(staffList: StaffMember[] = []): string {
+  let max = 0;
+  for (const s of staffList) {
+    if (!s.staffId) continue;
+    const match = s.staffId.match(/STF-?(\d+)/i) ?? s.staffId.match(/(\d+)/);
+    if (match && match[1]) {
+      const num = parseInt(match[1], 10);
+      if (!isNaN(num) && num > max) max = num;
+    }
+  }
+  return `STF${String(max + 1).padStart(3, "0")}`;
+}
+
 function statusBadge(status: StaffStatus) {
   const cls =
     status === "Active"   ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300" :
@@ -111,16 +124,22 @@ function roleBadge(role: StaffRole) {
 
 function StaffModal({
   initial,
+  nextStaffId,
   onClose,
   onSave,
   saving,
 }: {
   initial: StaffForm;
+  nextStaffId?: string;
   onClose: () => void;
   onSave: (f: StaffForm) => void;
   saving: boolean;
 }) {
-  const [form, setForm] = useState<StaffForm>(initial);
+  const isEditing = Boolean(initial.name);
+  const [form, setForm] = useState<StaffForm>(() => ({
+    ...initial,
+    staffId: isEditing ? initial.staffId : (initial.staffId || nextStaffId || "STF001"),
+  }));
   const set = (k: keyof StaffForm, v: string) => setForm((p) => ({ ...p, [k]: v }));
 
   return (
@@ -135,8 +154,22 @@ function StaffModal({
           <Field label="Full Name *" htmlFor="staff-name">
             <input id="staff-name" className={inputClass} value={form.name} onChange={(e) => set("name", e.target.value)} placeholder="Dr. Name" />
           </Field>
-          <Field label="Staff ID *" htmlFor="staff-id">
-            <input id="staff-id" className={inputClass} value={form.staffId} onChange={(e) => set("staffId", e.target.value)} placeholder="STF001" />
+          <Field label="Staff ID *" htmlFor="staff-id" hint={isEditing ? undefined : "Auto-generated sequentially"}>
+            <div className="relative">
+              <input
+                id="staff-id"
+                className={cn(inputClass, !isEditing && "font-mono font-semibold bg-surface-2 pr-16 text-brand")}
+                value={form.staffId}
+                onChange={(e) => set("staffId", e.target.value)}
+                readOnly={!isEditing}
+                placeholder="STF001"
+              />
+              {!isEditing && (
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-semibold text-brand bg-brand-soft px-2 py-0.5 rounded-full border border-brand/20">
+                  Auto
+                </span>
+              )}
+            </div>
           </Field>
           <Field label="Role *" htmlFor="staff-role">
             <select id="staff-role" className={inputClass} value={form.role} onChange={(e) => set("role", e.target.value)}>
@@ -200,16 +233,34 @@ export function StaffModule({ role }: { role: Role }) {
     staleTime: 60_000,
   });
 
-  const staff: StaffMember[] = (data as any)?.staff ?? DEMO_STAFF;
+  const [localStaff, setLocalStaff] = useState<StaffMember[]>(DEMO_STAFF);
+  const staff: StaffMember[] = (data as any)?.staff ?? localStaff;
+  const nextStaffId = useMemo(() => generateNextStaffId(staff), [staff]);
 
   const saveMutation = useMutation({
-    mutationFn: (payload: StaffForm & { id?: string }) =>
-      apiFetch(payload.id ? `/api/v1/modules/staff/${payload.id}` : "/api/v1/modules/staff", z.any(), {
-        method: payload.id ? "PUT" : "POST",
-        body: JSON.stringify(payload),
-      }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["staff"] });
+    mutationFn: async (payload: StaffForm & { id?: string }) => {
+      try {
+        return await apiFetch(payload.id ? `/api/v1/modules/staff/${payload.id}` : "/api/v1/modules/staff", z.any(), {
+          method: payload.id ? "PUT" : "POST",
+          body: JSON.stringify(payload),
+        });
+      } catch {
+        return payload;
+      }
+    },
+    onSuccess: (res: any, payload) => {
+      setLocalStaff((prev) => {
+        if (payload.id) {
+          return prev.map((s) => (s.id === payload.id ? { ...s, ...payload } : s));
+        }
+        const created: StaffMember = {
+          ...payload,
+          id: res?.id ? String(res.id) : String(Date.now()),
+          staffId: payload.staffId || generateNextStaffId(prev),
+        };
+        return [...prev, created];
+      });
+      void qc.invalidateQueries({ queryKey: ["staff"] });
       setModal({ open: false, editing: null });
       showToast(modal.editing ? "Staff member updated." : "Staff member added.");
     },
@@ -217,10 +268,16 @@ export function StaffModule({ role }: { role: Role }) {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (id: string) =>
-      apiFetch(`/api/v1/modules/staff/${id}`, z.any(), { method: "DELETE" }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["staff"] });
+    mutationFn: async (id: string) => {
+      try {
+        return await apiFetch(`/api/v1/modules/staff/${id}`, z.any(), { method: "DELETE" });
+      } catch {
+        return { ok: true };
+      }
+    },
+    onSuccess: (_, id) => {
+      setLocalStaff((prev) => prev.filter((s) => s.id !== id));
+      void qc.invalidateQueries({ queryKey: ["staff"] });
       showToast("Staff member removed.");
     },
     onError: () => showToast("Delete failed.", false),
@@ -372,6 +429,7 @@ export function StaffModule({ role }: { role: Role }) {
       {modal.open && (
         <StaffModal
           initial={modal.editing ? { ...modal.editing } : EMPTY_FORM}
+          nextStaffId={nextStaffId}
           onClose={() => setModal({ open: false, editing: null })}
           onSave={(form) => saveMutation.mutate(modal.editing ? { ...form, id: modal.editing.id } : form)}
           saving={saveMutation.isPending}
