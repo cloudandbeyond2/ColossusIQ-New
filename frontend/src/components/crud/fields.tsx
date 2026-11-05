@@ -128,8 +128,8 @@ export function FieldInput({
         <input
           {...common}
           type="number"
-          inputMode="decimal"
-          step="any"
+          inputMode={field.name === "established" ? "numeric" : "decimal"}
+          step={field.name === "established" ? "1" : "any"}
           min={field.min}
           max={field.max}
           placeholder={field.placeholder}
@@ -152,7 +152,16 @@ export function FieldInput({
           placeholder={field.placeholder}
           className={inputClass}
           value={typeof value === "string" ? value : ""}
-          onChange={(e) => onChange(e.target.value)}
+          onChange={(e) => {
+            if (field.type === "tel") {
+              let v = e.target.value.replace(/\D/g, "");
+              if (v.length === 12 && v.startsWith("91")) v = v.slice(2);
+              else if (v.length === 11 && v.startsWith("0")) v = v.slice(1);
+              onChange(v.slice(0, 10));
+            } else {
+              onChange(e.target.value);
+            }
+          }}
         />
       );
     }

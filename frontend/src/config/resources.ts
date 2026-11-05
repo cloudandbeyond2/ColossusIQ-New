@@ -400,12 +400,56 @@ RESOURCES.departments = {
   sections: ["Department", "Contact"],
   fields: [
     { name: "department", label: "Department", type: "select", section: "Department", required: true, options: DEPARTMENT_OPTIONS, streamOptions: "department", column: "text", wide: true, help: "Departments of your college's academic stream." },
-    { name: "head", label: "Head of department", type: "text", section: "Department", maxLength: 80, placeholder: "e.g. Dr. S. Venkatesh", column: "text" },
-    { name: "established", label: "Year established", type: "number", section: "Department", min: 1850, max: 2030 },
+    {
+      name: "head",
+      label: "Head of department",
+      type: "text",
+      section: "Department",
+      required: true,
+      maxLength: 80,
+      pattern: { regex: "^[a-zA-Z\\s.]{2,80}$", message: "Enter a valid name (at least 2 letters, spaces and dots only)" },
+      placeholder: "e.g. Dr. S. Venkatesh",
+      column: "text",
+    },
+    {
+      name: "established",
+      label: "Year established",
+      type: "number",
+      section: "Department",
+      required: true,
+      min: 1850,
+      max: 2030,
+      placeholder: "e.g. 1995",
+    },
     { name: "status", label: "Status", type: "select", section: "Department", required: true, options: ["Active", "Inactive"], defaultValue: "Active", column: "badge" },
-    { name: "email", label: "Department email", type: "email", section: "Contact", sensitive: true },
-    { name: "phone", label: "Office phone", type: "tel", section: "Contact", pattern: MOBILE, sensitive: true },
-    { name: "notes", label: "Notes", type: "textarea", section: "Contact", maxLength: 600, wide: true },
+    {
+      name: "email",
+      label: "Department email",
+      type: "email",
+      section: "Contact",
+      required: true,
+      placeholder: "e.g. hod.cse@college.edu",
+      sensitive: true,
+    },
+    {
+      name: "phone",
+      label: "Office phone",
+      type: "tel",
+      section: "Contact",
+      required: true,
+      pattern: MOBILE,
+      placeholder: "e.g. 9876543210",
+      sensitive: true,
+    },
+    {
+      name: "notes",
+      label: "Notes",
+      type: "textarea",
+      section: "Contact",
+      maxLength: 600,
+      placeholder: "Specialisations, research focus, labs or accreditations…",
+      wide: true,
+    },
   ],
   stats: [
     { name: "programmes", label: "Programmes", kind: "number" },
@@ -494,10 +538,13 @@ function fieldSchema(f: FieldDef): z.ZodTypeAny {
     case "checklist":
       return z.array(z.enum(f.options as [string, ...string[]])).max(f.options?.length ?? 0).refine((a) => new Set(a).size === a.length, "Duplicate items");
     case "number": {
-      let n = z.number({ invalid_type_error: `${f.label} must be a number` }).finite();
+      let n = z.number({ required_error: `${f.label} is required`, invalid_type_error: `${f.label} must be a number` }).finite();
       if (f.min !== undefined) n = n.min(f.min, `Minimum is ${f.min}`);
       if (f.max !== undefined) n = n.max(f.max, `Maximum is ${f.max}`);
-      return f.required ? n : n.nullable();
+      if (f.required) {
+        return z.preprocess((val) => (val === null || val === "" ? undefined : val), n);
+      }
+      return z.preprocess((val) => (val === "" ? null : val), n.nullable());
     }
     case "select": {
       const e = z.enum(f.options as [string, ...string[]], { errorMap: () => ({ message: `Choose a ${f.label.toLowerCase()}` }) });
@@ -505,13 +552,16 @@ function fieldSchema(f: FieldDef): z.ZodTypeAny {
     }
     default: {
       let s = z.string().trim();
+      if (f.required) {
+        s = s.min(1, `${f.label} is required`);
+      }
       if (f.type === "email") s = s.toLowerCase().max(120).email("Enter a valid email");
       else if (f.type === "date") s = s.regex(ISO_DATE, "Enter a valid date");
       else if (f.type === "time") s = s.regex(TIME, "Enter a valid time");
       else s = s.max(f.maxLength ?? 120, `Maximum ${f.maxLength ?? 120} characters`);
       // eslint-disable-next-line security/detect-non-literal-regexp -- patterns are static config, not user input
       if (f.pattern) s = s.regex(new RegExp(f.pattern.regex), f.pattern.message);
-      let out: z.ZodTypeAny = f.required ? s.min(1, `${f.label} is required`) : z.union([s, z.literal("")]);
+      let out: z.ZodTypeAny = f.required ? s : z.union([s, z.literal("")]);
       if (f.type === "date" && (f.minDate || f.maxDate)) {
         out = out.refine((v: string) => !v || ((!f.minDate || v >= f.minDate) && (!f.maxDate || v <= f.maxDate)), {
           message: `Date must be between ${f.minDate ?? "…"} and ${f.maxDate ?? "…"}`,

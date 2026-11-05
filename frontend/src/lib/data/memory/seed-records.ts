@@ -274,15 +274,18 @@ export function scopedRows(key: string, college: ResourceRecord, seedBase: numbe
       // Every academic department of the stream; heads are named in active colleges.
       return def.departments
         .filter((d) => !/Administration/.test(d))
-        .map((department, i) => ({
-          department,
-          head: college.status === "Active" ? `Dr. ${personName(seedBase * 31 + i + 4)}` : "",
-          established: typeof college.established === "number" ? college.established + (i % 3) * 4 : null,
-          status: "Active",
-          email: i === 0 ? `hod@${domain}` : "",
-          phone: "",
-          notes: "",
-        }));
+        .map((department, i) => {
+          const deptSlug = department.toLowerCase().replace(/[^a-z0-9]/g, "") || "dept";
+          return {
+            department,
+            head: `Dr. ${personName(seedBase * 31 + i + 4)}`,
+            established: typeof college.established === "number" ? college.established + (i % 3) * 4 : 2005,
+            status: "Active",
+            email: `hod.${deptSlug}@${domain}`,
+            phone: `9840${String(100000 + ((seedBase * 37 + i * 13) % 900000))}`,
+            notes: "",
+          };
+        });
     case "rotations":
       if (stream !== "medical" || college.status !== "Active") return [];
       if (college.type === "Medical College & Hospital") {

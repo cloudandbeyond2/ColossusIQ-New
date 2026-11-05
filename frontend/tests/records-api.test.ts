@@ -145,17 +145,17 @@ describe("departments", () => {
     const before = await list();
     const cse = before.items.find((r) => r.department === "Computer Science & Engineering")!;
     // Already listed
-    const dup = await dispatch("POST", ["records", "departments"], { data: { department: "Computer Science & Engineering", head: "", established: null, status: "Active", email: "", phone: "", notes: "" } }, inst, q);
+    const dup = await dispatch("POST", ["records", "departments"], { data: { department: "Computer Science & Engineering", head: "Dr. S. Venkatesh", established: 2001, status: "Active", email: "cse@ait.edu.in", phone: "9876543210", notes: "" } }, inst, q);
     expect(dup.status).toBe(409);
     // Not an engineering department
-    const wrong = await dispatch("POST", ["records", "departments"], { data: { department: "Anatomy", head: "", established: null, status: "Active", email: "", phone: "", notes: "" } }, inst, q);
+    const wrong = await dispatch("POST", ["records", "departments"], { data: { department: "Anatomy", head: "Dr. S. Venkatesh", established: 2001, status: "Active", email: "cse@ait.edu.in", phone: "9876543210", notes: "" } }, inst, q);
     expect(wrong.status).toBe(409);
 
     expect((await dispatch("DELETE", ["records", "departments", cse.id], undefined, inst, q)).status).toBe(200);
     const added = await dispatch("POST", ["records", "departments"], { data: { department: "Computer Science & Engineering", head: "Dr. New Head", established: 2001, status: "Active", email: "cse@ait.edu.in", phone: "9876543210", notes: "" } }, inst, q);
     expect(added.status).toBe(201);
     const rec = added.body as { id: string; version: number };
-    const edited = await dispatch("PUT", ["records", "departments", rec.id], { data: { department: "Computer Science & Engineering", head: "Dr. Changed", established: 2001, status: "Inactive", email: "", phone: "", notes: "" }, version: rec.version }, inst, q);
+    const edited = await dispatch("PUT", ["records", "departments", rec.id], { data: { department: "Computer Science & Engineering", head: "Dr. Changed", established: 2001, status: "Inactive", email: "cse@ait.edu.in", phone: "9876543210", notes: "" }, version: rec.version }, inst, q);
     expect(edited.status).toBe(200);
     expect(edited.body).toMatchObject({ head: "Dr. Changed", status: "Inactive" });
     // Students are read-only for departments
