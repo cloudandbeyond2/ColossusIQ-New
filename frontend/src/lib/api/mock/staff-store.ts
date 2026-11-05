@@ -43,17 +43,18 @@ export function listStaff(): { staff: StaffMember[]; total: number } {
 
 export function createStaff(item: Partial<StaffMember>): StaffMember {
   const staffId = item.staffId && item.staffId.trim() ? item.staffId.trim() : generateNextStaffId(staffList);
+  const phone = item.phone ? item.phone.trim().replace(/\D/g, "").slice(0, 10) : "";
   const newMember: StaffMember = {
     id: String(Date.now()),
-    name: item.name || "Staff Member",
+    name: item.name ? item.name.trim() : "Staff Member",
     staffId,
     role: item.role || "Faculty",
-    department: item.department || "",
-    email: item.email || "",
-    phone: item.phone || "",
+    department: item.department ? item.department.trim() : "",
+    email: item.email ? item.email.trim() : "",
+    phone,
     status: item.status || "Active",
     joinedDate: item.joinedDate || new Date().toISOString().slice(0, 10),
-    qualifications: item.qualifications || "",
+    qualifications: item.qualifications ? item.qualifications.trim() : "",
   };
   staffList.push(newMember);
   return newMember;

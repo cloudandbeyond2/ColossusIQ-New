@@ -140,7 +140,58 @@ function StaffModal({
     ...initial,
     staffId: isEditing ? initial.staffId : (initial.staffId || nextStaffId || "STF001"),
   }));
-  const set = (k: keyof StaffForm, v: string) => setForm((p) => ({ ...p, [k]: v }));
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const set = (k: keyof StaffForm, v: string) => {
+    setForm((p) => ({ ...p, [k]: v }));
+  };
+
+  const validate = () => {
+    const errs: Record<string, string> = {};
+    const trimmedName = form.name.trim();
+    if (!trimmedName) {
+      errs.name = "Full name is required";
+    } else if (trimmedName.length < 2) {
+      errs.name = "Full name must be at least 2 characters";
+    } else if (trimmedName.length > 80) {
+      errs.name = "Full name must be 80 characters or fewer";
+    }
+
+    if (!form.staffId.trim()) {
+      errs.staffId = "Staff ID is required";
+    }
+
+    if (form.phone && form.phone.trim()) {
+      const digits = form.phone.trim().replace(/\D/g, "");
+      if (digits.length !== 10) {
+        errs.phone = "Phone number must be exactly 10 digits";
+      } else if (!/^[6-9]\d{9}$/.test(digits)) {
+        errs.phone = "Enter a valid 10-digit mobile number (starts with 6, 7, 8, or 9)";
+      }
+    }
+
+    if (form.email && form.email.trim()) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(form.email.trim())) {
+        errs.email = "Enter a valid email address (e.g. name@college.edu)";
+      }
+    }
+
+    if (form.joinedDate && form.joinedDate.trim()) {
+      const d = new Date(form.joinedDate);
+      if (isNaN(d.getTime())) {
+        errs.joinedDate = "Enter a valid date";
+      }
+    }
+
+    setErrors(errs);
+    return Object.keys(errs).length === 0;
+  };
+
+  const handleSave = () => {
+    if (!validate()) return;
+    onSave(form);
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
@@ -151,16 +202,31 @@ function StaffModal({
         </div>
 
         <div className="grid sm:grid-cols-2 gap-4">
-          <Field label="Full Name *" htmlFor="staff-name">
-            <input id="staff-name" className={inputClass} value={form.name} onChange={(e) => set("name", e.target.value)} placeholder="Dr. Name" />
+          <Field label="Full Name *" htmlFor="staff-name" error={errors.name}>
+            <input
+              id="staff-name"
+              className={inputClass}
+              aria-invalid={Boolean(errors.name)}
+              maxLength={80}
+              value={form.name}
+              onChange={(e) => {
+                set("name", e.target.value);
+                if (errors.name) setErrors((p) => ({ ...p, name: "" }));
+              }}
+              placeholder="Dr. Name"
+            />
           </Field>
-          <Field label="Staff ID *" htmlFor="staff-id" hint={isEditing ? undefined : "Auto-generated sequentially"}>
+          <Field label="Staff ID *" htmlFor="staff-id" hint={isEditing ? undefined : "Auto-generated sequentially"} error={errors.staffId}>
             <div className="relative">
               <input
                 id="staff-id"
                 className={cn(inputClass, !isEditing && "font-mono font-semibold bg-surface-2 pr-16 text-brand")}
+                aria-invalid={Boolean(errors.staffId)}
                 value={form.staffId}
-                onChange={(e) => set("staffId", e.target.value)}
+                onChange={(e) => {
+                  set("staffId", e.target.value);
+                  if (errors.staffId) setErrors((p) => ({ ...p, staffId: "" }));
+                }}
                 readOnly={!isEditing}
                 placeholder="STF001"
               />
@@ -177,32 +243,67 @@ function StaffModal({
             </select>
           </Field>
           <Field label="Department" htmlFor="staff-dept">
-            <input id="staff-dept" className={inputClass} value={form.department} onChange={(e) => set("department", e.target.value)} placeholder="CSE" />
+            <input id="staff-dept" className={inputClass} maxLength={60} value={form.department} onChange={(e) => set("department", e.target.value)} placeholder="CSE" />
           </Field>
-          <Field label="Email" htmlFor="staff-email">
-            <input id="staff-email" className={inputClass} type="email" value={form.email ?? ""} onChange={(e) => set("email", e.target.value)} placeholder="staff@college.edu" />
+          <Field label="Email" htmlFor="staff-email" error={errors.email}>
+            <input
+              id="staff-email"
+              className={inputClass}
+              aria-invalid={Boolean(errors.email)}
+              type="email"
+              value={form.email ?? ""}
+              onChange={(e) => {
+                set("email", e.target.value);
+                if (errors.email) setErrors((p) => ({ ...p, email: "" }));
+              }}
+              placeholder="staff@college.edu"
+            />
           </Field>
-          <Field label="Phone" htmlFor="staff-phone">
-            <input id="staff-phone" className={inputClass} value={form.phone ?? ""} onChange={(e) => set("phone", e.target.value)} placeholder="9876543210" />
+          <Field label="Phone" htmlFor="staff-phone" error={errors.phone} hint={errors.phone ? undefined : "10-digit mobile number"}>
+            <input
+              id="staff-phone"
+              className={inputClass}
+              aria-invalid={Boolean(errors.phone)}
+              type="tel"
+              inputMode="numeric"
+              maxLength={10}
+              value={form.phone ?? ""}
+              onChange={(e) => {
+                const numericOnly = e.target.value.replace(/\D/g, "").slice(0, 10);
+                set("phone", numericOnly);
+                if (errors.phone) setErrors((p) => ({ ...p, phone: "" }));
+              }}
+              placeholder="9876543210"
+            />
           </Field>
           <Field label="Status" htmlFor="staff-status">
             <select id="staff-status" className={inputClass} value={form.status} onChange={(e) => set("status", e.target.value)}>
               {STAFF_STATUSES.map((s) => <option key={s}>{s}</option>)}
             </select>
           </Field>
-          <Field label="Date Joined" htmlFor="staff-joined">
-            <input id="staff-joined" className={inputClass} type="date" value={form.joinedDate ?? ""} onChange={(e) => set("joinedDate", e.target.value)} />
+          <Field label="Date Joined" htmlFor="staff-joined" error={errors.joinedDate}>
+            <input
+              id="staff-joined"
+              className={inputClass}
+              aria-invalid={Boolean(errors.joinedDate)}
+              type="date"
+              value={form.joinedDate ?? ""}
+              onChange={(e) => {
+                set("joinedDate", e.target.value);
+                if (errors.joinedDate) setErrors((p) => ({ ...p, joinedDate: "" }));
+              }}
+            />
           </Field>
           <div className="sm:col-span-2">
             <Field label="Qualifications" htmlFor="staff-qual">
-              <input id="staff-qual" className={inputClass} value={form.qualifications ?? ""} onChange={(e) => set("qualifications", e.target.value)} placeholder="PhD, M.Tech..." />
+              <input id="staff-qual" className={inputClass} maxLength={100} value={form.qualifications ?? ""} onChange={(e) => set("qualifications", e.target.value)} placeholder="PhD, M.Tech..." />
             </Field>
           </div>
         </div>
 
         <div className="flex justify-end gap-2 pt-2">
           <Button variant="ghost" onClick={onClose} disabled={saving}>Cancel</Button>
-          <Button onClick={() => onSave(form)} disabled={saving || !form.name.trim() || !form.staffId.trim()}>
+          <Button onClick={handleSave} disabled={saving}>
             {saving ? <Spinner className="h-4 w-4 mr-2" /> : null}
             {initial.name ? "Save Changes" : "Add Member"}
           </Button>

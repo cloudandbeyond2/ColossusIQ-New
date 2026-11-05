@@ -41,4 +41,9 @@ describe("Staff sequential ID generation", () => {
     const created = createStaff({ name: "Dr. New Sequential Staff" });
     expect(created.staffId).toBe(expectedNext);
   });
+
+  it("sanitizes phone number to 10 digits", () => {
+    const created = createStaff({ name: "Prof. Phone Test", phone: "+91 98765-43210 ext 99" });
+    expect(created.phone).toBe("9198765432");
+  });
 });
