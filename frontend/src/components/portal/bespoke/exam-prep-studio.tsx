@@ -118,6 +118,7 @@ function SetsPanel({ d, say }: { d: StudioOverview; say: (m: string | null) => v
   });
   const examName = (id?: string) => (id ? d.exams.find((e) => e.id === id)?.name ?? id : "");
 
+
   if (draft) return <SetEditor d={d} draft={draft} setDraft={setDraft} errors={errors} busy={save.isPending} onSave={() => save.mutate(draft)} onCancel={() => setDraft(null)} say={say} />;
   return (
     <Card>
@@ -201,6 +202,25 @@ function SetEditor({ d, draft, setDraft, errors, busy, onSave, onCancel, say }: 
   const [count, setCount] = useState(10);
   const [isTitleManual, setIsTitleManual] = useState(Boolean(draft.id && draft.title));
   const examName = (id?: string) => (id ? d.exams.find((e) => e.id === id)?.name ?? id : "");
+
+  const sortedExams = useMemo(() => {
+    const medIds = new Set(["neet-pg", "ini-cet", "fmge", "next-step1", "neet-ug"]);
+    const engIds = new Set(["gate", "tnea", "jee-main"]);
+    return [...d.exams].sort((a, b) => {
+      if (d.stream === "medical") {
+        const aM = medIds.has(a.id);
+        const bM = medIds.has(b.id);
+        if (aM && !bM) return -1;
+        if (!aM && bM) return 1;
+      } else if (d.stream === "engineering") {
+        const aE = engIds.has(a.id);
+        const bE = engIds.has(b.id);
+        if (aE && !bE) return -1;
+        if (!aE && bE) return 1;
+      }
+      return 0;
+    });
+  }, [d.exams, d.stream]);
 
   const currentTopicTitle = useMemo(() => {
     if (draft.topicId === NEW) return draft.newTopic.trim();
@@ -343,9 +363,16 @@ function SetEditor({ d, draft, setDraft, errors, busy, onSave, onCancel, say }: 
             </Field>
           </div>
           <fieldset>
-            <legend className="mb-1 text-sm font-medium text-ink">Exams (up to 10)</legend>
+            <div className="mb-1 flex items-center justify-between">
+              <span className="text-sm font-medium text-ink">Exams (up to 10)</span>
+              {d.stream === "medical" && (
+                <span className="text-xs font-medium text-teal-600 bg-teal-50 px-2 py-0.5 rounded-full border border-teal-200">
+                  Medical Exams Prioritised (NEET-PG, INI-CET, FMGE, NExT)
+                </span>
+              )}
+            </div>
             <div className="flex max-h-28 flex-wrap gap-1.5 overflow-y-auto">
-              {d.exams.map((e) => {
+              {sortedExams.map((e) => {
                 const on = draft.examIds.includes(e.id);
                 return (
                   <button type="button" key={e.id} aria-pressed={on} onClick={() => setDraft({ ...draft, examIds: on ? draft.examIds.filter((x) => x !== e.id) : [...draft.examIds, e.id].slice(0, 10), section: "" })} className={cn("rounded-full px-2.5 py-1 text-xs", on ? "bg-brand text-white" : "bg-surface-2 text-ink-2 hover:bg-line")}>

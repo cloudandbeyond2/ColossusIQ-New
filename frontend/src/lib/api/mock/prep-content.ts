@@ -10,6 +10,7 @@ import { audit } from "./audit";
 import { EXAMS, TOPICS } from "./exam-catalogue";
 import { takeParked } from "./exam-prep-ai";
 import { prepContentStore, type ContentInput, type ContentRow } from "./prep-content-store";
+import { collegeStream } from "./records";
 import { allTopics, builtInNotes, collegePool, titleOf, topicExists, topicQuestions } from "./prep-pool";
 import type { MockResult } from "./router";
 
@@ -60,7 +61,7 @@ export async function dispatchPrepContent(method: string, segs: string[], rawBod
   const [, a1, a2] = segs;
 
   if (method === "GET" && segs.length === 1) {
-    if (s.college === ALL_COLLEGES) return ok(StudioOverview.parse({ sets: [], notes: [], topics: [], exams: [], aiAvailable: false, canEdit: false }));
+    if (s.college === ALL_COLLEGES) return ok(StudioOverview.parse({ sets: [], notes: [], topics: [], exams: [], aiAvailable: false, canEdit: false, stream: null }));
     const [rows, pool] = await Promise.all([store.list(s), collegePool(s)]);
     const body: StudioOverview = {
       sets: rows.filter((r) => r.kind === "set").map(setView),
@@ -69,6 +70,7 @@ export async function dispatchPrepContent(method: string, segs: string[], rawBod
       exams: EXAMS.filter((e) => e.sections.length).map((e) => ({ id: e.id, name: e.name, sections: e.sections.map((x) => x.name) })),
       aiAvailable: geminiEnabled(),
       canEdit,
+      stream: await collegeStream(s.college),
     };
     return ok(StudioOverview.parse(body));
   }
