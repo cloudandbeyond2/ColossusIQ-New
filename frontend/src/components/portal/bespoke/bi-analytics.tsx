@@ -20,6 +20,7 @@ import type { Role } from "@/lib/auth/roles";
 import { TemplateSkeleton } from "@/components/modules/shared";
 import { LoadError } from "@/components/ui/load-error";
 import { Badge, Button, Card } from "@/components/ui/primitives";
+import { ChartCard } from "@/components/charts/chart-card";
 import { cn } from "@/lib/utils";
 
 // ── colour helpers ────────────────────────────────────────────────────────────
@@ -76,71 +77,102 @@ function toneRing(tone?: string) {
 
 // ── SVG ring meter ────────────────────────────────────────────────────────────
 
+function parseMeterValue(val: string) {
+  const trimmed = val.trim();
+  const match = trimmed.match(/^([\d,.]+%?)\s+(.+)$/);
+  if (match && match[1] && match[2]) {
+    return { primary: match[1], sub: match[2] };
+  }
+  return { primary: trimmed, sub: null };
+}
+
 function RingMeter({ pct, color, label, value }: {
   pct: number;
   color: string;
   label: string;
   value: string;
 }) {
-  const r = 30;
+  const r = 34;
   const circ = 2 * Math.PI * r;
-  const dash = Math.min(pct / 100, 1) * circ;
+  const dash = Math.min(Math.max(pct, 0) / 100, 1) * circ;
+  const { primary, sub } = parseMeterValue(value);
+
+  const singleFontSize = primary.length <= 2 ? 20 : primary.length <= 4 ? 17 : primary.length <= 6 ? 14 : 11;
+  const subFontSize = sub && sub.length > 8 ? 8 : 9.5;
+
   return (
-    <div className="flex flex-col items-center gap-1">
-      <svg width="80" height="80" viewBox="0 0 80 80">
-        <circle cx="40" cy="40" r={r} fill="none" stroke="currentColor"
-          strokeWidth="8" className="text-surface-2" />
-        <circle cx="40" cy="40" r={r} fill="none" stroke={color}
-          strokeWidth="8" strokeDasharray={`${dash} ${circ}`}
-          strokeLinecap="round" transform="rotate(-90 40 40)" />
-        <text x="40" y="44" textAnchor="middle"
-          className="fill-ink-1 font-bold" fontSize="14">{value}</text>
-      </svg>
-      <span className="text-xs text-ink-3 text-center leading-tight max-w-[80px]">{label}</span>
-    </div>
-  );
-}
-
-// ── sparkline mini-bars ───────────────────────────────────────────────────────
-
-function SparkBar({ data, seriesKey, color }: {
-  data: Record<string, string | number>[];
-  seriesKey: string;
-  color: string;
-}) {
-  const values = data.map((d) => Number(d[seriesKey]) || 0);
-  const max = values.reduce((a, b) => (b > a ? b : a), 1);
-  return (
-    <div className="flex items-end gap-0.5 h-10">
-      {values.map((v, i) => (
-        <div
-          key={i}
-          className={cn("flex-1 rounded-sm min-h-[2px]", color)}
-          style={{ height: `${(v / max) * 100}%`, opacity: i === values.length - 1 ? 1 : 0.5 }}
-        />
-      ))}
-    </div>
-  );
-}
-
-// ── horizontal bar ────────────────────────────────────────────────────────────
-
-function HBar({ label, value, max, color }: {
-  label: string;
-  value: number;
-  max: number;
-  color: string;
-}) {
-  const pct = max > 0 ? (value / max) * 100 : 0;
-  return (
-    <div className="space-y-0.5">
-      <div className="flex items-center justify-between text-xs">
-        <span className="text-ink-2 truncate max-w-[180px]">{label}</span>
-        <span className="text-ink-1 font-medium tabular-nums">{value}</span>
+    <div className="flex flex-col items-center justify-start gap-2 text-center group cursor-default">
+      <div className="relative flex items-center justify-center">
+        <svg
+          viewBox="0 0 88 88"
+          className="size-20 sm:size-24 transition-transform duration-200 group-hover:scale-105"
+          aria-hidden="true"
+        >
+          <circle
+            cx="44"
+            cy="44"
+            r={r}
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="7"
+            className="text-[var(--surface-2)] dark:opacity-60"
+          />
+          <circle
+            cx="44"
+            cy="44"
+            r={r}
+            fill="none"
+            stroke={color}
+            strokeWidth="7"
+            strokeDasharray={`${dash} ${circ}`}
+            strokeLinecap="round"
+            transform="rotate(-90 44 44)"
+            className="transition-all duration-700 ease-out"
+          />
+          {sub ? (
+            <>
+              <text
+                x="44"
+                y="37"
+                textAnchor="middle"
+                dominantBaseline="central"
+                fill="var(--ink)"
+                fontSize="16"
+                fontWeight="700"
+              >
+                {primary}
+              </text>
+              <text
+                x="44"
+                y="52"
+                textAnchor="middle"
+                dominantBaseline="central"
+                fill="var(--ink-3)"
+                fontSize={subFontSize}
+                fontWeight="600"
+                letterSpacing="0.04em"
+              >
+                {sub}
+              </text>
+            </>
+          ) : (
+            <text
+              x="44"
+              y="44"
+              textAnchor="middle"
+              dominantBaseline="central"
+              fill="var(--ink)"
+              fontSize={singleFontSize}
+              fontWeight="700"
+            >
+              {primary}
+            </text>
+          )}
+        </svg>
       </div>
-      <div className="h-1.5 rounded-full bg-surface-2 overflow-hidden">
-        <div className={cn("h-full rounded-full", color)} style={{ width: `${pct}%` }} />
-      </div>
+      <span className="text-xs font-medium text-[var(--ink-3)] text-center leading-snug line-clamp-2 max-w-[90px] sm:max-w-[120px]">
+        {label}
+      </span>
     </div>
   );
 }
@@ -156,10 +188,10 @@ const TABS = [
 type TabId = typeof TABS[number]["id"];
 
 const TAB_PREFIXES: Record<TabId, string[]> = {
-  academic:      ["academic", "pass", "attendance", "result", "student", "cgpa", "gpa"],
-  employability: ["employ", "placement", "offer", "package", "lpa", "hired", "recruit"],
-  engagement:    ["engage", "active", "club", "event", "course", "quiz", "certif", "login"],
-  faculty:       ["faculty", "staff", "ai", "skill", "development", "training", "load"],
+  academic:      ["academic", "curriculum", "pass", "attendance", "result", "student", "course"],
+  employability: ["employ", "placement", "career", "readiness", "offer", "package", "hired", "recruit"],
+  engagement:    ["engage", "active", "club", "event", "weekly", "attendance", "quiz"],
+  faculty:       ["faculty", "staff", "capacity", "load", "teaching", "ratio", "designation"],
 };
 
 // ── KPI card ──────────────────────────────────────────────────────────────────
@@ -195,91 +227,6 @@ function InsightCard({ title, text, tone }: { title?: string; text: string; tone
         <p className="text-sm text-ink-2 leading-relaxed">{text}</p>
       </div>
     </div>
-  );
-}
-
-// ── collapsible chart card ────────────────────────────────────────────────────
-
-interface ChartDef {
-  title: string;
-  kind?: string;
-  type?: string;
-  tone?: string;
-  xAxis?: string;
-  xKey?: string;
-  yAxis?: string;
-  series?: ({ key: string; label: string; color?: string } | string)[];
-  data?: Record<string, string | number>[];
-}
-
-function ChartCard({ chart }: { chart: ChartDef }) {
-  const [open, setOpen] = useState(true);
-
-  const xKey = chart.xKey ?? chart.xAxis ?? "label";
-  const rawSeries = chart.series ?? [];
-  const series: { key: string; label: string; color?: string }[] = rawSeries.length
-    ? rawSeries.map((s) => typeof s === "string" ? { key: s, label: s, color: chart.tone } : s)
-    : [{ key: chart.yAxis ?? "value", label: chart.title, color: chart.tone }];
-  const data = chart.data ?? [];
-
-  const maxVal = series.reduce((topMax, s) => {
-    const m = data.reduce((a, d) => {
-      const v = Number(d[s.key]) || 0;
-      return v > a ? v : a;
-    }, 0);
-    return m > topMax ? m : topMax;
-  }, 1);
-
-  const isBar = (chart.kind ?? chart.type) === "bar";
-
-  return (
-    <Card className="rounded-xl border p-4 space-y-3">
-      <button className="w-full flex items-center justify-between text-left" onClick={() => setOpen((o) => !o)}>
-        <span className="text-sm font-semibold text-ink-1">{chart.title}</span>
-        {open
-          ? <ChevronUp className="w-4 h-4 text-ink-3" />
-          : <ChevronDown className="w-4 h-4 text-ink-3" />}
-      </button>
-
-      {open && (
-        <>
-          {/* x-axis label row */}
-          {data.length > 0 && !isBar && (
-            <div className="grid gap-0.5" style={{ gridTemplateColumns: `repeat(${data.length}, 1fr)` }}>
-              {data.map((d, i) => (
-                <span key={i} className="text-center text-[10px] text-ink-3 truncate">{d[xKey]}</span>
-              ))}
-            </div>
-          )}
-
-          {/* sparklines for line / trend */}
-          {!isBar && series.map((s) => (
-            <div key={s.key} className="space-y-1">
-              <div className="flex items-center gap-1.5">
-                <div className={cn("w-2 h-2 rounded-full", toneBar(s.color ?? chart.tone))} />
-                <span className="text-xs text-ink-3">{s.label}</span>
-              </div>
-              <SparkBar data={data} seriesKey={s.key} color={toneBar(s.color ?? chart.tone)} />
-            </div>
-          ))}
-
-          {/* horizontal bars for bar kind */}
-          {isBar && data.length > 0 && (
-            <div className="space-y-2 pt-1">
-              {data.map((d, i) => (
-                <HBar
-                  key={i}
-                  label={String(d[xKey])}
-                  value={Number(d[series[0]?.key ?? "value"]) || 0}
-                  max={maxVal}
-                  color={toneBar(chart.tone)}
-                />
-              ))}
-            </div>
-          )}
-        </>
-      )}
-    </Card>
   );
 }
 
@@ -388,7 +335,7 @@ export function BiAnalyticsModule({ role: _role }: Props) {
 
       {/* ring meters */}
       {ringKpis.length > 0 && (
-        <div className="flex flex-wrap justify-center gap-6 py-4 border rounded-xl bg-surface-1">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 sm:gap-6 p-4 sm:p-6 border border-line/60 rounded-2xl bg-surface-1 shadow-xs">
           {ringKpis.map((k, i) => {
             const raw = Number(String(k.value).replace(/[^0-9.]/g, ""));
             const tones = ["teal", "sky", "gold", "green", "purple", "rose"];
@@ -427,7 +374,7 @@ export function BiAnalyticsModule({ role: _role }: Props) {
           <h2 className="text-xs font-semibold text-ink-3 uppercase tracking-wider">Trends</h2>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {filteredCharts.map((c, i) => (
-              <ChartCard key={c.title ?? i} chart={c} />
+              <ChartCard key={c.title ?? i} spec={c} />
             ))}
           </div>
         </div>

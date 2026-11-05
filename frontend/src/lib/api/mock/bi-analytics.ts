@@ -117,6 +117,10 @@ export async function dynamicBiAnalytics(session: SessionPayload, targetCollegeI
   healthScore = Math.min(98, Math.max(45, healthScore));
 
   // Executive KPIs
+  const avgReadiness = Math.round(
+    departments.reduce((acc, d) => acc + (deptStats.get(d.id)?.readiness ?? 72), 0) / Math.max(departments.length, 1)
+  );
+
   const kpis: Kpi[] = [
     {
       label: "Enrolled students",
@@ -146,6 +150,13 @@ export async function dynamicBiAnalytics(session: SessionPayload, targetCollegeI
       tone: "gold",
       hint: `${funnelCounts["Shortlisted"] ?? 0} currently shortlisted`,
     },
+    {
+      label: "Placement readiness",
+      value: `${avgReadiness}%`,
+      delta: "+4.5% cohort improvement",
+      tone: "teal",
+      hint: "Average readiness across final year batches",
+    },
   ];
 
   // Dynamic Charts
@@ -154,12 +165,12 @@ export async function dynamicBiAnalytics(session: SessionPayload, targetCollegeI
       type: "area",
       title: "Weekly academic engagement",
       data: [
-        { name: "W1", Students: Math.round(enrolledStudents * 0.72), Faculty: Math.round(totalTeaching * 0.85) },
-        { name: "W2", Students: Math.round(enrolledStudents * 0.78), Faculty: Math.round(totalTeaching * 0.88) },
-        { name: "W3", Students: Math.round(enrolledStudents * 0.83), Faculty: Math.round(totalTeaching * 0.91) },
-        { name: "W4", Students: Math.round(enrolledStudents * 0.86), Faculty: Math.round(totalTeaching * 0.94) },
-        { name: "W5", Students: Math.round(enrolledStudents * 0.89), Faculty: Math.round(totalTeaching * 0.92) },
-        { name: "W6", Students: Math.round(enrolledStudents * 0.92), Faculty: Math.round(totalTeaching * 0.96) },
+        { name: "W1", Students: Math.max(1, Math.round(enrolledStudents * 0.72)), Faculty: Math.max(1, Math.round(totalTeaching * 0.85)) },
+        { name: "W2", Students: Math.max(1, Math.round(enrolledStudents * 0.78)), Faculty: Math.max(1, Math.round(totalTeaching * 0.88)) },
+        { name: "W3", Students: Math.max(1, Math.round(enrolledStudents * 0.83)), Faculty: Math.max(1, Math.round(totalTeaching * 0.91)) },
+        { name: "W4", Students: Math.max(1, Math.round(enrolledStudents * 0.86)), Faculty: Math.max(1, Math.round(totalTeaching * 0.94)) },
+        { name: "W5", Students: Math.max(1, Math.round(enrolledStudents * 0.89)), Faculty: Math.max(1, Math.round(totalTeaching * 0.92)) },
+        { name: "W6", Students: Math.max(1, Math.round(enrolledStudents * 0.92)), Faculty: Math.max(1, Math.round(totalTeaching * 0.96)) },
       ],
       series: ["Students", "Faculty"],
       xKey: "name",
@@ -168,6 +179,30 @@ export async function dynamicBiAnalytics(session: SessionPayload, targetCollegeI
       type: "donut",
       title: "Curriculum delivery modes",
       data: courseDistribution,
+      series: ["value"],
+      xKey: "name",
+    },
+    {
+      type: "bar",
+      title: "Placement readiness by department",
+      data: departmentMetrics.slice(0, 6).map((d) => {
+        const stats = deptStats.get(departments.find((x) => x.department === d.name)?.id ?? "");
+        return {
+          name: d.name.length > 18 ? d.name.slice(0, 16) + "…" : d.name,
+          "Readiness %": stats?.readiness ?? Math.min(100, 65 + ((d.courses * 7) % 32)),
+        };
+      }),
+      series: ["Readiness %"],
+      xKey: "name",
+    },
+    {
+      type: "donut",
+      title: "Career & placement status",
+      data: [
+        { name: "Offers Received", value: Math.max(2, Math.round(enrolledStudents * 0.55)) },
+        { name: "Active Internships", value: Math.max(1, Math.round(enrolledStudents * 0.30)) },
+        { name: "Upskilling / In Prep", value: Math.max(1, Math.round(enrolledStudents * 0.15)) },
+      ],
       series: ["value"],
       xKey: "name",
     },

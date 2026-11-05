@@ -1241,15 +1241,15 @@ export async function dispatch(method: string, segs: string[], rawBody: unknown,
     case "POST modules/staff": {
       const parsed = typeof rawBody === "string" ? JSON.parse(rawBody) : rawBody;
       const created = createStaff(parsed ?? {});
-      return ok(created, 201);
+      return { status: 201, body: created };
     }
     case "PUT modules/staff/:id": {
       const parsed = typeof rawBody === "string" ? JSON.parse(rawBody) : rawBody;
-      const updated = updateStaff(b, parsed ?? {});
+      const updated = updateStaff(String(b ?? ""), parsed ?? {});
       return updated ? ok(updated) : notFound();
     }
     case "DELETE modules/staff/:id": {
-      const okDelete = deleteStaff(b);
+      const okDelete = deleteStaff(String(b ?? ""));
       return okDelete ? ok({ ok: true }) : notFound();
     }
 

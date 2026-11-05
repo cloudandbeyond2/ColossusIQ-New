@@ -35,14 +35,14 @@ describe("Department resource validation", () => {
     const emptyHead = schema.safeParse({ ...validDepartment, head: "" });
     expect(emptyHead.success).toBe(false);
     if (!emptyHead.success) {
-      expect(emptyHead.error.issues[0].message).toBe("Head of department is required");
+      expect(emptyHead.error.issues[0]!.message).toBe("Head of department is required");
     }
 
     // invalid head with digits
     const numHead = schema.safeParse({ ...validDepartment, head: "Dr. Head 123" });
     expect(numHead.success).toBe(false);
     if (!numHead.success) {
-      expect(numHead.error.issues[0].message).toMatch(/valid name/i);
+      expect(numHead.error.issues[0]!.message).toMatch(/valid name/i);
     }
 
     // single character head
@@ -55,21 +55,21 @@ describe("Department resource validation", () => {
     const nullEst = schema.safeParse({ ...validDepartment, established: null });
     expect(nullEst.success).toBe(false);
     if (!nullEst.success) {
-      expect(nullEst.error.issues[0].message).toBe("Year established is required");
+      expect(nullEst.error.issues[0]!.message).toBe("Year established is required");
     }
 
     // year too low (< 1850)
     const lowEst = schema.safeParse({ ...validDepartment, established: 1800 });
     expect(lowEst.success).toBe(false);
     if (!lowEst.success) {
-      expect(lowEst.error.issues[0].message).toBe("Minimum is 1850");
+      expect(lowEst.error.issues[0]!.message).toBe("Minimum is 1850");
     }
 
     // year too high (> 2030)
     const highEst = schema.safeParse({ ...validDepartment, established: 2050 });
     expect(highEst.success).toBe(false);
     if (!highEst.success) {
-      expect(highEst.error.issues[0].message).toBe("Maximum is 2030");
+      expect(highEst.error.issues[0]!.message).toBe("Maximum is 2030");
     }
   });
 
@@ -78,14 +78,14 @@ describe("Department resource validation", () => {
     const emptyEmail = schema.safeParse({ ...validDepartment, email: "" });
     expect(emptyEmail.success).toBe(false);
     if (!emptyEmail.success) {
-      expect(emptyEmail.error.issues[0].message).toBe("Department email is required");
+      expect(emptyEmail.error.issues[0]!.message).toBe("Department email is required");
     }
 
     // invalid email format
     const badEmail = schema.safeParse({ ...validDepartment, email: "invalid-email" });
     expect(badEmail.success).toBe(false);
     if (!badEmail.success) {
-      expect(badEmail.error.issues[0].message).toBe("Enter a valid email");
+      expect(badEmail.error.issues[0]!.message).toBe("Enter a valid email");
     }
   });
 
@@ -94,14 +94,14 @@ describe("Department resource validation", () => {
     const emptyPhone = schema.safeParse({ ...validDepartment, phone: "" });
     expect(emptyPhone.success).toBe(false);
     if (!emptyPhone.success) {
-      expect(emptyPhone.error.issues[0].message).toBe("Office phone is required");
+      expect(emptyPhone.error.issues[0]!.message).toBe("Office phone is required");
     }
 
     // phone starting with invalid digit (e.g. 5)
     const invalidStart = schema.safeParse({ ...validDepartment, phone: "5876543210" });
     expect(invalidStart.success).toBe(false);
     if (!invalidStart.success) {
-      expect(invalidStart.error.issues[0].message).toBe("Enter a 10-digit Indian mobile number");
+      expect(invalidStart.error.issues[0]!.message).toBe("Enter a 10-digit Indian mobile number");
     }
 
     // phone too short
