@@ -23,6 +23,7 @@ import { placementHome, placementSnapshot } from "./placement-stats";
 import { dynamicBiAnalytics } from "./bi-analytics";
 import { moduleData } from "./module-data";
 import { listStaff, createStaff, updateStaff, deleteStaff } from "./staff-store";
+import { listEvents, createEvent, updateEvent, deleteEvent } from "./event-store";
 import { ClubError, canCreateClubs, canRemoveClubs, createClub, deleteClub, getClubsOverview, toggleJoinClub, updateClub } from "./clubs";
 import { SportError, canManageSports, createSport, deleteSport, getSportsOverview, toggleRegisterTrial, updateSport } from "./sports";
 import { deleteHackathonTeam, getHackathonsOverview, listHackathonTeams, registerHackathonTeam } from "./hackathons";
@@ -464,6 +465,10 @@ export const PATTERNS = [
   "POST modules/staff",
   "PUT modules/staff/:id",
   "DELETE modules/staff/:id",
+  "GET modules/events",
+  "POST modules/events",
+  "PUT modules/events/:id",
+  "DELETE modules/events/:id",
   "GET modules/:id",
   "PUT modules/:id",
   "GET clubs",
@@ -1250,6 +1255,24 @@ export async function dispatch(method: string, segs: string[], rawBody: unknown,
     }
     case "DELETE modules/staff/:id": {
       const okDelete = deleteStaff(String(b ?? ""));
+      return okDelete ? ok({ ok: true }) : notFound();
+    }
+
+    case "GET modules/events": {
+      return ok(listEvents());
+    }
+    case "POST modules/events": {
+      const parsed = typeof rawBody === "string" ? JSON.parse(rawBody) : rawBody;
+      const created = createEvent(parsed ?? {}, session.college === ALL_COLLEGES ? undefined : session.college);
+      return { status: 201, body: created };
+    }
+    case "PUT modules/events/:id": {
+      const parsed = typeof rawBody === "string" ? JSON.parse(rawBody) : rawBody;
+      const updated = updateEvent(String(b ?? ""), parsed ?? {});
+      return updated ? ok(updated) : notFound();
+    }
+    case "DELETE modules/events/:id": {
+      const okDelete = deleteEvent(String(b ?? ""));
       return okDelete ? ok({ ok: true }) : notFound();
     }
 
