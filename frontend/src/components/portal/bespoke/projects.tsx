@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertCircle,
+  Building2,
   Check,
   CheckCircle2,
   Code2,
@@ -16,6 +17,7 @@ import {
   ShieldCheck,
   Sparkles,
   Trash2,
+  UserCheck,
   Users,
   Wand2,
   X,
@@ -23,6 +25,7 @@ import {
 import { z } from "zod";
 import { apiFetch } from "@/lib/api/client";
 import { Project } from "@/lib/api/schemas";
+import { LearningContext } from "@/lib/api/learning-schemas";
 import type { Role } from "@/lib/auth/roles";
 import { TemplateSkeleton } from "@/components/modules/shared";
 import {
@@ -50,7 +53,20 @@ const STAGES_LIST = [
   "Portfolio",
 ] as const;
 
-const POPULAR_DOMAINS = [
+const MEDICAL_DOMAINS = [
+  "ICMR-STS · Short Term Studentship Research",
+  "Clinical Audit & Observational Study",
+  "Epidemiology, Community Health & PSM",
+  "HealthTech · Biomedical Devices & AI Diagnostics",
+  "Anatomy & Cadaveric Morphometric Study",
+  "Pathology & Histopathological Correlation",
+  "Pharmacovigilance & Rational Drug Therapy",
+  "Microbiology & Antimicrobial Resistance (AMR)",
+  "Forensic Medicine & Medico-Legal Analysis",
+  "Surgical Protocols & Clinical Case Series",
+];
+
+const ENGINEERING_DOMAINS = [
   "AI/ML · Computer Vision & NLP",
   "AI/ML · IoT & Edge Computing",
   "Full Stack · Next.js & Cloud",
@@ -63,7 +79,17 @@ const POPULAR_DOMAINS = [
   "Cybersecurity & Blockchain",
 ];
 
-const DEFAULT_MENTORS = [
+const POPULAR_DOMAINS = ENGINEERING_DOMAINS;
+
+const MEDICAL_MENTORS = [
+  "Dr. K. Senthil Kumar, MD (Anatomy)",
+  "Dr. S. Meenakshi Sundaram, MBBS, MD",
+  "Dr. Priya Ramanathan, MS (Surgery)",
+  "Dr. R. Balaji, MD (Community Medicine)",
+  "Dr. Meena Raghavan, MD (Pathology)",
+];
+
+const ENGINEERING_MENTORS = [
   "Dr. Meena Raghavan",
   "Prof. R. Balaji",
   "Dr. K. Saravanan",
@@ -71,8 +97,95 @@ const DEFAULT_MENTORS = [
   "Prof. A. Senthilkumar",
 ];
 
+const DEFAULT_MENTORS = ENGINEERING_MENTORS;
+
+const StaffMemberSimple = z.object({
+  name: z.string(),
+  role: z.string().optional(),
+  department: z.string().optional(),
+  qualifications: z.string().optional(),
+});
+
+const StaffQuerySchema = z.union([
+  z.object({ staff: z.array(StaffMemberSimple) }).passthrough().transform((r) => r.staff),
+  z.object({ data: z.array(StaffMemberSimple) }).passthrough().transform((r) => r.data),
+  z.array(StaffMemberSimple),
+  z.unknown().transform(() => []),
+]);
+
+function matchesMentor(mentor: string, currentUserName?: string | null): boolean {
+  if (!mentor || !currentUserName) return false;
+  const normalize = (str: string) =>
+    str
+      .toLowerCase()
+      .replace(/^(dr\.|prof\.|mr\.|ms\.|mrs\.)\s*/gi, "")
+      .replace(/\b(mbbs|md|ms|phd|m\.sc|mtech|btech|be|me)\b/gi, "")
+      .replace(/[^a-z0-9]/g, "");
+
+  const m = normalize(mentor);
+  const u = normalize(currentUserName);
+  if (!m || !u) return false;
+  return m.includes(u) || u.includes(m);
+}
+
+function matchesStudentTeam(team: string[], currentUserName?: string | null): boolean {
+  if (!team || !team.length) return false;
+  if (team.includes("Lead Student (You)") || team.includes("Lead Student")) return true;
+  if (!currentUserName) return false;
+  const normalize = (str: string) =>
+    str
+      .toLowerCase()
+      .replace(/^(dr\.|prof\.|mr\.|ms\.|mrs\.)\s*/gi, "")
+      .replace(/[^a-z0-9]/g, "");
+  const u = normalize(currentUserName);
+  return team.some((t) => {
+    const member = normalize(t);
+    return member.includes(u) || u.includes(member);
+  });
+}
+
 export function ProjectsModule({ role }: { role: Role }) {
   const qc = useQueryClient();
+  const contextQuery = useQuery({
+    queryKey: ["learning-context"],
+    queryFn: () => apiFetch("/api/v1/learning/context", LearningContext),
+  });
+  const staffQuery = useQuery({
+    queryKey: ["staff", role],
+    queryFn: () => apiFetch("/api/v1/modules/staff", StaffQuerySchema),
+    staleTime: 60_000,
+  });
+
+  const dynamicMentors = useMemo(() => {
+    if (!staffQuery.data || staffQuery.data.length === 0) return null;
+    const list = staffQuery.data
+      .filter((s) => !s.role || s.role === "Faculty" || s.role === "HOD")
+      .map((s) => {
+        const extra = s.qualifications ? `, ${s.qualifications}` : (s.department ? ` (${s.department})` : "");
+        return `${s.name}${extra}`;
+      })
+      .filter(Boolean);
+    return list.length > 0 ? list : null;
+  }, [staffQuery.data]);
+
+  const isMedical =
+    contextQuery.data?.stream === "medical" ||
+    Boolean(
+      contextQuery.data?.departments?.some((d) =>
+        [
+          "Anatomy",
+          "Physiology",
+          "Biochemistry",
+          "Pathology",
+          "Microbiology",
+          "Pharmacology",
+          "Community Medicine",
+          "General Medicine",
+          "General Surgery",
+        ].includes(d)
+      )
+    );
+
   const [search, setSearch] = useState("");
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [stageModalProject, setStageModalProject] = useState<Project | null>(null);
@@ -200,18 +313,39 @@ export function ProjectsModule({ role }: { role: Role }) {
     },
   });
 
-  const filteredProjects = useMemo(() => {
+  const currentUserName = contextQuery.data?.userName;
+  const [scopeFilter, setScopeFilter] = useState<"my" | "all">(
+    role === "admin" || role === "institution" ? "all" : "my"
+  );
+
+  const myProjects = useMemo(() => {
     if (!data) return [];
-    if (!search.trim()) return data;
+    if (role === "student") {
+      return data.filter((p) => matchesStudentTeam(p.team, currentUserName));
+    }
+    if (role === "faculty") {
+      return data.filter((p) => matchesMentor(p.mentor, currentUserName));
+    }
+    return data;
+  }, [data, currentUserName, role]);
+
+  const allCount = data?.length || 0;
+  const myCount = myProjects.length;
+
+  const scopedList = scopeFilter === "my" ? myProjects : (data || []);
+
+  const filteredProjects = useMemo(() => {
+    if (!scopedList) return [];
+    if (!search.trim()) return scopedList;
     const q = search.toLowerCase();
-    return data.filter(
+    return scopedList.filter(
       (p) =>
         p.title.toLowerCase().includes(q) ||
         p.domain.toLowerCase().includes(q) ||
         p.mentor.toLowerCase().includes(q) ||
         p.team.some((m) => m.toLowerCase().includes(q))
     );
-  }, [data, search]);
+  }, [scopedList, search]);
 
   if (isLoading || !data) return <TemplateSkeleton />;
 
@@ -277,14 +411,88 @@ export function ProjectsModule({ role }: { role: Role }) {
         </div>
       </div>
 
+      {/* Scope Filter Tabs (My Mentored Projects vs All College Projects) */}
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line pb-3">
+        <div className="flex items-center gap-1.5 rounded-xl border border-line bg-surface p-1">
+          <button
+            type="button"
+            onClick={() => setScopeFilter("my")}
+            className={cn(
+              "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-all",
+              scopeFilter === "my"
+                ? "bg-brand text-white shadow-sm"
+                : "text-ink-2 hover:bg-surface-2 hover:text-ink"
+            )}
+          >
+            <UserCheck className="size-3.5" />
+            <span>{role === "student" ? "My Team Projects" : "My Mentored Projects"}</span>
+            <span
+              className={cn(
+                "ml-1 rounded-full px-1.5 py-0.5 text-[10px] font-bold",
+                scopeFilter === "my" ? "bg-white/20 text-white" : "bg-surface-3 text-ink-3"
+              )}
+            >
+              {myCount}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setScopeFilter("all")}
+            className={cn(
+              "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-all",
+              scopeFilter === "all"
+                ? "bg-brand text-white shadow-sm"
+                : "text-ink-2 hover:bg-surface-2 hover:text-ink"
+            )}
+          >
+            <Building2 className="size-3.5" />
+            <span>All College Projects</span>
+            <span
+              className={cn(
+                "ml-1 rounded-full px-1.5 py-0.5 text-[10px] font-bold",
+                scopeFilter === "all" ? "bg-white/20 text-white" : "bg-surface-3 text-ink-3"
+              )}
+            >
+              {allCount}
+            </span>
+          </button>
+        </div>
+
+        <div className="text-xs text-ink-3">
+          {scopeFilter === "my" ? (
+            <span>
+              Showing {filteredProjects.length} {role === "student" ? "project(s) in your team" : "project(s) assigned to you as mentor"}
+            </span>
+          ) : (
+            <span>Showing {filteredProjects.length} project(s) across the college repository</span>
+          )}
+        </div>
+      </div>
+
       {/* Projects List */}
       {filteredProjects.length === 0 ? (
         <Card className="p-8 text-center">
           <Lightbulb className="mx-auto mb-3 size-10 text-ink-3" />
-          <p className="font-semibold text-ink">No projects found</p>
-          <p className="mt-1 text-sm text-ink-3">
-            {search ? "No projects match your search query." : "Start your first project above!"}
+          <p className="font-semibold text-ink">
+            {scopeFilter === "my" && role === "faculty"
+              ? "No Projects Assigned to You as Mentor Yet"
+              : "No projects found"}
           </p>
+          <p className="mt-1 text-sm text-ink-3">
+            {scopeFilter === "my" && role === "faculty"
+              ? "When students select you as their faculty mentor, their submissions will appear here for milestone review and sign-off."
+              : search
+              ? "No projects match your search criteria."
+              : "Projects created in your college will appear here."}
+          </p>
+          {scopeFilter === "my" && allCount > 0 && (
+            <div className="mt-4 flex justify-center">
+              <Button size="sm" variant="secondary" onClick={() => setScopeFilter("all")} className="gap-2">
+                <Building2 className="size-3.5" /> View All College Projects ({allCount})
+              </Button>
+            </div>
+          )}
         </Card>
       ) : (
         filteredProjects.map((p) => {
@@ -295,6 +503,11 @@ export function ProjectsModule({ role }: { role: Role }) {
                 subtitle={`${p.domain} · Mentor: ${p.mentor}`}
                 action={
                   <div className="flex items-center gap-2">
+                    {isStaff && matchesMentor(p.mentor, currentUserName) && (
+                      <Badge tone="teal" className="gap-1 font-semibold">
+                        <UserCheck className="size-3" /> Assigned to You
+                      </Badge>
+                    )}
                     <Badge tone={p.stage === "Portfolio" || p.stage === "Demo" ? "teal" : "gold"}>
                       {p.stage}
                     </Badge>
@@ -361,7 +574,7 @@ export function ProjectsModule({ role }: { role: Role }) {
                         rel="noreferrer"
                         className="inline-flex items-center gap-1 text-ink-2 hover:text-ink hover:underline"
                       >
-                        <Code2 className="size-3.5" /> Repository
+                        <Code2 className="size-3.5" /> Repository / Files
                       </a>
                     )}
                     {p.docUrl && (
@@ -371,7 +584,7 @@ export function ProjectsModule({ role }: { role: Role }) {
                         rel="noreferrer"
                         className="inline-flex items-center gap-1 text-ink-2 hover:text-ink hover:underline"
                       >
-                        <ExternalLink className="size-3.5" /> Architecture Docs
+                        <ExternalLink className="size-3.5" /> Documentation
                       </a>
                     )}
                     {p.demoUrl && (
@@ -481,6 +694,8 @@ export function ProjectsModule({ role }: { role: Role }) {
           onClose={() => setIsCreateOpen(false)}
           onSubmit={(data) => createMutation.mutate(data)}
           isSubmitting={createMutation.isPending}
+          isMedical={isMedical}
+          dynamicMentors={dynamicMentors ?? undefined}
         />
       )}
 
@@ -491,6 +706,7 @@ export function ProjectsModule({ role }: { role: Role }) {
           onClose={() => setStageModalProject(null)}
           onSubmit={(data) => stageMutation.mutate(data)}
           isSubmitting={stageMutation.isPending}
+          isMedical={isMedical}
         />
       )}
 
@@ -501,6 +717,7 @@ export function ProjectsModule({ role }: { role: Role }) {
           onClose={() => setReviewModalProject(null)}
           onSubmit={(data) => reviewMutation.mutate(data)}
           isSubmitting={reviewMutation.isPending}
+          isMedical={isMedical}
         />
       )}
 
@@ -525,6 +742,8 @@ function CreateProjectModal({
   onClose,
   onSubmit,
   isSubmitting,
+  isMedical,
+  dynamicMentors,
 }: {
   onClose: () => void;
   onSubmit: (data: {
@@ -538,11 +757,20 @@ function CreateProjectModal({
     demoUrl?: string;
   }) => void;
   isSubmitting: boolean;
+  isMedical?: boolean;
+  dynamicMentors?: string[];
 }) {
+  const domainsList = isMedical ? MEDICAL_DOMAINS : ENGINEERING_DOMAINS;
+  const mentorsList =
+    dynamicMentors && dynamicMentors.length > 0
+      ? dynamicMentors
+      : isMedical
+      ? MEDICAL_MENTORS
+      : ENGINEERING_MENTORS;
   const [title, setTitle] = useState("");
-  const [domain, setDomain] = useState(POPULAR_DOMAINS[0]!);
+  const [domain, setDomain] = useState(domainsList[0]!);
   const [customDomain, setCustomDomain] = useState("");
-  const [mentor, setMentor] = useState(DEFAULT_MENTORS[0]!);
+  const [mentor, setMentor] = useState(mentorsList[0]!);
   const [selectedTeammates, setSelectedTeammates] = useState<string[]>(["Lead Student (You)"]);
   const [description, setDescription] = useState("");
   const [repoUrl, setRepoUrl] = useState("");
@@ -574,7 +802,9 @@ function CreateProjectModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs">
       <div className="w-full max-w-lg rounded-2xl border border-line bg-surface p-6 shadow-2xl animate-in fade-in zoom-in-95 max-h-[90vh] overflow-y-auto">
         <div className="mb-4 flex items-center justify-between">
-          <h3 className="font-sans text-base font-semibold text-ink">Create New Project</h3>
+          <h3 className="font-sans text-base font-semibold text-ink">
+            Create New Project
+          </h3>
           <button
             onClick={onClose}
             className="rounded-lg p-1 text-ink-3 hover:bg-surface-2 hover:text-ink"
@@ -585,26 +815,34 @@ function CreateProjectModal({
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="mb-1 block text-xs font-medium text-ink">Project Title *</label>
+            <label className="mb-1 block text-xs font-medium text-ink">
+              Project Title *
+            </label>
             <input
               type="text"
               required
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="e.g. Autonomous Campus Delivery Rover"
+              placeholder={
+                isMedical
+                  ? "e.g. Study of Blood Pressure Monitoring in Rural Clinics"
+                  : "e.g. Autonomous Campus Delivery Rover"
+              }
               className="w-full rounded-xl border border-line bg-surface px-3 py-2 text-sm text-ink focus:border-brand focus:outline-none"
             />
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
-              <label className="mb-1 block text-xs font-medium text-ink">Domain / Track *</label>
+              <label className="mb-1 block text-xs font-medium text-ink">
+                Domain / Track *
+              </label>
               <select
                 value={domain}
                 onChange={(e) => setDomain(e.target.value)}
                 className="w-full rounded-xl border border-line bg-surface px-3 py-2 text-sm text-ink focus:border-brand focus:outline-none"
               >
-                {POPULAR_DOMAINS.map((d) => (
+                {domainsList.map((d) => (
                   <option key={d} value={d}>
                     {d}
                   </option>
@@ -614,13 +852,15 @@ function CreateProjectModal({
             </div>
 
             <div>
-              <label className="mb-1 block text-xs font-medium text-ink">Faculty Mentor *</label>
+              <label className="mb-1 block text-xs font-medium text-ink">
+                Faculty Mentor *
+              </label>
               <select
                 value={mentor}
                 onChange={(e) => setMentor(e.target.value)}
                 className="w-full rounded-xl border border-line bg-surface px-3 py-2 text-sm text-ink focus:border-brand focus:outline-none"
               >
-                {DEFAULT_MENTORS.map((m) => (
+                {mentorsList.map((m) => (
                   <option key={m} value={m}>
                     {m}
                   </option>
@@ -636,7 +876,11 @@ function CreateProjectModal({
                 type="text"
                 value={customDomain}
                 onChange={(e) => setCustomDomain(e.target.value)}
-                placeholder="e.g. Quantum Algorithms"
+                placeholder={
+                  isMedical
+                    ? "e.g. Clinical Health Study"
+                    : "e.g. Quantum Algorithms"
+                }
                 className="w-full rounded-xl border border-line bg-surface px-3 py-2 text-sm text-ink focus:border-brand focus:outline-none"
               />
             </div>
@@ -660,13 +904,17 @@ function CreateProjectModal({
 
           <div>
             <label className="mb-1 block text-xs font-medium text-ink">
-              Repository / CAD / Design Files URL (optional)
+              Repository / Project Files URL (optional)
             </label>
             <input
               type="url"
               value={repoUrl}
               onChange={(e) => setRepoUrl(e.target.value)}
-              placeholder="https://github.com/... or Google Drive / CAD link"
+              placeholder={
+                isMedical
+                  ? "https://drive.google.com/... or Google Docs link"
+                  : "https://github.com/... or Google Drive link"
+              }
               className="w-full rounded-xl border border-line bg-surface px-3 py-2 text-sm text-ink focus:border-brand focus:outline-none"
             />
           </div>
@@ -679,7 +927,7 @@ function CreateProjectModal({
               rows={2}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="Summary of what the project solves..."
+              placeholder="Summary of what the project solves or investigates..."
               className="w-full rounded-xl border border-line bg-surface px-3 py-2 text-sm text-ink focus:border-brand focus:outline-none"
             />
           </div>
@@ -703,6 +951,7 @@ function StageDeliverableModal({
   onClose,
   onSubmit,
   isSubmitting,
+  isMedical,
 }: {
   project: Project;
   onClose: () => void;
@@ -714,6 +963,7 @@ function StageDeliverableModal({
     demoUrl?: string;
   }) => void;
   isSubmitting: boolean;
+  isMedical?: boolean;
 }) {
   const currIndex = STAGES_LIST.indexOf(project.stage as any);
   const nextStage =
@@ -794,36 +1044,40 @@ function StageDeliverableModal({
           </div>
 
           <div>
-            <label className="mb-1 block text-xs font-medium text-ink">Repository / CAD / Design Files URL</label>
+            <label className="mb-1 block text-xs font-medium text-ink">
+              Repository / Project Files URL
+            </label>
             <input
               type="url"
               value={repoUrl}
               onChange={(e) => setRepoUrl(e.target.value)}
-              placeholder="https://github.com/... or Google Drive / GrabCAD link"
+              placeholder="https://drive.google.com/... or https://github.com/..."
               className="w-full rounded-xl border border-line bg-surface px-3 py-2 text-sm text-ink focus:border-brand focus:outline-none"
             />
           </div>
 
           <div>
             <label className="mb-1 block text-xs font-medium text-ink">
-              Documentation / Spec Sheet / CAD Drawing URL
+              Documentation / Report URL
             </label>
             <input
               type="url"
               value={docUrl}
               onChange={(e) => setDocUrl(e.target.value)}
-              placeholder="https://docs.google.com/... or OneDrive / Figma link"
+              placeholder="https://docs.google.com/... or OneDrive link"
               className="w-full rounded-xl border border-line bg-surface px-3 py-2 text-sm text-ink focus:border-brand focus:outline-none"
             />
           </div>
 
           <div>
-            <label className="mb-1 block text-xs font-medium text-ink">Live Demo / Prototype Video URL</label>
+            <label className="mb-1 block text-xs font-medium text-ink">
+              Live Demo / Presentation Video URL
+            </label>
             <input
               type="url"
               value={demoUrl}
               onChange={(e) => setDemoUrl(e.target.value)}
-              placeholder="https://... (Vercel, YouTube, or Drive video link)"
+              placeholder="https://... (YouTube, Google Drive, or demo link)"
               className="w-full rounded-xl border border-line bg-surface px-3 py-2 text-sm text-ink focus:border-brand focus:outline-none"
             />
           </div>
@@ -847,6 +1101,7 @@ function FacultyReviewModal({
   onClose,
   onSubmit,
   isSubmitting,
+  isMedical,
 }: {
   project: Project;
   onClose: () => void;
@@ -861,6 +1116,7 @@ function FacultyReviewModal({
     approve: boolean;
   }) => void;
   isSubmitting: boolean;
+  isMedical?: boolean;
 }) {
   const [arch, setArch] = useState(project.review.architecture || 75);
   const [doc, setDoc] = useState(project.review.documentation || 70);
@@ -939,7 +1195,7 @@ function FacultyReviewModal({
               required
               value={feedback}
               onChange={(e) => setFeedback(e.target.value)}
-              placeholder="e.g. Architecture/Design approved. Complete prototype assembly and stress testing before final demo."
+              placeholder="e.g. Project deliverables verified. Approved to proceed to next milestone."
               className="w-full rounded-xl border border-line bg-surface px-3 py-2 text-sm text-ink focus:border-brand focus:outline-none"
             />
           </div>

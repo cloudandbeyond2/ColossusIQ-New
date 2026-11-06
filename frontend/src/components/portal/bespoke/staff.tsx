@@ -343,7 +343,7 @@ export function StaffModule({ role }: { role: Role }) {
       try {
         return await apiFetch(payload.id ? `/api/v1/modules/staff/${payload.id}` : "/api/v1/modules/staff", z.any(), {
           method: payload.id ? "PUT" : "POST",
-          body: JSON.stringify(payload),
+          body: payload,
         });
       } catch {
         return payload;

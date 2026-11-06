@@ -332,7 +332,16 @@ export async function dispatchLearning(method: string, segs: string[], rawBody: 
     const userDept = (session.role === "hod" || session.role === "faculty") ? await resolveUserDepartment(session) : null;
     const matchingDept = userDept ? allDepts.find((d) => d.toLowerCase() === userDept.toLowerCase()) : null;
     const departments = matchingDept ? [matchingDept] : allDepts;
-    return ok({ collegeId: session.college, stream, streamLabel: STREAM_DEFS[stream].label, departments, terms: streamOptions("semester", stream), userDepartment: userDept });
+    return ok({
+      collegeId: session.college,
+      stream,
+      streamLabel: STREAM_DEFS[stream].label,
+      departments,
+      terms: streamOptions("semester", stream),
+      userDepartment: userDept,
+      userName: session.name || null,
+      userRole: session.role || null,
+    });
   }
 
   /* ── Quizzes ── */

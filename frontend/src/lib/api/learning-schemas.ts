@@ -9,6 +9,9 @@ export const LearningContext = z.object({
   streamLabel: z.string(),
   departments: z.array(z.string()),
   terms: z.array(z.string()),
+  userDepartment: z.string().nullable().optional(),
+  userName: z.string().nullable().optional(),
+  userRole: z.string().nullable().optional(),
 });
 export type LearningContext = z.infer<typeof LearningContext>;
 

@@ -531,19 +531,52 @@ export async function updateStudent(
     });
     if (!student) return null;
 
-    if (data.roll) {
-      await t.student.update({
-        where: { id: student.id },
-        data: {
-          rollNo: (() => {
-            const r = cleanText(data.roll, 30).trim().toUpperCase();
-            if (!/^[A-Z0-9]{4,16}$/.test(r)) {
-              const stripped = r.replace(/[^A-Z0-9]/g, "");
-              if (stripped.length >= 4 && stripped.length <= 16) return stripped;
-            }
-            return r;
-          })(),
+    // Resolve department if changed
+    let deptId = student.departmentId;
+    let deptName = student.department?.name || "General";
+    if (data.department) {
+      const cleanDept = cleanText(data.department, 80).trim();
+      const stream = streamOfType(student.college.type || student.college.name);
+      const foundDept = await t.department.findFirst({
+        where: {
+          OR: [
+            { streamKey: stream, name: { equals: cleanDept, mode: "insensitive" } },
+            { name: { equals: cleanDept, mode: "insensitive" } },
+          ],
         },
+      });
+      if (foundDept) {
+        deptId = foundDept.id;
+        deptName = foundDept.name;
+      } else {
+        deptName = cleanDept;
+      }
+    }
+
+    let cleanRoll: string | undefined = undefined;
+    if (data.roll) {
+      cleanRoll = (() => {
+        const r = cleanText(data.roll, 30).trim().toUpperCase();
+        if (!/^[A-Z0-9]{4,16}$/.test(r)) {
+          const stripped = r.replace(/[^A-Z0-9]/g, "");
+          if (stripped.length >= 4 && stripped.length <= 16) return stripped;
+        }
+        return r;
+      })();
+    }
+
+    await t.student.update({
+      where: { id: student.id },
+      data: {
+        ...(cleanRoll ? { rollNo: cleanRoll } : {}),
+        ...(deptId !== student.departmentId ? { departmentId: deptId } : {}),
+      },
+    });
+
+    if (deptId !== student.departmentId && student.userId) {
+      await t.roleAssignment.updateMany({
+        where: { userId: student.userId, role: "student", collegeId: student.collegeId },
+        data: { departmentId: deptId },
       });
     }
 
@@ -553,6 +586,7 @@ export async function updateStudent(
     } catch {}
 
     if (data.section) meta.section = cleanText(data.section, 30).trim().toUpperCase();
+    if (data.department) meta.department = deptName;
     if (data.cgpa !== undefined) meta.cgpa = Math.round(Number(data.cgpa) * 100) / 100;
     if (data.readiness !== undefined) meta.readiness = Math.min(100, Math.max(0, Math.round(Number(data.readiness))));
     if (data.signal !== undefined) meta.signal = data.signal;
@@ -574,7 +608,7 @@ export async function updateStudent(
     return {
       id: student.id,
       name: data.name ? cleanText(data.name, 100).trim() : student.user.fullName,
-      roll: data.roll ? cleanText(data.roll, 30).trim().toUpperCase() : student.rollNo,
+      roll: cleanRoll || student.rollNo,
       section: finalSection,
       cgpa: finalCgpa,
       readiness: finalReadiness,
@@ -583,7 +617,7 @@ export async function updateStudent(
       phone: data.phone ? cleanText(data.phone, 20).trim() : undefined,
       collegeId: student.college.publicId,
       collegeName: student.college.name,
-      department: student.department?.name,
+      department: deptName,
       createdAt: student.createdAt.toISOString(),
       updatedAt: new Date().toISOString(),
     };
@@ -603,6 +637,7 @@ export async function updateStudent(
     signal: data.signal !== undefined ? data.signal : current.signal,
     email: data.email !== undefined ? cleanText(data.email, 120).trim() : current.email,
     phone: data.phone !== undefined ? cleanText(data.phone, 20).trim() : current.phone,
+    department: data.department !== undefined ? cleanText(data.department, 80).trim() : current.department,
     updatedAt: new Date().toISOString(),
   };
 

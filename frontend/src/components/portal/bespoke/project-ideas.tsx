@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Sparkles,
   Plus,
@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { z } from "zod";
 import { apiFetch } from "@/lib/api/client";
+import { LearningContext } from "@/lib/api/learning-schemas";
 import { Badge, Button, Card, CardBody, CardHeader, Spinner } from "@/components/ui/primitives";
 import { cn } from "@/lib/utils";
 
@@ -33,8 +34,41 @@ interface GeneratedConcept {
   duration: string;
 }
 
-const DEPARTMENTS = ["CSE", "IT", "ECE", "EEE", "Mechanical", "Civil", "AI & DS", "Management"];
-const CATEGORIES = [
+const MEDICAL_DEPARTMENTS = [
+  "Anatomy",
+  "Physiology",
+  "Biochemistry",
+  "Pathology",
+  "Pharmacology",
+  "Microbiology",
+  "Forensic Medicine",
+  "Community Medicine",
+  "General Medicine",
+  "General Surgery",
+  "Obstetrics & Gynaecology",
+  "Paediatrics",
+  "Orthopaedics",
+  "Ophthalmology",
+  "Otorhinolaryngology (ENT)",
+  "Dermatology",
+  "Radiodiagnosis",
+  "Emergency Medicine",
+];
+
+const MEDICAL_CATEGORIES = [
+  "Clinical Research & Trials",
+  "Medical Devices & Biomedical Sensors",
+  "Epidemiology & Community Health",
+  "Diagnostic & Pathology Innovations",
+  "Pharmacology & Drug Delivery",
+  "Surgical Techniques & Simulation",
+  "Digital Health & Telemedicine",
+  "Emergency & Critical Care Protocols",
+  "AI in Medical Imaging & Radiology",
+];
+
+const ENGINEERING_DEPARTMENTS = ["CSE", "IT", "ECE", "EEE", "Mechanical", "Civil", "AI & DS", "Management"];
+const ENGINEERING_CATEGORIES = [
   "AI/ML",
   "IoT & Embedded Systems",
   "Computer Vision & Robotics",
@@ -48,14 +82,58 @@ const CATEGORIES = [
 
 export function ProjectIdeasModule() {
   const qc = useQueryClient();
-  const [department, setDepartment] = useState("CSE");
-  const [category, setCategory] = useState("AI/ML");
+
+  const ctx = useQuery({
+    queryKey: ["learning-context"],
+    queryFn: () => apiFetch("/api/v1/learning/context", LearningContext),
+  });
+
+  const isMedical = useMemo(() => {
+    const s = ctx.data?.stream;
+    const cid = ctx.data?.collegeId || "";
+    return s === "medical" || cid === "COL-1006" || cid === "COL-1007" || cid.toLowerCase().includes("mmch");
+  }, [ctx.data?.stream, ctx.data?.collegeId]);
+
+  const availableDepartments = useMemo(() => {
+    if (isMedical) {
+      if (ctx.data?.departments && ctx.data.departments.length > 0) {
+        return ctx.data.departments;
+      }
+      return MEDICAL_DEPARTMENTS;
+    }
+    return ENGINEERING_DEPARTMENTS;
+  }, [isMedical, ctx.data?.departments]);
+
+  const availableCategories = useMemo(() => {
+    return isMedical ? MEDICAL_CATEGORIES : ENGINEERING_CATEGORIES;
+  }, [isMedical]);
+
+  const [department, setDepartment] = useState(isMedical ? "Anatomy" : "CSE");
+  const [category, setCategory] = useState(isMedical ? "Clinical Research & Trials" : "AI/ML");
   const [skills, setSkills] = useState("");
   const [budget, setBudget] = useState("");
   const [teamSize, setTeamSize] = useState("");
   const [concepts, setConcepts] = useState<GeneratedConcept[]>([]);
   const [adoptedIds, setAdoptedIds] = useState<Set<string>>(new Set());
   const [toast, setToast] = useState<{ message: string; tone: "success" | "error" } | null>(null);
+
+  // Sync department and category when context loads
+  useEffect(() => {
+    if (availableDepartments.length > 0 && !availableDepartments.includes(department)) {
+      const userDept = ctx.data?.userDepartment;
+      if (userDept && availableDepartments.includes(userDept)) {
+        setDepartment(userDept);
+      } else {
+        setDepartment(availableDepartments[0]!);
+      }
+    }
+  }, [availableDepartments, ctx.data?.userDepartment, department]);
+
+  useEffect(() => {
+    if (availableCategories.length > 0 && !availableCategories.includes(category)) {
+      setCategory(availableCategories[0]!);
+    }
+  }, [availableCategories, category]);
 
   const showToast = (message: string, tone: "success" | "error" = "success") => {
     setToast({ message, tone });
@@ -65,66 +143,128 @@ export function ProjectIdeasModule() {
   // Generate ideas mutation
   const generateMutation = useMutation({
     mutationFn: async () => {
-      // Generate dynamically tailored concepts based on selected category & department
       await new Promise((r) => setTimeout(r, 700));
 
-      const numBudget = Number(budget) || 5000;
-      const generated: GeneratedConcept[] = [
-        {
-          id: `idea-1-${Date.now()}`,
-          title:
-            category.includes("Agri") || category.includes("Vision")
-              ? "Autonomous Drone-Based Crop Health Scanner"
-              : category.includes("IoT")
-                ? "Edge-AI Smart Microgrid & Energy Forecasting Node"
-                : category.includes("Health")
-                  ? "Real-Time Tele-Diagnostic ECG Anomaly Detection Suite"
-                  : "Smart Campus Real-Time Space & Energy Optimizer",
-          category,
-          problem:
-            "Manual diagnostics and monitoring cause prolonged delays, high operational expenses, and low diagnostic yield.",
-          novelty:
-            "On-device lightweight neural network inference with localized telemetry and automated anomaly alerts.",
-          techStack: ["Python", "YOLOv8", "FastAPI", "React", "PostgreSQL"],
-          feasibility: 92,
-          budget: budget ? `₹${budget}` : "₹5,000",
-          duration: "12 Weeks (Capstone)",
-        },
-        {
-          id: `idea-2-${Date.now()}`,
-          title:
-            category.includes("Cyber")
-              ? "Zero-Trust Behavioral Identity Verification Engine"
-              : category.includes("AI")
-                ? "Multimodal Vernacular Lecture Summarizer & Note Generator"
-                : "Decentralized Verifiable Credential & Skill Passport",
-          category,
-          problem:
-            "Language barriers and static assessment materials limit engagement and technical comprehension.",
-          novelty:
-            "Cross-lingual audio transcription combined with contextual retrieval-augmented question generation.",
-          techStack: ["Whisper AI", "Next.js", "FastAPI", "LangChain", "Vector DB"],
-          feasibility: 88,
-          budget: `₹${Math.round(numBudget * 0.8)}`,
-          duration: "8 Weeks (Semester Project)",
-        },
-        {
-          id: `idea-3-${Date.now()}`,
-          title:
-            category.includes("Robotics")
-              ? "Autonomous Warehouse SLAM Rover with LiDAR & Obstacle Avoidance"
-              : "IoT Predictive Maintenance Sentinel with Acoustic Vibration Sensing",
-          category,
-          problem:
-            "Unscheduled equipment downtime in labs and industry costs significant repair overhead and safety hazards.",
-          novelty:
-            "FFT vibration harmonics analysis on low-power ESP32 edge microcontroller with cloud dashboard alerting.",
-          techStack: ["Embedded C", "ESP32", "MQTT", "Grafana", "Node.js"],
-          feasibility: 95,
-          budget: `₹${Math.round(numBudget * 1.2)}`,
-          duration: "10 Weeks (Major Project)",
-        },
-      ];
+      const numBudget = Number(budget) || (isMedical ? 6000 : 5000);
+      let generated: GeneratedConcept[] = [];
+
+      if (isMedical) {
+        generated = [
+          {
+            id: `idea-1-${Date.now()}`,
+            title:
+              category.includes("Device") || category.includes("Sensor")
+                ? `Biomedical Sensor Telemetry for Remote Patient Vitals in ${department}`
+                : category.includes("Imaging") || category.includes("Radiology")
+                  ? `Computer-Aided Diagnostic Triage for ${department} Pathologies`
+                  : category.includes("Epidemiology") || category.includes("Community")
+                    ? `Community Health Surveillance & Screening Protocol for ${department}`
+                    : `Comparative Clinical Outcomes & Protocol Evaluation in ${department}`,
+            category,
+            problem:
+              "Delayed diagnostic turnaround, rural access barriers, and manual monitoring lead to delayed interventions and preventable patient complications.",
+            novelty:
+              "Standardized bedside protocol coupled with validated clinical scorecards and low-cost diagnostic screening telemetry.",
+            techStack: ["Clinical Trial Protocol", "Biomedical Sensors", "ICMR Ethics Guidelines", "SPSS / R Analysis", "EHR Interoperability"],
+            feasibility: 94,
+            budget: budget ? `₹${budget}` : "₹6,000",
+            duration: "12 Weeks (Clinical Elective)",
+          },
+          {
+            id: `idea-2-${Date.now()}`,
+            title:
+              category.includes("Pharmacology") || category.includes("Drug")
+                ? `Adverse Drug Reaction Surveillance & Therapeutic Monitoring in ${department}`
+                : category.includes("Surgical") || category.includes("Simulation")
+                  ? `3D Tactile Anatomical Modeling & Simulation for ${department} Interventions`
+                  : category.includes("Digital") || category.includes("Telemedicine")
+                    ? `Store-and-Forward Tele-Consultation Platform for District ${department} Clinics`
+                    : `Point-of-Care Diagnostic Accuracy Study in Ambulatory ${department}`,
+            category,
+            problem:
+              "Limited specialist coverage and high patient caseloads create diagnostic bottlenecks and medication safety challenges.",
+            novelty:
+              "Automated risk scoring algorithms integrated with mobile clinical decision support (CDS) aligned with NMC CBME standards.",
+            techStack: ["DICOM Viewer", "Mobile Clinical CDS", "EHR Integration", "Statistical Epidemiology", "NMC CBME Logbook"],
+            feasibility: 90,
+            budget: `₹${Math.round(numBudget * 0.85)}`,
+            duration: "8 Weeks (Department Project)",
+          },
+          {
+            id: `idea-3-${Date.now()}`,
+            title:
+              category.includes("Emergency") || category.includes("Critical")
+                ? `Rapid Triage & Bedside Ultrasound Protocol for Emergency ${department}`
+                : `Longitudinal Observational Study on Biomarker Variations in ${department} Patients`,
+            category,
+            problem:
+              "Time-critical clinical presentations require accelerated diagnostic classification and protocolized escalation paths.",
+            novelty:
+              "Standardized rapid-assessment flowcharts and bedside checklist validation with institutional ethics committee oversight.",
+            techStack: ["Point-of-Care Ultrasound", "ICMR Guidelines", "Biochemical Assays", "GraphPad Prism", "Clinical Audit"],
+            feasibility: 92,
+            budget: `₹${Math.round(numBudget * 1.15)}`,
+            duration: "10 Weeks (Research Honors)",
+          },
+        ];
+      } else {
+        generated = [
+          {
+            id: `idea-1-${Date.now()}`,
+            title:
+              category.includes("Agri") || category.includes("Vision")
+                ? "Autonomous Drone-Based Crop Health Scanner"
+                : category.includes("IoT")
+                  ? "Edge-AI Smart Microgrid & Energy Forecasting Node"
+                  : category.includes("Health")
+                    ? "Real-Time Tele-Diagnostic ECG Anomaly Detection Suite"
+                    : "Smart Campus Real-Time Space & Energy Optimizer",
+            category,
+            problem:
+              "Manual diagnostics and monitoring cause prolonged delays, high operational expenses, and low diagnostic yield.",
+            novelty:
+              "On-device lightweight neural network inference with localized telemetry and automated anomaly alerts.",
+            techStack: ["Python", "YOLOv8", "FastAPI", "React", "PostgreSQL"],
+            feasibility: 92,
+            budget: budget ? `₹${budget}` : "₹5,000",
+            duration: "12 Weeks (Capstone)",
+          },
+          {
+            id: `idea-2-${Date.now()}`,
+            title:
+              category.includes("Cyber")
+                ? "Zero-Trust Behavioral Identity Verification Engine"
+                : category.includes("AI")
+                  ? "Multimodal Vernacular Lecture Summarizer & Note Generator"
+                  : "Decentralized Verifiable Credential & Skill Passport",
+            category,
+            problem:
+              "Language barriers and static assessment materials limit engagement and technical comprehension.",
+            novelty:
+              "Cross-lingual audio transcription combined with contextual retrieval-augmented question generation.",
+            techStack: ["Whisper AI", "Next.js", "FastAPI", "LangChain", "Vector DB"],
+            feasibility: 88,
+            budget: `₹${Math.round(numBudget * 0.8)}`,
+            duration: "8 Weeks (Semester Project)",
+          },
+          {
+            id: `idea-3-${Date.now()}`,
+            title:
+              category.includes("Robotics")
+                ? "Autonomous Warehouse SLAM Rover with LiDAR & Obstacle Avoidance"
+                : "IoT Predictive Maintenance Sentinel with Acoustic Vibration Sensing",
+            category,
+            problem:
+              "Unscheduled equipment downtime in labs and industry costs significant repair overhead and safety hazards.",
+            novelty:
+              "FFT vibration harmonics analysis on low-power ESP32 edge microcontroller with cloud dashboard alerting.",
+            techStack: ["Embedded C", "ESP32", "MQTT", "Grafana", "Node.js"],
+            feasibility: 95,
+            budget: `₹${Math.round(numBudget * 1.2)}`,
+            duration: "10 Weeks (Major Project)",
+          },
+        ];
+      }
 
       return generated;
     },
@@ -142,7 +282,7 @@ export function ProjectIdeasModule() {
         body: {
           title: concept.title,
           domain: concept.category,
-          mentor: "Dr. Meena Raghavan",
+          mentor: isMedical ? "Dr. Meena Raghavan" : "Dr. S. K. Ramanathan",
           team: ["Lead Student (You)"],
           description: concept.problem + " " + concept.novelty,
         },
@@ -177,7 +317,11 @@ export function ProjectIdeasModule() {
         <Card className="h-fit">
           <CardHeader
             title="Inputs"
-            subtitle="Enter branch, domain, and skills to generate syllabus-aligned project concepts"
+            subtitle={
+              isMedical
+                ? "Enter medical department, domain, and skills to generate NMC/CBME-aligned project blueprints"
+                : "Enter branch, domain, and skills to generate syllabus-aligned project concepts"
+            }
           />
           <CardBody>
             <form
@@ -194,7 +338,7 @@ export function ProjectIdeasModule() {
                   onChange={(e) => setDepartment(e.target.value)}
                   className="w-full rounded-xl border border-line bg-surface p-2.5 text-sm text-ink focus:border-teal focus:outline-none"
                 >
-                  {DEPARTMENTS.map((d) => (
+                  {availableDepartments.map((d) => (
                     <option key={d} value={d}>
                       {d}
                     </option>
@@ -209,7 +353,7 @@ export function ProjectIdeasModule() {
                   onChange={(e) => setCategory(e.target.value)}
                   className="w-full rounded-xl border border-line bg-surface p-2.5 text-sm text-ink focus:border-teal focus:outline-none"
                 >
-                  {CATEGORIES.map((c) => (
+                  {availableCategories.map((c) => (
                     <option key={c} value={c}>
                       {c}
                     </option>
@@ -223,7 +367,11 @@ export function ProjectIdeasModule() {
                   type="text"
                   value={skills}
                   onChange={(e) => setSkills(e.target.value)}
-                  placeholder="Python, React, Arduino..."
+                  placeholder={
+                    isMedical
+                      ? "Clinical trials, cadaver dissection, histology, SPSS, patient triage..."
+                      : "Python, React, Arduino..."
+                  }
                   className="w-full rounded-xl border border-line bg-surface p-2.5 text-sm text-ink focus:border-teal focus:outline-none"
                   required
                 />
@@ -236,7 +384,7 @@ export function ProjectIdeasModule() {
                     type="number"
                     value={budget}
                     onChange={(e) => setBudget(e.target.value)}
-                    placeholder="e.g. 5000"
+                    placeholder={isMedical ? "e.g. 6000" : "e.g. 5000"}
                     className="w-full rounded-xl border border-line bg-surface p-2.5 text-sm text-ink focus:border-teal focus:outline-none"
                   />
                 </div>
@@ -291,7 +439,9 @@ export function ProjectIdeasModule() {
               </div>
               <h4 className="font-semibold text-ink text-base">Nothing Generated Yet</h4>
               <p className="text-xs text-ink-3 max-w-sm mt-1">
-                Choose your department and domain on the left, then click "Generate Project Ideas" to receive curated, AICTE-aligned project blueprints.
+                {isMedical
+                  ? "Choose your medical department and domain on the left, then click 'Generate Project Ideas' to receive curated, NMC/CBME-aligned medical research blueprints."
+                  : "Choose your department and domain on the left, then click 'Generate Project Ideas' to receive curated, AICTE-aligned project blueprints."}
               </p>
             </Card>
           ) : (
@@ -356,7 +506,7 @@ export function ProjectIdeasModule() {
 
                       <div>
                         <p className="text-[11px] font-semibold text-ink-3 uppercase tracking-wider mb-1.5">
-                          Recommended Tech Stack
+                          {isMedical ? "Recommended Methodology / Stack" : "Recommended Tech Stack"}
                         </p>
                         <div className="flex flex-wrap gap-1.5">
                           {concept.techStack.map((tech) => (
