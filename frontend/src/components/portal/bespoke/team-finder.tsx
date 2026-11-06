@@ -54,7 +54,18 @@ export function TeamFinderModule() {
     queryFn: () => apiFetch("/api/v1/team-finder", TeamFinderOverviewSchema),
   });
 
-  const myDept = data?.myDepartment || "Computer Science & Engineering";
+  const myDept = data?.myDepartment || "Anatomy";
+  const isMedical =
+    Boolean(data?.isMedical) ||
+    data?.stream === "medical" ||
+    myDept.toLowerCase().includes("anatomy") ||
+    myDept.toLowerCase().includes("surgery") ||
+    myDept.toLowerCase().includes("pathology");
+  const isFaculty =
+    data?.role === "faculty" ||
+    data?.role === "hod" ||
+    data?.role === "institution" ||
+    data?.role === "admin";
 
   const showToast = (message: string, tone: "success" | "error" = "success") => {
     setToast({ message, tone });
@@ -211,7 +222,7 @@ export function TeamFinderModule() {
             )}
           >
             <Users className="size-3.5 text-teal" />
-            <span>My Classmates ({data.candidates.filter((c) => c.dept.toLowerCase() === myDept.toLowerCase()).length})</span>
+            <span>{isFaculty ? "Department Students" : "My Classmates"} ({data.candidates.filter((c) => c.dept.toLowerCase() === myDept.toLowerCase()).length})</span>
           </button>
           <button
             onClick={() => setActiveTab("interdept")}
@@ -221,7 +232,7 @@ export function TeamFinderModule() {
             )}
           >
             <Layers className="size-3.5 text-sky" />
-            <span>Inter-Department ({data.candidates.filter((c) => c.dept.toLowerCase() !== myDept.toLowerCase()).length})</span>
+            <span>{isFaculty ? "Other Departments" : "Inter-Department"} ({data.candidates.filter((c) => c.dept.toLowerCase() !== myDept.toLowerCase()).length})</span>
           </button>
           <button
             onClick={() => setActiveTab("requests")}
@@ -241,7 +252,12 @@ export function TeamFinderModule() {
         <div className="flex items-center gap-2.5 rounded-xl border border-teal/20 bg-teal/5 px-4 py-2.5 text-xs text-teal">
           <GraduationCap className="size-4 shrink-0" />
           <span>
-            <strong>Classmate Roster ({myDept}):</strong> Showing peers in your branch. Ideal for semester lab coursework, internal assignments, and department mini-projects.
+            <strong>{isFaculty ? `Department Student Roster (${myDept}):` : `Classmate Roster (${myDept}):`}</strong>{" "}
+            {isFaculty
+              ? `Showing students enrolled in ${myDept} available for project mentorship and research teams.`
+              : isMedical
+              ? `Showing peers in your ${myDept} department. Ideal for clinical postings, case studies, and department research.`
+              : `Showing peers in your branch. Ideal for semester lab coursework, internal assignments, and department mini-projects.`}
           </span>
         </div>
       )}
@@ -250,7 +266,10 @@ export function TeamFinderModule() {
         <div className="flex items-center gap-2.5 rounded-xl border border-sky/20 bg-sky/5 px-4 py-2.5 text-xs text-sky">
           <Layers className="size-4 shrink-0" />
           <span>
-            <strong>Cross-Branch Talent:</strong> Showing students in Electronics, Design, Management, and IT. Perfect for Multi-Disciplinary Capstones (MDP), Smart India Hackathons, and startup prototypes!
+            <strong>{isMedical ? "Cross-Department Clinical Talent:" : "Cross-Branch Talent:"}</strong>{" "}
+            {isMedical
+              ? `Showing medical students across General Surgery, Pathology, Community Medicine, and Anatomy. Ideal for ICMR-STS research and inter-departmental healthcare projects!`
+              : `Showing students in Electronics, Design, Management, and IT. Perfect for Multi-Disciplinary Capstones (MDP), Smart India Hackathons, and startup prototypes!`}
           </span>
         </div>
       )}
@@ -265,9 +284,13 @@ export function TeamFinderModule() {
             onChange={(e) => setSearch(e.target.value)}
             placeholder={
               activeTab === "classmates"
-                ? `Search classmates in ${myDept} by name, skill (Python, React...), or interest...`
+                ? isMedical
+                  ? `Search ${isFaculty ? "students" : "classmates"} in ${myDept} by name, clinical skill (Histology, Dissection, Clinical Research...), or interest...`
+                  : `Search ${isFaculty ? "students" : "classmates"} in ${myDept} by name, skill (Python, React...), or interest...`
                 : activeTab === "interdept"
-                ? "Search cross-department peers by name, department, or specialized skill..."
+                ? isMedical
+                  ? "Search cross-department peers by name, department, or clinical specialty..."
+                  : "Search cross-department peers by name, department, or specialized skill..."
                 : "Search requests by role, project, or required skills..."
             }
             className="w-full rounded-xl border border-line bg-surface py-2.5 pl-9 pr-4 text-sm text-ink placeholder:text-ink-3 focus:border-teal focus:outline-none"
@@ -299,7 +322,7 @@ export function TeamFinderModule() {
             <EmptyState
               title={
                 activeTab === "classmates"
-                  ? `No classmates found in ${myDept}`
+                  ? `No ${isFaculty ? "students" : "classmates"} found in ${myDept}`
                   : "No cross-department peers match the filter"
               }
               body="Try clearing your search query or selecting a different department."

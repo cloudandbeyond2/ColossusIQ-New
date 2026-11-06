@@ -11,6 +11,7 @@ import { ChatBodySchema, type ChatBodyInput } from "@/lib/api/mentor-schemas";
 import {
   ActiveBody,
   FIELD_SUGGESTIONS,
+  MEDICAL_FIELD_SUGGESTIONS,
   LiteratureResult,
   MAX_PROJECTS,
   OutlineResult,
@@ -34,6 +35,8 @@ import { stillActive } from "./ai-guard";
 import { rateLimit } from "./rate-limit";
 import { getStudentAcademicProfile } from "./student-profile";
 import { studentStateStore } from "./student-state-store";
+import { collegeStream } from "./records";
+import { resolveUserDepartment } from "@/lib/auth/department";
 import type { MockResult } from "./router";
 
 /*
@@ -139,7 +142,8 @@ const PLAN_STEPS: Array<{ title: string; weeks: number; tasks: string[] }> = [
 const STAGE_START: Record<(typeof RESEARCH_STAGES)[number], number> = { Idea: 0, "Literature review": 1, Method: 2, "Data and experiments": 3, Writing: 5, Submission: 6 };
 
 export function builtInPlan(p: ResearchProject): PlanResult {
-  const steps = PLAN_STEPS.slice(STAGE_START[p.stage]).map((s, i) => ({ id: `s${i + 1}`, title: s.title, weeks: s.weeks, tasks: s.tasks, done: false }));
+  const startIdx = Math.min(STAGE_START[p.stage] ?? 0, Math.max(0, PLAN_STEPS.length - 3));
+  const steps = PLAN_STEPS.slice(startIdx).map((s, i) => ({ id: `s${i + 1}`, title: s.title, weeks: s.weeks, tasks: s.tasks, done: false }));
   return { steps, ...stamp() };
 }
 
@@ -208,7 +212,7 @@ export async function askTool(kind: ResearchTool, p: ResearchProject, focus: str
   const r = await geminiJson(POut, call);
   if (!r.ok) return null;
   const steps = r.data.steps.map((s) => ({ title: stripLinks(s.title, 120), weeks: s.weeks, tasks: lines(s.tasks, 300, 6) })).filter((s) => s.title.length >= 2 && s.tasks.length >= 1);
-  return steps.length >= 3 ? { steps: steps.slice(0, 8).map((s, i) => ({ id: `s${i + 1}`, ...s, done: false })), ...meta } : null;
+  return steps.length >= 1 ? { steps: steps.slice(0, 10).map((s, i) => ({ id: `s${i + 1}`, ...s, done: false })), ...meta } : null;
 }
 
 /* ───────────────────────────── chat ─────────────────────────── */
@@ -360,11 +364,26 @@ export async function researchChat(session: SessionPayload, body: ChatBodyInput)
 /* ───────────────────────────── handlers ─────────────────────────── */
 
 async function overview(session: SessionPayload, st: State): Promise<ResearchOverview> {
+  const stream = (await collegeStream(session.college)) || "engineering";
+  const isMedical = stream === "medical" || session.college === "COL-1006" || session.college === "COL-1007";
+  let defaultField = "";
+  try {
+    const userDept = await resolveUserDepartment(session);
+    if (userDept && userDept !== "Administration") {
+      defaultField = userDept;
+    } else if (isMedical) {
+      defaultField = "Anatomy";
+    }
+  } catch {}
+
+  const suggestions = isMedical ? [...MEDICAL_FIELD_SUGGESTIONS] : [...FIELD_SUGGESTIONS];
+
   return {
     projects: st.projects,
     activeId: st.activeId,
-    defaults: { field: "", level: session.role === "student" ? "UG" : "Faculty" },
-    fieldSuggestions: [...FIELD_SUGGESTIONS],
+    defaults: { field: defaultField, level: session.role === "student" ? "UG" : "Faculty" },
+    fieldSuggestions: suggestions,
+    isMedical,
     aiLive: geminiEnabled(),
   };
 }

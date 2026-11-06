@@ -22,6 +22,30 @@ export const FIELD_SUGGESTIONS = [
   "Humanities and Social Sciences",
 ] as const;
 
+export const MEDICAL_FIELD_SUGGESTIONS = [
+  "Anatomy",
+  "Physiology",
+  "Biochemistry",
+  "Pathology",
+  "Pharmacology",
+  "Microbiology",
+  "Forensic Medicine & Toxicology",
+  "Community Medicine & Public Health",
+  "General Medicine",
+  "General Surgery",
+  "Obstetrics & Gynaecology",
+  "Paediatrics",
+  "Orthopaedics",
+  "Ophthalmology",
+  "Otorhinolaryngology (ENT)",
+  "Dermatology, Venereology & Leprosy",
+  "Radiodiagnosis & Imaging",
+  "Anaesthesiology & Critical Care",
+  "Emergency Medicine",
+  "Psychiatry",
+  "Clinical Research & Epidemiology",
+] as const;
+
 export const ResearchLevel = z.enum(RESEARCH_LEVELS);
 export const ResearchStage = z.enum(RESEARCH_STAGES);
 export const ResearchTool = z.enum(RESEARCH_TOOLS);
@@ -49,7 +73,7 @@ const Meta = { source: Source, createdAt: z.string() };
 const Line = z.string().trim().min(1).max(300);
 
 export const QuestionsResult = z.object({
-  items: z.array(z.object({ question: z.string().trim().min(10).max(300), why: z.string().trim().min(3).max(400), test: z.string().trim().min(3).max(400) })).min(3).max(6),
+  items: z.array(z.object({ question: z.string().trim().min(3).max(500), why: z.string().trim().min(2).max(500), test: z.string().trim().min(2).max(500) })).min(1).max(8),
   ...Meta,
 });
 export const LiteratureResult = z.object({
@@ -66,8 +90,8 @@ export const OutlineResult = z.object({
 export type QuestionsResult = z.infer<typeof QuestionsResult>;
 export type LiteratureResult = z.infer<typeof LiteratureResult>;
 export type OutlineResult = z.infer<typeof OutlineResult>;
-export const PlanStep = z.object({ id: z.string().max(20), title: z.string().trim().min(2).max(120), weeks: z.number().int().min(1).max(26), tasks: z.array(Line).min(1).max(6), done: z.boolean() });
-export const PlanResult = z.object({ steps: z.array(PlanStep).min(3).max(8), ...Meta });
+export const PlanStep = z.object({ id: z.string().max(20), title: z.string().trim().min(1).max(150), weeks: z.number().int().min(1).max(26), tasks: z.array(Line).min(1).max(10), done: z.boolean() });
+export const PlanResult = z.object({ steps: z.array(PlanStep).min(1).max(12), ...Meta });
 export type PlanResult = z.infer<typeof PlanResult>;
 
 export const ResearchProject = z.object({
@@ -101,6 +125,7 @@ export const ResearchOverview = z.object({
   activeId: z.string().nullable(),
   defaults: z.object({ field: z.string(), level: ResearchLevel }),
   fieldSuggestions: z.array(z.string()),
+  isMedical: z.boolean().optional().default(false),
   /** True when the AI model writes the answers; false when the built-in templates are used. */
   aiLive: z.boolean(),
 });

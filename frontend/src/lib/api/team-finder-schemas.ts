@@ -46,6 +46,9 @@ export type AddTeammateInput = z.infer<typeof AddTeammateInput>;
 
 export const TeamFinderOverviewSchema = z.object({
   myDepartment: z.string().default("Computer Science & Engineering"),
+  stream: z.string().optional().default("engineering"),
+  isMedical: z.boolean().optional().default(false),
+  role: z.string().optional().default("student"),
   candidates: z.array(TeamCandidateSchema),
   requests: z.array(TeamRequestItemSchema),
   myProjects: z.array(

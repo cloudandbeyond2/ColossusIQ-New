@@ -16,6 +16,7 @@ import { ProjectDbRow } from "@/lib/data/postgres/projects";
 import { getStudentAcademicProfile } from "./student-profile";
 import { getStudentsList } from "./students-store";
 import { collegeStream } from "./records";
+import { resolveUserDepartment } from "@/lib/auth/department";
 
 const DEFAULT_CANDIDATES: TeamCandidate[] = [
   {
@@ -166,10 +167,21 @@ function getCandidateSkills(dept: string, isMedical: boolean): { skills: string[
 export async function getTeamFinderOverview(
   session: SessionPayload
 ): Promise<TeamFinderOverview> {
-  let myDepartment = "Computer Science & Engineering";
+  const college = session.college || "COL-1006";
+  const stream = (await collegeStream(college)) || "engineering";
+  const isMedical = stream === "medical" || college === "COL-1006" || college === "COL-1007";
+
+  let myDepartment = isMedical ? "Anatomy" : "Computer Science & Engineering";
   try {
-    const profile = await getStudentAcademicProfile(session);
-    if (profile?.department) myDepartment = profile.department;
+    const userDept = await resolveUserDepartment(session);
+    if (userDept && userDept !== "Administration") {
+      myDepartment = userDept;
+    } else if (session.role === "student") {
+      const profile = await getStudentAcademicProfile(session);
+      if (profile?.department && profile.department !== "Pathology & Pharmacology") {
+        myDepartment = profile.department;
+      }
+    }
   } catch {}
 
   const projects = await listProjects(session);
@@ -189,15 +201,12 @@ export async function getTeamFinderOverview(
     }
   } catch {}
 
-  const college = session.college || "COL-1006";
-  const stream = (await collegeStream(college)) || "engineering";
-  const isMedical = stream === "medical" || college === "COL-1006" || college === "COL-1007";
-
   let candidates: TeamCandidate[] = [];
   try {
     const students = await getStudentsList({ collegeId: session.college });
     if (students && students.length > 0) {
-      const selfName = (session.name || "").toLowerCase().trim();
+      const isStudent = session.role === "student";
+      const selfName = isStudent ? (session.name || "").toLowerCase().trim() : "";
       candidates = students
         .filter((s) => !selfName || s.name.toLowerCase().trim() !== selfName)
         .map((s, idx) => {
@@ -205,7 +214,7 @@ export async function getTeamFinderOverview(
           return {
             id: s.id || `cand-${idx + 1}`,
             name: s.name,
-            dept: s.department || (isMedical ? "General Surgery" : "Computer Science & Engineering"),
+            dept: s.department || (isMedical ? "Anatomy" : "Computer Science & Engineering"),
             skills: profile.skills,
             looking: profile.looking,
             match: Math.min(98, Math.max(78, 95 - ((idx * 3) % 17))),
@@ -222,6 +231,9 @@ export async function getTeamFinderOverview(
 
   return {
     myDepartment,
+    stream,
+    isMedical,
+    role: session.role || "student",
     candidates,
     requests,
     myProjects,
@@ -261,54 +273,51 @@ export async function inviteStudentToProject(
   session: SessionPayload,
   input: AddTeammateInput
 ): Promise<{ ok: boolean; team: string[] }> {
-  // If PostgreSQL is active, update the project in DB
+  const candidateName = input.studentName.trim();
+  if (!candidateName) return { ok: false, team: [] };
+
   if (dataBackend() === "postgres") {
     try {
-      const t = db();
-      const rows = await t.$queryRaw<ProjectDbRow[]>`
-        SELECT * FROM projects
-        WHERE public_id = ${input.projectId} OR id::text = ${input.projectId} OR lower(title) = lower(${input.projectId})
-        LIMIT 1
+      // Find the project in PostgreSQL
+      const row = await db().$queryRaw<ProjectDbRow[]>`
+        SELECT * FROM "Project" WHERE id = ${input.projectId}
       `;
-      if (rows.length > 0) {
-        const curr = rows[0]!;
-        let currentTeam: string[] = [];
+      if (row && row.length > 0) {
+        const prj = row[0]!;
+        let teamArr: string[] = [];
         try {
-          currentTeam = typeof curr.team === "string" ? JSON.parse(curr.team) : (curr.team as string[]) || [];
+          teamArr = typeof prj.team === "string" ? JSON.parse(prj.team) : prj.team || [];
         } catch {
-          currentTeam = [];
+          teamArr = [];
         }
 
-        if (!currentTeam.includes(input.studentName)) {
-          currentTeam.push(input.studentName);
+        if (!teamArr.some((m) => m.toLowerCase() === candidateName.toLowerCase())) {
+          teamArr.push(candidateName);
+          const updatedJson = JSON.stringify(teamArr);
+          await db().$executeRaw`
+            UPDATE "Project" SET team = ${updatedJson}::jsonb, "updatedAt" = NOW() WHERE id = ${input.projectId}
+          `;
         }
-
-        await t.$executeRaw`
-          UPDATE projects
-          SET team = ${JSON.stringify(currentTeam)}::jsonb, updated_at = now()
-          WHERE id = ${curr.id}::uuid
-        `;
-
-        return { ok: true, team: currentTeam };
+        return { ok: true, team: teamArr };
       }
     } catch (e) {
-      console.warn("[team-finder] postgres team update fallback:", e);
+      console.error("Failed to add teammate to postgres project", e);
     }
   }
 
-  // Fallback to memory projects
-  const projects = await listProjects(session);
-  const found = projects.find(
-    (p) => p.id === input.projectId || p.title.toLowerCase().includes(input.projectId.toLowerCase())
-  );
-  if (found) {
-    if (!found.team.includes(input.studentName)) {
-      found.team.push(input.studentName);
+  // Memory fallback
+  try {
+    const prjs = await listProjects(session);
+    const target = prjs.find((p) => p.id === input.projectId);
+    if (target) {
+      if (!target.team.includes(candidateName)) {
+        target.team.push(candidateName);
+      }
+      return { ok: true, team: target.team };
     }
-    return { ok: true, team: found.team };
-  }
+  } catch {}
 
-  return { ok: true, team: [input.studentName] };
+  return { ok: true, team: [candidateName] };
 }
 
 export async function applyToTeamRequest(
