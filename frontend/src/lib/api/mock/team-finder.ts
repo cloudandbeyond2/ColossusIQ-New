@@ -14,6 +14,8 @@ import { dataBackend } from "@/lib/data";
 import { db } from "@/lib/data/postgres/db";
 import { ProjectDbRow } from "@/lib/data/postgres/projects";
 import { getStudentAcademicProfile } from "./student-profile";
+import { getStudentsList } from "./students-store";
+import { collegeStream } from "./records";
 
 const DEFAULT_CANDIDATES: TeamCandidate[] = [
   {
@@ -94,6 +96,73 @@ const sharedRequests = sharedState<TeamRequestItem[]>("campus.team_requests", ()
   },
 ]);
 
+function getCandidateSkills(dept: string, isMedical: boolean): { skills: string[]; looking: string; bio: string } {
+  const d = dept.toLowerCase();
+  if (isMedical || d.includes("anatomy") || d.includes("surgery") || d.includes("medicine") || d.includes("physiology") || d.includes("pathology")) {
+    if (d.includes("anatomy")) {
+      return {
+        skills: ["Cadaver Dissection", "Histology", "Embryology", "Neuroanatomy"],
+        looking: "Clinical research collaborator",
+        bio: "Specializing in anatomical variants, histology tissue prep, and medical illustration.",
+      };
+    }
+    if (d.includes("surgery")) {
+      return {
+        skills: ["Surgical Suture Techniques", "Pre-op Assessment", "Wound Care", "Sterile Techniques"],
+        looking: "Surgical case study co-author",
+        bio: "Interested in minimally invasive surgery protocols and clinical trauma care.",
+      };
+    }
+    if (d.includes("pathology")) {
+      return {
+        skills: ["Histopathology", "Blood Film Analysis", "Biopsy Staining", "Cytology"],
+        looking: "Diagnostic research partner",
+        bio: "Focused on automated hematology, tissue biopsy staining, and diagnostic accuracy.",
+      };
+    }
+    if (d.includes("community")) {
+      return {
+        skills: ["Epidemiology", "Public Health Survey", "Biostatistics", "Field Screening"],
+        looking: "Community health study lead",
+        bio: "Rural community health screening, epidemiology data modeling, and disease prevention.",
+      };
+    }
+    return {
+      skills: ["Clinical Examination", "ECG Analysis", "Patient History", "Medical Ethics"],
+      looking: "ICMR STS project partner",
+      bio: "Interested in evidence-based medicine, patient screening, and clinical trials.",
+    };
+  }
+
+  // Engineering / Technology
+  if (d.includes("computer") || d.includes("information")) {
+    return {
+      skills: ["React", "TypeScript", "Node.js", "PostgreSQL"],
+      looking: "Fullstack hackathon lead",
+      bio: "Web applications, responsive UI/UX, and cloud database architectures.",
+    };
+  }
+  if (d.includes("ai") || d.includes("data")) {
+    return {
+      skills: ["Python", "PyTorch", "OpenCV", "Scikit-Learn"],
+      looking: "AI/ML project partner",
+      bio: "Computer vision, predictive diagnostics, and NLP models.",
+    };
+  }
+  if (d.includes("electronic")) {
+    return {
+      skills: ["Embedded C", "IoT", "ESP32", "Sensor Telemetry"],
+      looking: "Hardware & sensor integration",
+      bio: "Embedded systems, biomedical telemetry, and IoT sensor circuits.",
+    };
+  }
+  return {
+    skills: ["Project Management", "Data Analysis", "Research Writing", "Documentation"],
+    looking: "Capstone project partner",
+    bio: "Focused on interdisciplinary project design and experimental research.",
+  };
+}
+
 export async function getTeamFinderOverview(
   session: SessionPayload
 ): Promise<TeamFinderOverview> {
@@ -120,9 +189,40 @@ export async function getTeamFinderOverview(
     }
   } catch {}
 
+  const college = session.college || "COL-1006";
+  const stream = (await collegeStream(college)) || "engineering";
+  const isMedical = stream === "medical" || college === "COL-1006" || college === "COL-1007";
+
+  let candidates: TeamCandidate[] = [];
+  try {
+    const students = await getStudentsList({ collegeId: session.college });
+    if (students && students.length > 0) {
+      const selfName = (session.name || "").toLowerCase().trim();
+      candidates = students
+        .filter((s) => !selfName || s.name.toLowerCase().trim() !== selfName)
+        .map((s, idx) => {
+          const profile = getCandidateSkills(s.department || "General", isMedical);
+          return {
+            id: s.id || `cand-${idx + 1}`,
+            name: s.name,
+            dept: s.department || (isMedical ? "General Surgery" : "Computer Science & Engineering"),
+            skills: profile.skills,
+            looking: profile.looking,
+            match: Math.min(98, Math.max(78, 95 - ((idx * 3) % 17))),
+            bio: profile.bio,
+            cgpa: String(s.cgpa || "8.5"),
+          };
+        });
+    }
+  } catch {}
+
+  if (candidates.length === 0) {
+    candidates = DEFAULT_CANDIDATES;
+  }
+
   return {
     myDepartment,
-    candidates: DEFAULT_CANDIDATES,
+    candidates,
     requests,
     myProjects,
   };

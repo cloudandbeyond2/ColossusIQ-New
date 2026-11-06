@@ -250,6 +250,8 @@ export function StudentsModule({ role: _role }: { role: Role }) {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["students-list"] });
+      qc.refetchQueries({ queryKey: ["students-list"] });
+      qc.invalidateQueries({ queryKey: ["team-finder"] });
       qc.invalidateQueries({ queryKey: ["module", "students"] });
       setEditingStudent(null);
       showToast("Student record updated successfully!");

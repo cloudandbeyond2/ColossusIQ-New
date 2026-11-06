@@ -608,6 +608,7 @@ export async function dispatch(method: string, segs: string[], rawBody: unknown,
   }
   if (segs[0] === "records") return dispatchRecords(method, segs, rawBody, session, query);
   if (segs[0] === "modules" && segs[1] === "course-management") return dispatchRecords(method, ["records", "courses", ...segs.slice(2)], rawBody, session, query);
+  if (segs[0] === "modules" && segs[1] === "staff") return dispatchStaff(method, segs, rawBody, session);
   if (segs[0] === "question-bank" && segs[1] === "generate") return dispatchQuestionAi(method, segs, rawBody, session);
   if (segs[0] === "question-bank" && (segs[1] === "folders" || segs[1] === "overview")) return dispatchQuestionBankFolders(session);
   if (segs[0] === "questions" || segs[0] === "question-bank") return dispatchRecords(method, ["records", "questions", ...segs.slice(1)], rawBody, session, query);
@@ -2702,4 +2703,133 @@ async function dispatchClinical(
     }
     throw e;
   }
+}
+
+async function dispatchStaff(
+  method: string,
+  segs: string[],
+  rawBody: unknown,
+  session: SessionPayload
+): Promise<MockResult> {
+  const targetCollege = session.college !== ALL_COLLEGES ? session.college : undefined;
+  const store = getStore().records;
+  const res = RESOURCES.staff!;
+
+  let body: any = rawBody;
+  if (typeof rawBody === "string" && rawBody) {
+    try {
+      body = JSON.parse(rawBody);
+    } catch {}
+  }
+
+  // GET /modules/staff
+  if (method === "GET" && segs.length === 2) {
+    const list = await store.list(res, {
+      scope: session.college,
+      college: targetCollege,
+      page: 1,
+      pageSize: 1000,
+    });
+    const staff = list.items.map((r) => ({
+      id: r.id,
+      name: String(r.fullName || r.name || "").trim(),
+      staffId: String(r.staffId || r.id || "").trim(),
+      role: r.designation === "HOD" ? "HOD" : (r.staffType === "Non-teaching" ? "Admin Staff" : "Faculty"),
+      department: String(r.department || "").trim(),
+      email: r.email ? String(r.email) : undefined,
+      phone: r.phone ? String(r.phone) : undefined,
+      status: r.status === "On leave" ? "On Leave" : (r.status === "Resigned" || r.status === "Retired" ? "Inactive" : "Active"),
+      joinedDate: r.joiningDate ? String(r.joiningDate) : undefined,
+      qualifications: r.qualification ? String(r.qualification) : undefined,
+    }));
+    return ok({ staff, total: staff.length });
+  }
+
+  // POST /modules/staff
+  if (method === "POST" && segs.length === 2) {
+    if (!body || typeof body !== "object") return err(400, "invalid_body", "Invalid staff data.");
+    const name = String(body.name || "").trim();
+    if (!name) return err(422, "validation", "Full name is required.");
+
+    const staffId = String(body.staffId || "").trim();
+    const department = String(body.department || "Anatomy").trim();
+    const role = String(body.role || "Faculty").trim();
+    const email = body.email ? String(body.email).trim() : `${name.toLowerCase().replace(/[^a-z]/g, "")}@college.edu`;
+    const phone = body.phone ? String(body.phone).trim() : "9842101234";
+    const status = body.status === "On Leave" ? "On leave" : "Active";
+    const qualifications = String(body.qualifications || "").trim();
+    const designation = role === "HOD" ? "HOD" : "Professor";
+    const staffType = role === "Admin Staff" || role === "Lab Assistant" ? "Non-teaching" : "Teaching";
+
+    const joinedDate = String(body.joinedDate || new Date().toISOString().slice(0, 10));
+
+    const rec = await store.create(
+      res,
+      {
+        fullName: name,
+        email,
+        phone,
+        qualification: qualifications,
+        department,
+        designation,
+        staffType,
+        employment: "Permanent",
+        joiningDate: joinedDate,
+        status,
+        staffId: staffId || "MED001",
+      },
+      targetCollege ?? null
+    );
+
+    const recordId = String((rec as any)?.id || staffId || "MED001");
+
+    return ok({
+      ok: true,
+      staff: {
+        id: recordId,
+        name,
+        staffId: staffId || recordId,
+        role,
+        department,
+        email,
+        phone,
+        status,
+        joinedDate: joinedDate,
+        qualifications,
+      },
+    });
+  }
+
+  // PUT /modules/staff/:id
+  if (method === "PUT" && segs.length === 3) {
+    const id = segs[2]!;
+    const existing = await store.get(res, id);
+    if (!existing) return notFound();
+    const existingData: any = (existing as any).data || existing;
+    const name = String(body?.name || existingData.fullName || existingData.name || "").trim();
+    await store.update(
+      res,
+      id,
+      {
+        ...existingData,
+        fullName: name,
+        department: String(body?.department || existingData.department || ""),
+        phone: String(body?.phone || existingData.phone || ""),
+        email: String(body?.email || existingData.email || ""),
+        qualification: String(body?.qualifications || existingData.qualification || ""),
+        status: body?.status === "On Leave" ? "On leave" : "Active",
+      },
+      (existing as any).version ?? 1
+    );
+    return ok({ ok: true });
+  }
+
+  // DELETE /modules/staff/:id
+  if (method === "DELETE" && segs.length === 3) {
+    const id = segs[2]!;
+    await store.delete(res, id);
+    return ok({ ok: true });
+  }
+
+  return notFound();
 }
