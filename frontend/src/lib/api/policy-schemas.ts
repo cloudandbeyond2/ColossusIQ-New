@@ -52,6 +52,10 @@ export const PolicyOverview = z.object({
   /** The Principal can add and approve documents in the Knowledge Base; others ask the Principal to. */
   canManage: z.boolean(),
   history: z.array(PolicyTurn),
+  collegeName: z.string().optional(),
+  stream: z.string().optional(),
+  isMedical: z.boolean().optional(),
+  department: z.string().optional(),
 });
 export type PolicyOverview = z.infer<typeof PolicyOverview>;
 
