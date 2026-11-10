@@ -3,6 +3,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { ALL_COLLEGES } from "@/config/tenancy";
 import { geminiEnabled } from "@/lib/ai/gemini";
 import { can } from "@/lib/auth/roles";
+import { resolveUserDepartment } from "@/lib/auth/department";
 import type { SessionPayload } from "@/lib/auth/session";
 import { cleanText } from "@/lib/security/sanitize";
 import { PolicyAskBody, PolicyOverview, PolicyTurn, POLICY_HISTORY_MAX, StoredPolicyHistory, type PolicySource } from "@/lib/api/policy-schemas";
@@ -11,6 +12,7 @@ import { stillActive } from "./ai-guard";
 import { looksLikeInjection } from "./ai";
 import { answerQuestion } from "./knowledge-base";
 import { kbStore } from "./knowledge-store";
+import { collegeName, collegeStream, getCollege } from "./records";
 import { rateLimit } from "./rate-limit";
 import type { MockResult } from "./router";
 import { studentStateStore } from "./student-state-store";
@@ -54,20 +56,42 @@ function toTurn(a: KbAnswer): PolicyTurn {
 }
 
 /** Starter questions come from the documents themselves: their titles and section headings. */
-function suggestionsFrom(sources: PolicySource[], sections: Array<{ docId: string; docTitle: string; section: string }>): string[] {
+function suggestionsFrom(
+  sources: PolicySource[],
+  sections: Array<{ docId: string; docTitle: string; section: string }>,
+  isMedical: boolean,
+  dept?: string
+): string[] {
   const out: string[] = [];
   const seen = new Set<string>();
+
+  // Add highly relevant stream/department questions upfront
+  if (isMedical) {
+    if (dept && /anatomy/i.test(dept)) {
+      out.push("What are the decorum and safety rules in the Anatomy Dissection Hall?");
+    }
+    out.push("What is the minimum mandatory attendance for MBBS theory and clinical postings?");
+    out.push("How many days of Casual Leave (CL) can faculty take, and what is the night duty compensatory off rule?");
+    out.push("What is the protocol for biomedical waste segregation and accidental needle-stick injury?");
+    out.push("What seed grants are available for clinical research and ICMR-STS proposals?");
+  } else {
+    out.push("What is the minimum attendance required for semester exam eligibility?");
+    out.push("What are the rules for faculty Casual Leave and on-duty conference permissions?");
+    out.push("How is the internal assessment mark calculated (40 marks distribution)?");
+    out.push("What research seed grants and publication incentives are offered to faculty?");
+  }
+
   for (const sec of sections) {
+    if (out.length >= 8) break;
     const name = sec.section.trim();
     if (!name || /^(general|introduction|overview|preamble|contents?|index)$/i.test(name) || name.length > 70) continue;
     const key = `${sec.docId}|${name.toLowerCase()}`;
     if (seen.has(key)) continue;
     seen.add(key);
     out.push(`What does “${sec.docTitle}” say about ${name.replace(/^[\d.\s)-]+/, "").toLowerCase()}?`);
-    if (out.length >= 3) break;
   }
   for (const d of sources) {
-    if (out.length >= 4) break;
+    if (out.length >= 10) break;
     out.push(`Summarise the key rules in “${d.title}”`);
   }
   return out;
@@ -75,6 +99,13 @@ function suggestionsFrom(sources: PolicySource[], sections: Array<{ docId: strin
 
 async function overview(s: SessionPayload): Promise<PolicyOverview> {
   const store = kbStore();
+  const cName = await collegeName(s.college);
+  const stream = (await collegeStream(s.college)) ?? "engineering";
+  const collegeObj = await getCollege(s.college);
+  const collegeType = String(collegeObj?.type || "");
+  const isMedical = stream === "medical" || /medical|hospital|nursing/i.test(collegeType) || /medical|hospital/i.test(cName);
+  const dept = s.department ?? (await resolveUserDepartment(s)) ?? "";
+
   const [rows, pool, history] = await Promise.all([store.list(s.college), store.searchable(s.college), loadHistory(s)]);
   const passagesOf = new Map<string, number>();
   for (const p of pool) passagesOf.set(p.docId, (passagesOf.get(p.docId) ?? 0) + 1);
@@ -82,6 +113,9 @@ async function overview(s: SessionPayload): Promise<PolicyOverview> {
   const sources: PolicySource[] = approved
     .map((r) => ({ id: r.id, title: r.title, type: r.type, owner: r.owner, scope: r.scope as PolicySource["scope"], passages: passagesOf.get(r.id) ?? 0, updatedAt: r.updatedAt }))
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+
+  const dynamicSuggestions = suggestionsFrom(sources, pool.map((p) => ({ docId: p.docId, docTitle: p.docTitle, section: p.section })), isMedical, dept);
+
   return PolicyOverview.parse({
     sources,
     stats: {
@@ -91,10 +125,14 @@ async function overview(s: SessionPayload): Promise<PolicyOverview> {
       categories: new Set(approved.map((r) => r.type)).size,
       lastUpdated: sources[0]?.updatedAt ?? null,
     },
-    suggestions: suggestionsFrom(sources, pool.map((p) => ({ docId: p.docId, docTitle: p.docTitle, section: p.section }))),
+    suggestions: dynamicSuggestions,
     ai: { enabled: geminiEnabled() },
     canManage: can(s.role, "knowledge:manage"),
     history,
+    collegeName: cName,
+    stream: String(stream),
+    isMedical,
+    department: dept,
   });
 }
 

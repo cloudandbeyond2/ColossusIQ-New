@@ -115,7 +115,7 @@ function Welcome({ data }: { data: ResearchOverview }) {
           <p className="mx-auto max-w-lg text-sm text-ink-2">
             Save a project and the assistant works with it: sharper research questions, a search plan for the literature, a paper outline and a step-by-step work plan. Everything is saved for you, and you can keep several projects.
           </p>
-          <p className="mx-auto max-w-lg text-xs text-ink-3">The assistant cannot browse papers, so it never cites them. It writes search strings and you run them in Google Scholar, IEEE Xplore or Scopus.</p>
+          <p className="mx-auto max-w-lg text-xs text-ink-3">The assistant cannot browse papers, so it never cites them. It writes search strings and you run them in Google Scholar, {data.isMedical ? "PubMed, Cochrane Library" : "IEEE Xplore"} or Scopus.</p>
         </CardBody>
       </Card>
       <Card>
@@ -137,7 +137,8 @@ function NewProject({ data, onClose, onDone }: { data: ResearchOverview; onClose
 }
 
 function ProjectForm({ data, onDone, onCancel }: { data: ResearchOverview; onDone: (o: ResearchOverview) => void; onCancel?: () => void }) {
-  const [f, setF] = useState({ title: "", field: "", level: data.defaults.level as string, stage: "Idea" as string, goal: "" });
+  const isMedical = Boolean(data.isMedical) || data.fieldSuggestions.some((s) => s.toLowerCase().includes("anatomy") || s.toLowerCase().includes("surgery"));
+  const [f, setF] = useState({ title: "", field: data.defaults.field || "", level: data.defaults.level as string, stage: "Idea" as string, goal: "" });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [general, setGeneral] = useState<string | null>(null);
   const create = useMutation({
@@ -162,10 +163,10 @@ function ProjectForm({ data, onDone, onCancel }: { data: ResearchOverview; onDon
   return (
     <form className="space-y-4" onSubmit={submit} noValidate>
       <Field label="Project title or topic" htmlFor="rp-title" error={errors.title}>
-        <input id="rp-title" className={inputClass} maxLength={120} placeholder="e.g. Low-cost IoT soil moisture sensing for farms" value={f.title} onChange={(e) => setF({ ...f, title: e.target.value })} />
+        <input id="rp-title" className={inputClass} maxLength={120} placeholder={isMedical ? "e.g. Study of non-invasive vascular biomarkers in diabetic neuropathy" : "e.g. Low-cost IoT soil moisture sensing for farms"} value={f.title} onChange={(e) => setF({ ...f, title: e.target.value })} />
       </Field>
       <Field label="Field" htmlFor="rp-field" error={errors.field}>
-        <input id="rp-field" list="rp-fields" className={inputClass} maxLength={60} placeholder="e.g. Computer Science" value={f.field} onChange={(e) => setF({ ...f, field: e.target.value })} />
+        <input id="rp-field" list="rp-fields" className={inputClass} maxLength={60} placeholder={isMedical ? "e.g. Anatomy, General Surgery, Pathology..." : "e.g. Computer Science"} value={f.field} onChange={(e) => setF({ ...f, field: e.target.value })} />
         <datalist id="rp-fields">
           {data.fieldSuggestions.map((s) => (
             <option key={s} value={s} />
@@ -188,7 +189,7 @@ function ProjectForm({ data, onDone, onCancel }: { data: ResearchOverview; onDon
           </select>
         </Field>
       </div>
-      <Field label="Goal (optional)" htmlFor="rp-goal" hint="For example: a conference paper, a final-year project, a thesis chapter." error={errors.goal}>
+      <Field label="Goal (optional)" htmlFor="rp-goal" hint={isMedical ? "For example: ICMR-STS research paper, clinical case report, dissertation chapter, journal publication." : "For example: a conference paper, a final-year project, a thesis chapter."} error={errors.goal}>
         <textarea id="rp-goal" rows={2} className={inputClass} maxLength={500} value={f.goal} onChange={(e) => setF({ ...f, goal: e.target.value })} />
       </Field>
       {general ? (
@@ -330,6 +331,7 @@ function Notes({ project, onSave, saving }: { project: ResearchProject; onSave: 
 }
 
 function EditDialog({ project, data, onClose, onApply }: { project: ResearchProject; data: ResearchOverview; onClose: () => void; onApply: (o: ResearchOverview) => void }) {
+  const isMedical = Boolean(data.isMedical) || data.fieldSuggestions.some((s) => s.toLowerCase().includes("anatomy") || s.toLowerCase().includes("surgery"));
   const [f, setF] = useState({ title: project.title, field: project.field, level: project.level as string, goal: project.goal });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [general, setGeneral] = useState<string | null>(null);
@@ -362,7 +364,7 @@ function EditDialog({ project, data, onClose, onApply }: { project: ResearchProj
         </Field>
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Field" htmlFor="re-field" error={errors.field}>
-            <input id="re-field" list="re-fields" className={inputClass} maxLength={60} value={f.field} onChange={(e) => setF({ ...f, field: e.target.value })} />
+            <input id="re-field" list="re-fields" className={inputClass} maxLength={60} placeholder={isMedical ? "e.g. Anatomy, General Surgery..." : "e.g. Computer Science"} value={f.field} onChange={(e) => setF({ ...f, field: e.target.value })} />
             <datalist id="re-fields">
               {data.fieldSuggestions.map((s) => (
                 <option key={s} value={s} />
