@@ -28,6 +28,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { z } from "zod";
 import { apiFetch, ApiError } from "@/lib/api/client";
 import { EvaluationQueueItem, EvaluationResult } from "@/lib/api/schemas";
+import { LearningContext } from "@/lib/api/learning-schemas";
 import { acceptAttr, validateUpload } from "@/lib/security/upload";
 import { EvaluationCard } from "@/components/portal/evaluation-card";
 import {
@@ -56,7 +57,7 @@ const PIPELINE = [
   "Score & feedback",
 ];
 
-const SAMPLE_SHEET = {
+const ENGINEERING_SAMPLE_SHEET = {
   student: "Anand Kumar",
   rollNo: "110124001",
   question: "Explain Third Normal Form (3NF) with a suitable example and decomposition. (10 marks)",
@@ -64,15 +65,26 @@ const SAMPLE_SHEET = {
   ocr: "3NF: a relation is in third normal form if it is in 2NF and has no transitive dependency. Formally, for every non-trivial functional dependency X -> A, either X is a superkey or A is a prime attribute.\n\nExample: Student(RollNo, Name, DeptId, DeptName). DeptId -> DeptName so RollNo -> DeptName is transitive via DeptId.\n\nDecomposition: Decompose into Student(RollNo, Name, DeptId) and Department(DeptId, DeptName). This decomposition is lossless join because DeptId is candidate key of Department.",
 };
 
-const ACADEMIC_DEPARTMENTS = [
-  { id: "cse", code: "CSE", name: "Computer Science & Engineering", defaultSection: "CSE-A" },
-  { id: "it", code: "IT", name: "Information Technology", defaultSection: "IT-A" },
-  { id: "aids", code: "AI&DS", name: "Artificial Intelligence & Data Science", defaultSection: "AI&DS-A" },
-  { id: "ece", code: "ECE", name: "Electronics & Communication Engineering", defaultSection: "ECE-A" },
-  { id: "eee", code: "EEE", name: "Electrical & Electronics Engineering", defaultSection: "EEE-A" },
-  { id: "mech", code: "MECH", name: "Mechanical Engineering", defaultSection: "MECH-A" },
-  { id: "civil", code: "CIVIL", name: "Civil Engineering", defaultSection: "CIVIL-A" },
-];
+const MEDICAL_SAMPLE_SHEET = {
+  student: "Keerthana S.",
+  rollNo: "21MB1042",
+  question: "Describe the gross anatomy, blood supply, nerve supply and clinical significance of the Thyroid Gland. (10 marks)",
+  maxMarks: 10,
+  ocr: `Thyroid Gland Anatomy & Clinical Notes:
+1. Location & Parts: H-shaped endocrine gland in the visceral compartment of anterior neck (C5-T1). Two lateral lobes connected across 2nd-4th tracheal rings by an isthmus. Often has a pyramidal lobe extending towards the hyoid bone.
+2. Capsules: True capsule (stroma condensation) and False capsule (derived from pretracheal fascia).
+3. Blood Supply:
+   - Superior thyroid artery (branch of external carotid, intimate with external laryngeal nerve).
+   - Inferior thyroid artery (branch of thyrocervical trunk, intimate with recurrent laryngeal nerve).
+   - Venous: Superior & Middle thyroid veins drain to IJV; Inferior thyroid vein to brachiocephalic vein.
+4. Nerve Supply: Sympathetic vasoconstrictor fibers from superior cervical ganglion.
+5. Clinical Importance:
+   - Goitre: Enlargement causing compression of trachea and esophagus (dyspnea, dysphagia).
+   - Thyroidectomy: Accidental injury to recurrent laryngeal nerve causes vocal cord paralysis and hoarseness; inadvertent removal of parathyroid glands leads to tetany.`,
+};
+
+// Fallback for legacy references
+const SAMPLE_SHEET = ENGINEERING_SAMPLE_SHEET;
 
 const HandwrittenStudentSchema = z.object({
   students: z.array(
@@ -206,7 +218,32 @@ export function HandwrittenModule({ role = "faculty" }: { role?: Role } = {}) {
 
   const allStudents = useMemo(() => studentsQuery.data?.students || [], [studentsQuery.data]);
 
-  // Dynamically compute department options with exact student counts
+  // Query: Learning context to identify stream (Medical vs Engineering) & institution departments
+  const ctxQuery = useQuery({
+    queryKey: ["learning-context"],
+    queryFn: () => apiFetch("/api/v1/learning/context", LearningContext),
+  });
+
+  const stream = ctxQuery.data?.stream || "engineering";
+  const collegeId = ctxQuery.data?.collegeId || "";
+  const isMedical = useMemo(() => {
+    return (
+      stream === "medical" ||
+      collegeId === "COL-1006" ||
+      collegeId === "COL-1007" ||
+      collegeId.toLowerCase().includes("mmch") ||
+      allStudents.some(
+        (s) =>
+          /mbbs|bds|phase/i.test(s.section || "") ||
+          /anatomy|physio|patho|mbbs|medical/i.test(s.department || "") ||
+          s.departmentCode === "MBBS"
+      )
+    );
+  }, [stream, collegeId, allStudents]);
+
+  const sampleSheet = isMedical ? MEDICAL_SAMPLE_SHEET : ENGINEERING_SAMPLE_SHEET;
+
+  // Dynamically compute department options with exact student counts from enrolled students
   const departmentOptions = useMemo(() => {
     const list: Array<{
       id: string;
@@ -222,39 +259,131 @@ export function HandwrittenModule({ role = "faculty" }: { role?: Role } = {}) {
       },
     ];
 
-    ACADEMIC_DEPARTMENTS.forEach((dept) => {
-      const dCode = dept.code.toLowerCase();
-      const count = allStudents.filter((s) => {
-        const sec = (s.section || "").toLowerCase();
-        const dName = (s.department || "").toLowerCase();
-        const dCd = (s.departmentCode || "").toLowerCase();
-        return sec.includes(dCode) || dCd === dCode || dName.includes(dCode) || dName.includes(dept.name.toLowerCase());
-      }).length;
+    const seenIds = new Set<string>(["all"]);
 
-      list.push({
-        id: dept.id,
-        code: dept.code,
-        name: `${dept.name} (${dept.code}) — ${count} ${count === 1 ? "student" : "students"}`,
-        count,
-      });
+    // Helper to resolve clean department display & code across Engineering, Medical, Arts & Science
+    const resolveDeptInfo = (dept: string, deptCode?: string, section?: string): { name: string; code: string } => {
+      const d = (dept || "").trim();
+      const c = (deptCode || "").trim().toUpperCase();
+      const sec = (section || "").trim().toUpperCase();
+
+      if (/computer/i.test(d) || c === "CSE" || sec.startsWith("CSE")) return { name: "Computer Science & Engineering", code: "CSE" };
+      if (/information/i.test(d) || c === "IT" || sec.startsWith("IT")) return { name: "Information Technology", code: "IT" };
+      if (/artificial|data science|ai&ds|aids/i.test(d) || c === "AI&DS" || c === "AIDS" || sec.startsWith("AI&DS")) return { name: "Artificial Intelligence & Data Science", code: "AI&DS" };
+      if (/electronics.*communication|ece/i.test(d) || c === "ECE" || sec.startsWith("ECE")) return { name: "Electronics & Communication Engineering", code: "ECE" };
+      if (/electrical|eee/i.test(d) || c === "EEE" || sec.startsWith("EEE")) return { name: "Electrical & Electronics Engineering", code: "EEE" };
+      if (/mechanical|mech/i.test(d) || c === "MECH" || sec.startsWith("MECH")) return { name: "Mechanical Engineering", code: "MECH" };
+      if (/civil/i.test(d) || c === "CIVIL" || sec.startsWith("CIVIL")) return { name: "Civil Engineering", code: "CIVIL" };
+      if (/anatomy/i.test(d) || c === "ANAT") return { name: "Anatomy", code: "ANAT" };
+      if (/physiology/i.test(d) || c === "PHYS") return { name: "Physiology", code: "PHYS" };
+      if (/biochemistry/i.test(d) || c === "BIOC") return { name: "Biochemistry", code: "BIOC" };
+      if (/pathology/i.test(d) || c === "PATH") return { name: "Pathology", code: "PATH" };
+      if (/surgery/i.test(d) || c === "SURG") return { name: "General Surgery", code: "SURG" };
+      if (/general medicine/i.test(d) || c === "GMED") return { name: "General Medicine", code: "GMED" };
+      if (/commerce|accounting|b\.com/i.test(d) || c === "COMM") return { name: "Commerce & Accounting", code: "BCOM" };
+      if (/business|management|mba|bba/i.test(d) || c === "MGMT") return { name: "Management Studies", code: "MBA" };
+
+      // Fallback: use raw department if meaningful
+      if (d && !/^(general|all|institution|medical & health sciences)$/i.test(d)) {
+        return { name: d, code: c || d.slice(0, 4).toUpperCase() };
+      }
+      return { name: "General", code: "GEN" };
+    };
+
+    // 1. Group enrolled students by their resolved department
+    const deptCounts = new Map<string, { name: string; code: string; count: number }>();
+    allStudents.forEach((s) => {
+      const info = resolveDeptInfo(s.department || "", s.departmentCode, s.section);
+      if (info.name !== "General") {
+        const existing = deptCounts.get(info.name);
+        if (existing) {
+          existing.count += 1;
+        } else {
+          deptCounts.set(info.name, { ...info, count: 1 });
+        }
+      }
     });
 
+    // 2. Add departments that have enrolled students
+    if (deptCounts.size > 0) {
+      deptCounts.forEach(({ name, code, count }) => {
+        const id = code.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+        if (!seenIds.has(id)) {
+          seenIds.add(id);
+          list.push({
+            id,
+            code,
+            name: `${name} (${code}) — ${count} ${count === 1 ? "student" : "students"}`,
+            count,
+          });
+        }
+      });
+    } else {
+      // Stream fallback if student records have no explicit department
+      const streamDepts = isMedical
+        ? [
+            { id: "anatomy", code: "ANAT", name: "Anatomy" },
+            { id: "general-surgery", code: "SURG", name: "General Surgery" },
+            { id: "physiology", code: "PHYS", name: "Physiology" },
+            { id: "pathology", code: "PATH", name: "Pathology" },
+          ]
+        : [
+            { id: "cse", code: "CSE", name: "Computer Science & Engineering" },
+            { id: "it", code: "IT", name: "Information Technology" },
+            { id: "aids", code: "AI&DS", name: "Artificial Intelligence & Data Science" },
+            { id: "ece", code: "ECE", name: "Electronics & Communication Engineering" },
+            { id: "mech", code: "MECH", name: "Mechanical Engineering" },
+          ];
+
+      streamDepts.forEach((dept) => {
+        const dCode = dept.code.toLowerCase();
+        const dName = dept.name.toLowerCase();
+        const count = allStudents.filter((s) => {
+          const sec = (s.section || "").toLowerCase();
+          const sDept = (s.department || "").toLowerCase();
+          const sCd = (s.departmentCode || "").toLowerCase();
+          return sec.includes(dName) || sec.includes(dCode) || sDept.includes(dName) || sCd === dCode;
+        }).length;
+
+        if (count > 0) {
+          seenIds.add(dept.id);
+          list.push({
+            id: dept.id,
+            code: dept.code,
+            name: `${dept.name} (${dept.code}) — ${count} ${count === 1 ? "student" : "students"}`,
+            count,
+          });
+        }
+      });
+    }
+
     return list;
-  }, [allStudents]);
+  }, [allStudents, isMedical]);
 
   // Filter students based on selected department
   const departmentStudents = useMemo(() => {
     if (selectedDeptCode === "all") return allStudents;
-    const targetDept = ACADEMIC_DEPARTMENTS.find((d) => d.id === selectedDeptCode);
-    if (!targetDept) return allStudents;
-    const dCode = targetDept.code.toLowerCase();
-    return allStudents.filter((s) => {
-      const sec = (s.section || "").toLowerCase();
-      const dName = (s.department || "").toLowerCase();
-      const dCd = (s.departmentCode || "").toLowerCase();
-      return sec.includes(dCode) || dCd === dCode || dName.includes(dCode) || dName.includes(targetDept.name.toLowerCase());
+
+    const targetOpt = departmentOptions.find((d) => d.id === selectedDeptCode);
+    if (!targetOpt) return allStudents;
+    const namePart = (targetOpt.name.split(" (")[0] || targetOpt.name).toLowerCase();
+    const codeL = targetOpt.code.toLowerCase();
+
+    const matches = allStudents.filter((s) => {
+      const sDept = (s.department || "").toLowerCase();
+      const sSec = (s.section || "").toLowerCase();
+      const sCd = (s.departmentCode || "").toLowerCase();
+      return (
+        sDept.includes(namePart) ||
+        namePart.includes(sDept) ||
+        sCd === codeL ||
+        sSec.startsWith(codeL) ||
+        sSec.includes(codeL)
+      );
     });
-  }, [allStudents, selectedDeptCode]);
+
+    return matches.length > 0 ? matches : allStudents;
+  }, [allStudents, selectedDeptCode, departmentOptions]);
 
   // Filter by search query if applicable
   const filteredStudents = useMemo(() => {
@@ -265,7 +394,7 @@ export function HandwrittenModule({ role = "faculty" }: { role?: Role } = {}) {
     );
   }, [departmentStudents, studentSearch]);
 
-  const activeDept = ACADEMIC_DEPARTMENTS.find((d) => d.id === selectedDeptCode);
+  const activeDept = departmentOptions.find((d) => d.id === selectedDeptCode);
   const activeDeptLabel = selectedDeptCode === "all" ? "All Departments" : activeDept ? activeDept.name : "Selected Department";
 
   const handleSelectStudent = (id: string) => {
@@ -307,7 +436,7 @@ export function HandwrittenModule({ role = "faculty" }: { role?: Role } = {}) {
         method: "POST",
         timeoutMs: 60_000,
         body: {
-          answer: ocrText || SAMPLE_SHEET.ocr,
+          answer: ocrText || sampleSheet.ocr,
           testId: "handwritten-exam",
           questionId: "q1",
           max: maxMarks || 10,
@@ -455,12 +584,12 @@ export function HandwrittenModule({ role = "faculty" }: { role?: Role } = {}) {
     setSavedItem(null);
     evaluate.reset();
     if (role !== "student") {
-      setStudentName(SAMPLE_SHEET.student);
-      setRollNo(SAMPLE_SHEET.rollNo);
+      setStudentName(sampleSheet.student);
+      setRollNo(sampleSheet.rollNo);
     }
-    setQuestion(SAMPLE_SHEET.question);
-    setMaxMarks(SAMPLE_SHEET.maxMarks);
-    setOcrText(SAMPLE_SHEET.ocr);
+    setQuestion(sampleSheet.question);
+    setMaxMarks(sampleSheet.maxMarks);
+    setOcrText(sampleSheet.ocr);
     setIsEditingOcr(false);
     setStage(0);
     evaluate.mutate();
@@ -475,10 +604,10 @@ export function HandwrittenModule({ role = "faculty" }: { role?: Role } = {}) {
 
     const effectiveName =
       (isStudent ? studentName.trim() || studentProfileQuery.data?.name : studentName.trim()) ||
-      SAMPLE_SHEET.student;
+      sampleSheet.student;
     const effectiveRoll =
       (isStudent ? rollNo.trim() || studentProfileQuery.data?.rollNo : rollNo.trim()) ||
-      SAMPLE_SHEET.rollNo;
+      sampleSheet.rollNo;
 
     saveSubmission.mutate({
       student: effectiveName,
@@ -487,9 +616,11 @@ export function HandwrittenModule({ role = "faculty" }: { role?: Role } = {}) {
         ? `${isStudent ? "Practice: " : "Assessment on "}${question.trim().slice(0, 30)}`
         : isStudent
         ? "Handwritten Self-Practice"
+        : isMedical
+        ? "Anatomy Internal Assessment I"
         : "DBMS Internal Assessment I",
-      question: question.trim() || SAMPLE_SHEET.question,
-      answer: ocrText || SAMPLE_SHEET.ocr,
+      question: question.trim() || sampleSheet.question,
+      answer: ocrText || sampleSheet.ocr,
       result: evaluate.data,
       status: isStudent ? "approved" : isOverridden ? "overridden" : "approved",
       finalScore: isStudent ? evaluate.data.score : scoreVal,
@@ -780,7 +911,7 @@ export function HandwrittenModule({ role = "faculty" }: { role?: Role } = {}) {
                     {/* 1. Academic Department Selector */}
                     <div>
                       <label className="text-[11px] font-semibold text-ink-2 block mb-1">
-                        Academic Department / Cohort
+                        Academic Department
                       </label>
                       <select
                         aria-label="Select academic department"
@@ -903,7 +1034,11 @@ export function HandwrittenModule({ role = "faculty" }: { role?: Role } = {}) {
                       onChange={(e) => setQuestion(e.target.value)}
                       placeholder={
                         role === "student"
-                          ? "e.g. Data Structures (or auto-detected from sheet)"
+                          ? isMedical
+                            ? "e.g. Anatomy / Physiology (or auto-detected from sheet)"
+                            : "e.g. Data Structures (or auto-detected from sheet)"
+                          : isMedical
+                          ? "Enter question or topic (e.g. Thyroid Gland, Brachial Plexus...)"
                           : "Enter question or topic (e.g. 3NF, Deadlocks...)"
                       }
                       className={cn(inputClass, "mt-1 text-xs py-1.5")}
