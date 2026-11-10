@@ -7,7 +7,7 @@ import { ApiError } from "@/lib/api/client";
 
 type Theme = "light" | "dark";
 
-interface Prefs {
+export interface Prefs {
   lang: Lang;
   setLang: (l: Lang) => void;
   theme: Theme;
@@ -15,14 +15,35 @@ interface Prefs {
   t: (key: TKey, vars?: Record<string, string | number>) => string;
 }
 
-const PrefsContext = createContext<Prefs | null>(null);
+const DEFAULT_PREFS: Prefs = {
+  lang: "en",
+  setLang: () => {},
+  theme: "light",
+  toggleTheme: () => {},
+  t: (key: TKey, vars?: Record<string, string | number>) => {
+    let s = DICTS.en[key] ?? key;
+    if (vars) for (const [k, v] of Object.entries(vars)) s = s.replace(`{${k}}`, String(v));
+    return s;
+  },
+};
+
+const PrefsContext = createContext<Prefs>(DEFAULT_PREFS);
 
 /** Preference cookies hold no personal data; they only let the server render the right theme/language. */
 function setPrefCookie(name: string, value: string) {
+  if (typeof document === "undefined" || typeof location === "undefined") return;
   document.cookie = `${name}=${encodeURIComponent(value)}; Path=/; Max-Age=31536000; SameSite=Lax${location.protocol === "https:" ? "; Secure" : ""}`;
 }
 
-export function Providers({ children, initialLang, initialTheme }: { children: ReactNode; initialLang: Lang; initialTheme: Theme }) {
+export function Providers({
+  children,
+  initialLang = "en",
+  initialTheme = "light",
+}: {
+  children: ReactNode;
+  initialLang?: Lang;
+  initialTheme?: Theme;
+}) {
   const [queryClient] = useState(
     () =>
       new QueryClient({
@@ -73,6 +94,5 @@ export function Providers({ children, initialLang, initialTheme }: { children: R
 
 export function usePrefs(): Prefs {
   const ctx = useContext(PrefsContext);
-  if (!ctx) throw new Error("usePrefs must be used inside <Providers>");
-  return ctx;
+  return ctx ?? DEFAULT_PREFS;
 }
