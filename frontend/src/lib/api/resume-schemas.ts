@@ -37,7 +37,7 @@ export const ResumeDoc = z.object({
   links: z.array(line(200)).max(5),
   summary: line(700),
   education: z.array(ResumeEducation).max(6),
-  skills: z.array(line(40)).max(40),
+  skills: z.array(line(100)).max(40),
   projects: z.array(ResumeProject).max(8),
   experience: z.array(ResumeExperience).max(8),
   certifications: z.array(line(200)).max(12),
@@ -51,6 +51,8 @@ export const ResumeOverview = z.object({
   seed: ResumeDoc,
   saved: z.boolean(),
   updatedAt: z.string().nullable(),
+  stream: z.string().optional().default("engineering"),
+  roles: z.array(z.string()).optional(),
 });
 export type ResumeOverview = z.infer<typeof ResumeOverview>;
 

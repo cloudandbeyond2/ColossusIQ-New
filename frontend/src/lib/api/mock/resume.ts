@@ -5,7 +5,7 @@ import { cleanText } from "@/lib/security/sanitize";
 import { ResumeDoc, StoredResume, type ResumeOverview } from "@/lib/api/resume-schemas";
 import { experienceStore } from "./experience-store";
 import { periodOf } from "./experience";
-import { collegeName } from "./records";
+import { collegeName, collegeStream } from "./records";
 import { getStudentAcademicProfile } from "./student-profile";
 import { studentStateStore } from "./student-state-store";
 import type { MockResult } from "./router";
@@ -43,9 +43,9 @@ async function seedFor(s: SessionPayload): Promise<ResumeDoc> {
     const p = await getStudentAcademicProfile(s);
     const school = await collegeName(s.college).catch(() => "");
     doc.name = p.name || s.name;
-    doc.headline = `${p.degree} student · ${p.department}`;
-    doc.education = [{ school, degree: `${p.degree}, ${p.department}`, period: "", score: p.cgpa ? `CGPA ${p.cgpa.toFixed(2)}` : "" }];
-    doc.skills = [...new Set(p.enrolledSubjects.map((x) => x.title))].slice(0, 12);
+    doc.headline = cleanText(`${p.degree} student · ${p.department}`, 120);
+    doc.education = [{ school: cleanText(school, 140), degree: cleanText(`${p.degree}, ${p.department}`, 160), period: "", score: p.cgpa ? `CGPA ${p.cgpa.toFixed(2)}` : "" }];
+    doc.skills = [...new Set(p.enrolledSubjects.map((x) => cleanText(x.title, 100)))].filter(Boolean).slice(0, 12);
   } catch {
     /* keep the blank draft */
   }
@@ -53,19 +53,21 @@ async function seedFor(s: SessionPayload): Promise<ResumeDoc> {
     const rows = (await experienceStore().list(s, "mine")).filter((r) => r.status !== "Rejected");
     const verified = rows.filter((r) => r.status === "Verified");
     doc.experience = (verified.length ? verified : rows).slice(0, 8).map((r) => ({
-      title: r.role || r.title,
-      org: r.organisation,
-      period: periodOf(r.startMonth, r.endMonth),
+      title: cleanText(r.role || r.title, 120),
+      org: cleanText(r.organisation, 140),
+      period: cleanText(periodOf(r.startMonth, r.endMonth), 40),
       bullets: r.description
         .split(/\n+/)
-        .map((l) => l.trim())
+        .map((l) => cleanText(l.trim(), 300))
         .filter(Boolean)
         .slice(0, 4),
     }));
   } catch {
     /* no passport entries */
   }
-  return ResumeDoc.parse(doc);
+  const cleaned = clean(doc);
+  const parsed = ResumeDoc.safeParse(cleaned);
+  return parsed.success ? parsed.data : doc;
 }
 
 /** Strips markup and control characters from every string the student typed. */
@@ -82,7 +84,7 @@ function clean(d: ResumeDoc): ResumeDoc {
     links: list(d.links, 200),
     summary: c(d.summary, 700),
     education: d.education.map((e) => ({ school: c(e.school, 140), degree: c(e.degree, 160), period: c(e.period, 40), score: c(e.score, 40) })).filter((e) => e.school || e.degree),
-    skills: [...new Set(list(d.skills, 40))],
+    skills: [...new Set(list(d.skills, 100))],
     projects: d.projects.map((p) => ({ name: c(p.name, 120), tech: c(p.tech, 160), link: c(p.link, 200), bullets: list(p.bullets, 300) })).filter((p) => p.name),
     experience: d.experience.map((x) => ({ title: c(x.title, 120), org: c(x.org, 140), period: c(x.period, 40), bullets: list(x.bullets, 300) })).filter((x) => x.title || x.org),
     certifications: list(d.certifications, 200),
@@ -92,6 +94,39 @@ function clean(d: ResumeDoc): ResumeDoc {
 
 const invalid = (e: z.ZodError): MockResult => err(422, "validation", e.issues[0]?.message ?? "That resume could not be saved.");
 
+export function getStreamRoles(stream: string): string[] {
+  switch (stream) {
+    case "medical":
+      return [
+        "Junior Resident / RMO",
+        "Duty Medical Officer (DMO)",
+        "Clinical Research Associate",
+        "Medical Officer",
+      ];
+    case "polytechnic":
+      return [
+        "Diploma Engineer Trainee (DET)",
+        "Site / Production Supervisor",
+        "Field Service Technician",
+      ];
+    case "artsScience":
+    case "management":
+      return [
+        "Financial Analyst",
+        "Business Development Associate",
+        "Human Resources Associate",
+      ];
+    case "engineering":
+    default:
+      return [
+        "Software Engineer",
+        "Data Analyst",
+        "Data Scientist",
+        "Full Stack Developer",
+      ];
+  }
+}
+
 export async function dispatchResume(method: string, segs: string[], rawBody: unknown, s: SessionPayload): Promise<MockResult> {
   if (s.role !== "student") return err(403, "forbidden", "The Resume Builder is for students.");
   if (segs.length !== 1) return err(404, "not_found", "Not found.");
@@ -100,9 +135,11 @@ export async function dispatchResume(method: string, segs: string[], rawBody: un
   if (method === "GET") {
     const saved = StoredResume.safeParse(await store.get(s.sub, STATE_KEY));
     const seed = await seedFor(s);
+    const stream = (await collegeStream(s.college).catch(() => "engineering")) || "engineering";
+    const roles = getStreamRoles(stream);
     const body: ResumeOverview = saved.success
-      ? { doc: saved.data.doc, seed, saved: true, updatedAt: saved.data.updatedAt }
-      : { doc: seed, seed, saved: false, updatedAt: null };
+      ? { doc: saved.data.doc, seed, saved: true, updatedAt: saved.data.updatedAt, stream, roles }
+      : { doc: seed, seed, saved: false, updatedAt: null, stream, roles };
     return ok(body);
   }
 
