@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CheckCircle2, Circle, CircleAlert, CircleX, FileDown, FileText, FileType2, Plus, RotateCcw, Save, ScanSearch, Trash2 } from "lucide-react";
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { z } from "zod";
 import { LoadError } from "@/components/ui/load-error";
 import { AiLabel } from "@/components/ui/notices";
@@ -43,7 +43,31 @@ function Builder({ data }: { data: ResumeOverview }) {
   const qc = useQueryClient();
   const [doc, setDoc] = useState<ResumeDoc>(data.doc);
   const [tab, setTab] = useState<Tab>("Basics");
-  const [role, setRole] = useState(ROLES[0]!);
+
+  const streamRoles = useMemo(() => {
+    if (data.roles && data.roles.length > 0) return data.roles;
+    const edu = data.doc.education[0]?.degree?.toLowerCase() || "";
+    const hl = data.doc.headline?.toLowerCase() || "";
+    if (data.stream === "medical" || /mbbs|bds|anatomy|medical|hospital/i.test(edu) || /mbbs|bds|anatomy|medical/i.test(hl)) {
+      return ["Junior Resident / RMO", "Duty Medical Officer (DMO)", "Clinical Research Associate", "Medical Officer"];
+    }
+    if (data.stream === "polytechnic" || /diploma/i.test(edu)) {
+      return ["Diploma Engineer Trainee (DET)", "Site / Production Supervisor", "Field Service Technician"];
+    }
+    if (data.stream === "artsScience" || data.stream === "management") {
+      return ["Financial Analyst", "Business Development Associate", "Human Resources Associate"];
+    }
+    return ["Software Engineer", "Data Analyst", "Data Scientist", "Full Stack Developer"];
+  }, [data.roles, data.stream, data.doc.education, data.doc.headline]);
+
+  const [role, setRole] = useState(streamRoles[0] || "Software Engineer");
+
+  useEffect(() => {
+    if (streamRoles.length > 0 && !streamRoles.includes(role)) {
+      setRole(streamRoles[0]!);
+    }
+  }, [streamRoles, role]);
+
   const [confirmSeed, setConfirmSeed] = useState(false);
   const [justSaved, setJustSaved] = useState(false);
 
@@ -185,8 +209,8 @@ function Builder({ data }: { data: ResumeOverview }) {
           <CardBody className="space-y-4">
             <div className="flex flex-wrap gap-2">
               <select aria-label="Target role" className={cn(inputClass, "w-auto")} value={role} onChange={(e) => setRole(e.target.value)}>
-                {ROLES.map((r) => (
-                  <option key={r}>{r}</option>
+                {streamRoles.map((r) => (
+                  <option key={r} value={r}>{r}</option>
                 ))}
               </select>
               <Button onClick={() => analyze.mutate()} disabled={analyze.isPending || resumeText(doc).length < 20}>
@@ -310,7 +334,7 @@ function SkillsTab({ doc, set }: TabProps) {
           rows={4}
           className={inputClass}
           value={doc.skills.join(", ")}
-          onChange={(e) => set({ skills: e.target.value.split(",").map((s) => s.trimStart().slice(0, 40)).slice(0, 40) })}
+          onChange={(e) => set({ skills: e.target.value.split(",").map((s) => s.trimStart().slice(0, 100)).slice(0, 40) })}
         />
       </Field>
       <div className="flex flex-wrap gap-1.5">

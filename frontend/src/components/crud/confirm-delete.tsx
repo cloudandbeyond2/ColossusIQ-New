@@ -10,7 +10,10 @@ export function ConfirmDelete({
   open,
   recordId,
   recordName,
-  singular,
+  singular = "record",
+  title,
+  description,
+  confirmLabel = "Delete",
   warning,
   strong,
   busy,
@@ -19,9 +22,12 @@ export function ConfirmDelete({
   onConfirm,
 }: {
   open: boolean;
-  recordId: string;
+  recordId?: string;
   recordName: string;
-  singular: string;
+  singular?: string;
+  title?: string;
+  description?: React.ReactNode;
+  confirmLabel?: string;
   warning?: string;
   strong?: boolean;
   busy?: boolean;
@@ -41,7 +47,7 @@ export function ConfirmDelete({
   }, [open, busy, onCancel]);
 
   if (!open) return null;
-  const canDelete = !strong || typed.trim() === recordId;
+  const canDelete = !strong || (Boolean(recordId) && typed.trim() === recordId);
 
   // Portal to <body> so no ancestor transform/overflow can clip the overlay.
   return createPortal(
@@ -52,15 +58,19 @@ export function ConfirmDelete({
           <Fi name="trash" />
         </span>
         <h2 id="del-title" className="mt-4 text-lg font-semibold text-ink">
-          Delete {singular.toLowerCase()}?
+          {title ?? `Delete ${singular.toLowerCase()}?`}
         </h2>
         <div id="del-desc" className="mt-1.5 space-y-2 text-sm text-ink-2">
-          <p>
-            <span className="font-medium text-ink">{recordName}</span> <span className="font-mono text-xs text-ink-3">({recordId})</span> will be permanently removed.
-          </p>
+          {description ? (
+            description
+          ) : (
+            <p>
+              <span className="font-medium text-ink">{recordName}</span> {recordId ? <span className="font-mono text-xs text-ink-3">({recordId})</span> : null} will be permanently removed.
+            </p>
+          )}
           {warning ? <p className="rounded-xl bg-amber-soft px-3 py-2 text-ink">{warning}</p> : null}
         </div>
-        {strong ? (
+        {strong && recordId ? (
           <div className="mt-4 space-y-1.5">
             <label htmlFor="del-confirm" className="text-sm text-ink">
               Type <span className="font-mono font-semibold">{recordId}</span> to confirm
@@ -78,7 +88,7 @@ export function ConfirmDelete({
             Cancel
           </Button>
           <Button variant="danger" onClick={onConfirm} disabled={!canDelete || busy}>
-            {busy ? <Spinner /> : <Fi name="trash" />} Delete
+            {busy ? <Spinner /> : <Fi name="trash" />} {confirmLabel}
           </Button>
         </div>
       </div>

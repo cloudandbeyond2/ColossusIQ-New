@@ -564,9 +564,27 @@ function answerFeedback(answer: string): string {
 
 /* ── resume ─────────────────────────────────────── */
 const ROLE_KEYWORDS: Record<string, string[]> = {
+  // Engineering / Tech
   "Software Engineer": ["data structures", "algorithms", "java", "python", "sql", "git", "rest", "api", "testing", "docker"],
   "Data Analyst": ["sql", "excel", "python", "pandas", "power bi", "tableau", "statistics", "dashboard", "visualization"],
   "Data Scientist": ["python", "machine learning", "statistics", "pandas", "scikit-learn", "sql", "deep learning", "visualization"],
+  "Full Stack Developer": ["react", "node", "typescript", "javascript", "sql", "mongodb", "api", "git", "css", "docker"],
+
+  // Medical / Healthcare
+  "Junior Resident / RMO": ["clinical", "patient", "history", "vitals", "diagnosis", "opd", "ipd", "emergency", "treatment", "dissection"],
+  "Duty Medical Officer (DMO)": ["triage", "emergency", "bls", "acls", "pharmacology", "resuscitation", "trauma", "patient care", "referral"],
+  "Clinical Research Associate": ["clinical research", "trial", "icmr", "protocol", "ethics", "biostatistics", "data collection", "gcp", "anatomy"],
+  "Medical Officer": ["public health", "primary care", "immunisation", "epidemiology", "consultation", "patient management", "healthcare", "pathology"],
+
+  // Polytechnic / Diploma
+  "Diploma Engineer Trainee (DET)": ["maintenance", "troubleshooting", "cad", "testing", "inspection", "safety", "plc", "schematics", "quality"],
+  "Site / Production Supervisor": ["production", "assembly", "supervision", "safety protocols", "inspection", "inventory", "quality control", "maintenance"],
+  "Field Service Technician": ["installation", "preventive maintenance", "calibration", "fault diagnosis", "wiring", "circuit", "testing", "repairs"],
+
+  // Management / Arts & Science
+  "Financial Analyst": ["financial modeling", "accounting", "excel", "valuation", "ratio analysis", "budgeting", "reconciliation", "reporting", "forecasting"],
+  "Business Development Associate": ["market research", "lead generation", "sales", "crm", "client relationship", "negotiation", "presentation", "revenue"],
+  "Human Resources Associate": ["recruitment", "onboarding", "payroll", "employee engagement", "hris", "compliance", "training", "performance"],
 };
 
 export function analyzeResume(text: string, role: string): ResumeAnalysis {
@@ -576,12 +594,12 @@ export function analyzeResume(text: string, role: string): ResumeAnalysis {
   const missing = keywords.filter((kw) => !t.includes(kw));
   const has = (re: RegExp) => re.test(t);
   const sections: ResumeAnalysis["sections"] = [
-    { name: "Contact & links", status: has(/@|linkedin|github/) ? "good" : "missing", note: has(/github/) ? "GitHub link present." : "Add GitHub / portfolio link." },
-    { name: "Education", status: has(/b\.?e|b\.?tech|cgpa|university|college/) ? "good" : "missing", note: "Include CGPA and expected graduation." },
-    { name: "Skills", status: found.length >= 4 ? "good" : "improve", note: `${found.length} of ${keywords.length} role keywords found.` },
-    { name: "Projects", status: has(/project/) ? (has(/\d+%|\d+ users|reduced|improved/) ? "good" : "improve") : "missing", note: "Quantify impact (e.g. \"reduced latency 30%\")." },
-    { name: "Experience / internships", status: has(/intern|experience/) ? "good" : "improve", note: "List internships, freelance or open-source work." },
-    { name: "Certifications & achievements", status: has(/certif|award|hackathon|winner/) ? "good" : "improve", note: "Add verified certifications and competition results." },
+    { name: "Contact & links", status: has(/@|linkedin|github|researchgate|portfolio|orcid/) ? "good" : "missing", note: has(/linkedin|github|researchgate/) ? "Professional / research profile link present." : "Add LinkedIn, GitHub, or ResearchGate link." },
+    { name: "Education", status: has(/b\.?e|b\.?tech|mbbs|bds|md|ms|diploma|b\.?com|bba|mba|bsc|cgpa|percentage|university|college|hospital/) ? "good" : "missing", note: "Include CGPA or marks and degree details." },
+    { name: "Skills", status: found.length >= 3 ? "good" : "improve", note: `${found.length} of ${keywords.length} role keywords found.` },
+    { name: "Projects", status: has(/project|study|research|clinical|dissection/) ? (has(/\d+%|\d+ patients|\d+ specimens|\d+ users|reduced|improved|analyzed|evaluated/) ? "good" : "improve") : "missing", note: "Quantify impact or scope (e.g. sample size, percentages, or outcomes)." },
+    { name: "Experience / internships", status: has(/intern|experience|demonstrator|resident|assistant|training/) ? "good" : "improve", note: "List clinical rotations, internships, or practical work." },
+    { name: "Certifications & achievements", status: has(/certif|award|quiz|merit|winner|fellowship|bls|acls|gcp|icmr/) ? "good" : "improve", note: "Add verified certifications and academic achievements." },
   ];
   const sectionScore = sections.reduce((a, s) => a + (s.status === "good" ? 1 : s.status === "improve" ? 0.5 : 0), 0) / sections.length;
   const atsScore = Math.round(35 + 40 * (found.length / keywords.length) + 25 * sectionScore);
