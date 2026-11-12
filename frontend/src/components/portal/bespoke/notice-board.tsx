@@ -127,6 +127,8 @@ function Inbox({ notices }: { notices: NoticeView[] }) {
   const [filter, setFilter] = useState<Filter>("all");
   const [category, setCategory] = useState("");
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const perPage = 5;
   const [targetId] = useState<string | null>(() => {
     if (typeof window === "undefined") return null;
     return new URLSearchParams(window.location.search).get("id");
@@ -139,6 +141,23 @@ function Inbox({ notices }: { notices: NoticeView[] }) {
       (!category || n.category === category) &&
       (!needle || `${n.title} ${n.body}`.toLowerCase().includes(needle)),
   );
+
+  useEffect(() => {
+    setPage(1);
+  }, [filter, category, search]);
+
+  useEffect(() => {
+    if (targetId) {
+      const idx = list.findIndex((n) => n.id === targetId);
+      if (idx !== -1) {
+        setPage(Math.floor(idx / perPage) + 1);
+      }
+    }
+  }, [targetId, list]);
+
+  const totalPages = Math.max(1, Math.ceil(list.length / perPage));
+  const paginated = list.slice((page - 1) * perPage, page * perPage);
+
   return (
     <div className="grid gap-5 lg:grid-cols-[220px_minmax(0,1fr)]">
       <Card className="h-fit p-3 lg:sticky lg:top-4">
@@ -172,7 +191,58 @@ function Inbox({ notices }: { notices: NoticeView[] }) {
         </div>
       </Card>
       <div className="space-y-3">
-        {list.length ? list.map((n) => <NoticeCard key={n.id} n={n} isTarget={targetId === n.id} />) : <EmptyState title={notices.length ? "Nothing matches" : "No notices yet"} body={notices.length ? "Try another filter." : "Announcements from your college and the university will appear here."} />}
+        {paginated.length ? (
+          <>
+            {paginated.map((n) => (
+              <NoticeCard key={n.id} n={n} isTarget={targetId === n.id} />
+            ))}
+            {list.length > perPage && (
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-line bg-surface p-3.5 text-xs text-ink-3 shadow-xs">
+                <span>
+                  Showing {(page - 1) * perPage + 1} to {Math.min(page * perPage, list.length)} of {list.length} notices
+                </span>
+                <div className="flex items-center gap-1.5">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    disabled={page <= 1}
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    className="gap-1 px-2.5 py-1 text-xs"
+                  >
+                    <Fi name="angle-left" /> Prev
+                  </Button>
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((pg) => (
+                    <button
+                      key={pg}
+                      type="button"
+                      onClick={() => setPage(pg)}
+                      className={cn(
+                        "size-7 rounded-lg text-xs font-semibold transition-colors",
+                        page === pg ? "bg-brand text-white shadow-xs" : "text-ink-2 hover:bg-surface-2",
+                      )}
+                    >
+                      {pg}
+                    </button>
+                  ))}
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    disabled={page >= totalPages}
+                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                    className="gap-1 px-2.5 py-1 text-xs"
+                  >
+                    Next <Fi name="angle-right" />
+                  </Button>
+                </div>
+              </div>
+            )}
+          </>
+        ) : (
+          <EmptyState
+            title={notices.length ? "Nothing matches" : "No notices yet"}
+            body={notices.length ? "Try another filter." : "Announcements from your college and the university will appear here."}
+          />
+        )}
       </div>
     </div>
   );
@@ -426,12 +496,57 @@ function Composer({ compose, onDone }: { compose: NonNullable<NoticeBoard["compo
 }
 
 function Sent({ notices }: { notices: NoticeView[] }) {
+  const [page, setPage] = useState(1);
+  const perPage = 5;
   if (!notices.length) return <EmptyState title="You haven't posted a notice yet" body="Notices you post appear here with how many people have read and acknowledged them." />;
+  const totalPages = Math.max(1, Math.ceil(notices.length / perPage));
+  const paginated = notices.slice((page - 1) * perPage, page * perPage);
+
   return (
     <div className="space-y-3">
-      {notices.map((n) => (
+      {paginated.map((n) => (
         <NoticeCard key={n.id} n={n} />
       ))}
+      {notices.length > perPage && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-line bg-surface p-3.5 text-xs text-ink-3 shadow-xs">
+          <span>
+            Showing {(page - 1) * perPage + 1} to {Math.min(page * perPage, notices.length)} of {notices.length} notices
+          </span>
+          <div className="flex items-center gap-1.5">
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={page <= 1}
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              className="gap-1 px-2.5 py-1 text-xs"
+            >
+              <Fi name="angle-left" /> Prev
+            </Button>
+            {Array.from({ length: totalPages }, (_, i) => i + 1).map((pg) => (
+              <button
+                key={pg}
+                type="button"
+                onClick={() => setPage(pg)}
+                className={cn(
+                  "size-7 rounded-lg text-xs font-semibold transition-colors",
+                  page === pg ? "bg-brand text-white shadow-xs" : "text-ink-2 hover:bg-surface-2",
+                )}
+              >
+                {pg}
+              </button>
+            ))}
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={page >= totalPages}
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              className="gap-1 px-2.5 py-1 text-xs"
+            >
+              Next <Fi name="angle-right" />
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
