@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { z } from "zod";
+import { ConfirmDelete } from "@/components/crud/confirm-delete";
 import { Fi } from "@/components/ui/icon";
 import { LoadError } from "@/components/ui/load-error";
 import { Badge, Button, Card, CardBody, CardHeader, EmptyState, Field, inputClass, Skeleton, Spinner } from "@/components/ui/primitives";
@@ -180,6 +181,7 @@ function Inbox({ notices }: { notices: NoticeView[] }) {
 function NoticeCard({ n, preview = false, isTarget = false }: { n: NoticeView; preview?: boolean; isTarget?: boolean }) {
   const { read, remove } = useNoticeActions();
   const [open, setOpen] = useState(n.priority !== "Normal" || n.pinned || isTarget);
+  const [showDelete, setShowDelete] = useState(false);
   const style = PRIORITY_STYLE[n.priority];
   const audience = [AUDIENCE_LABEL[n.audience], n.department, n.year ? `Year ${n.year}` : ""].filter(Boolean).join(" · ");
   const long = n.body.length > 280;
@@ -260,17 +262,34 @@ function NoticeCard({ n, preview = false, isTarget = false }: { n: NoticeView; p
               )
             ) : null}
             {n.canDelete && !preview ? (
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => {
-                  if (window.confirm("Remove this notice for everyone?")) remove.mutate(n.id);
-                }}
-                disabled={remove.isPending}
-                aria-label="Remove notice"
-              >
-                <Fi name="trash" />
-              </Button>
+              <>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setShowDelete(true)}
+                  disabled={remove.isPending}
+                  aria-label="Remove notice"
+                >
+                  <Fi name="trash" />
+                </Button>
+                {showDelete ? (
+                  <ConfirmDelete
+                    open={showDelete}
+                    recordName={n.title}
+                    title="Remove this notice for everyone?"
+                    warning="This announcement will be removed from all notice boards and notification bells."
+                    confirmLabel="Remove"
+                    busy={remove.isPending}
+                    error={remove.error instanceof ApiError ? remove.error.message : null}
+                    onCancel={() => setShowDelete(false)}
+                    onConfirm={() => {
+                      remove.mutate(n.id, {
+                        onSuccess: () => setShowDelete(false),
+                      });
+                    }}
+                  />
+                ) : null}
+              </>
             ) : null}
           </div>
         </div>
