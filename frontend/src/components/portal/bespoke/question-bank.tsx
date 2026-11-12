@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -117,6 +117,7 @@ export function QuestionBankModule({ role }: { role?: Role }) {
   const [difficultyFilter, setDifficultyFilter] = useState("All");
   const [bloomFilter, setBloomFilter] = useState("All");
   const [statusFilter, setStatusFilter] = useState("All");
+  const [sortOrder, setSortOrder] = useState<"newest" | "alpha">("newest");
   const [viewMode, setViewMode] = useState<"folders" | "accordion">("folders");
 
   // Modals & Dialogs
@@ -124,6 +125,10 @@ export function QuestionBankModule({ role }: { role?: Role }) {
   const [isNewQuestionOpen, setIsNewQuestionOpen] = useState(false);
   const [newQuestionTopic, setNewQuestionTopic] = useState("");
   const [questionToDelete, setQuestionToDelete] = useState<QuestionBankItem | null>(null);
+  const [folderToDelete, setFolderToDelete] = useState<QuestionFolder | null>(null);
+  const [foldersPage, setFoldersPage] = useState(1);
+  const [foldersPerPage] = useState(6);
+  const [questionsPage, setQuestionsPage] = useState(1);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [expandedAnswers, setExpandedAnswers] = useState<Record<string, boolean>>({});
   const [expandedAccordion, setExpandedAccordion] = useState<Record<string, boolean>>({});
@@ -134,13 +139,21 @@ export function QuestionBankModule({ role }: { role?: Role }) {
     setTimeout(() => setToastMessage(null), 3500);
   };
 
+  useEffect(() => {
+    setFoldersPage(1);
+  }, [search, difficultyFilter, bloomFilter, statusFilter, sortOrder]);
+
+  useEffect(() => {
+    setQuestionsPage(1);
+  }, [selectedTopic]);
+
   // Fetch all questions grouped into folders
   const { data, isLoading, isFetching, error, refetch } = useQuery({
     queryKey: ["question-bank-folders"],
     queryFn: () => apiFetch("/api/v1/question-bank/folders", QuestionBankOverviewSchema),
   });
 
-  // Delete mutation
+  // Delete single question mutation
   const del = useMutation({
     mutationFn: (id: string) =>
       apiFetch(
@@ -158,13 +171,38 @@ export function QuestionBankModule({ role }: { role?: Role }) {
     },
   });
 
+  // Delete entire folder mutation
+  const delFolder = useMutation({
+    mutationFn: async (folder: QuestionFolder) => {
+      for (const q of folder.questions) {
+        await apiFetch(
+          `/api/v1/records/questions/${encodeURIComponent(q.id)}`,
+          z.object({ ok: z.literal(true) }).passthrough(),
+          { method: "DELETE" }
+        );
+      }
+    },
+    onSuccess: () => {
+      const topicName = folderToDelete?.topic;
+      setFolderToDelete(null);
+      if (selectedTopic && selectedTopic === topicName) {
+        handleSelectTopic(null);
+      }
+      showToast(`Topic folder "${topicName}" removed.`);
+      void qc.invalidateQueries({ queryKey: ["question-bank-folders"] });
+    },
+    onError: (e) => {
+      showToast(e instanceof ApiError ? e.message : "Failed to delete topic folder.");
+    },
+  });
+
   // Filter folders and questions based on search & filters
   const processedFolders = useMemo(() => {
     if (!data?.folders) return [];
 
     const q = search.trim().toLowerCase();
 
-    return data.folders
+    const list = data.folders
       .map((folder) => {
         // Filter questions within this folder
         const matchedQuestions = folder.questions.filter((item) => {
@@ -194,7 +232,21 @@ export function QuestionBankModule({ role }: { role?: Role }) {
         };
       })
       .filter((f) => f.matchesFilter);
-  }, [data?.folders, search, difficultyFilter, bloomFilter, statusFilter]);
+
+    return list.sort((a, b) => {
+      if (sortOrder === "alpha") {
+        return a.topic.localeCompare(b.topic);
+      }
+      const getLatest = (f: typeof a) => {
+        const times = f.questions.map((item) => {
+          const t = new Date(item.updatedAt || item.createdAt || 0).getTime();
+          return isNaN(t) ? 0 : t;
+        });
+        return times.length ? Math.max(...times) : 0;
+      };
+      return getLatest(b) - getLatest(a) || a.topic.localeCompare(b.topic);
+    });
+  }, [data?.folders, search, difficultyFilter, bloomFilter, statusFilter, sortOrder]);
 
   // Current active folder (if one is clicked)
   const currentFolder: FolderWithFiltered | null = useMemo(() => {
@@ -412,6 +464,17 @@ export function QuestionBankModule({ role }: { role?: Role }) {
             ))}
           </select>
 
+          {/* Sort order */}
+          <select
+            value={sortOrder}
+            onChange={(e) => setSortOrder(e.target.value as "newest" | "alpha")}
+            className="rounded-lg border border-line bg-surface px-2.5 py-1.5 text-xs font-medium text-ink focus:border-brand focus:outline-none"
+            aria-label="Sort folders"
+          >
+            <option value="newest">Newest First</option>
+            <option value="alpha">Alphabetical (A–Z)</option>
+          </select>
+
           {/* View toggle */}
           <div className="flex items-center rounded-lg border border-line bg-surface-2 p-0.5">
             <button
@@ -520,6 +583,15 @@ export function QuestionBankModule({ role }: { role?: Role }) {
                     <Plus className="size-3.5" />
                     Add Question to Topic
                   </Button>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => setFolderToDelete(currentFolder)}
+                    className="gap-1.5 text-rose hover:bg-rose-soft hover:border-rose/30"
+                  >
+                    <Trash2 className="size-3.5" />
+                    Delete Folder
+                  </Button>
                 </div>
               )}
             </div>
@@ -579,8 +651,20 @@ export function QuestionBankModule({ role }: { role?: Role }) {
                 }
               />
             ) : (
-              (currentFolder.filteredQuestions ?? currentFolder.questions).map((item, index) => {
-                const isExpanded = Boolean(expandedAnswers[item.id]);
+              (() => {
+                const folderQuestions = currentFolder.filteredQuestions ?? currentFolder.questions;
+                const questionsPerPage = 6;
+                const totalQuestionPages = Math.max(1, Math.ceil(folderQuestions.length / questionsPerPage));
+                const paginatedQuestions = folderQuestions.slice(
+                  (questionsPage - 1) * questionsPerPage,
+                  questionsPage * questionsPerPage
+                );
+
+                return (
+                  <>
+                    {paginatedQuestions.map((item, index) => {
+                      const isExpanded = Boolean(expandedAnswers[item.id]);
+                      const qNumber = (questionsPage - 1) * questionsPerPage + index + 1;
 
                 return (
                   <Card
@@ -592,7 +676,7 @@ export function QuestionBankModule({ role }: { role?: Role }) {
                       <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
                         <div className="flex flex-wrap items-center gap-2">
                           <span className="flex size-6 items-center justify-center rounded-md bg-surface-2 font-mono text-xs font-semibold text-ink-2">
-                            #{index + 1}
+                            #{qNumber}
                           </span>
                           <span className="font-mono font-medium text-ink-3">{item.id}</span>
                           <Badge
@@ -694,8 +778,57 @@ export function QuestionBankModule({ role }: { role?: Role }) {
                     </CardBody>
                   </Card>
                 );
-              })
-            )}
+              })}
+
+              {/* Questions Pagination */}
+              {folderQuestions.length > questionsPerPage && (
+                <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line/60 pt-4 text-xs text-ink-3">
+                  <span>
+                    Showing {(questionsPage - 1) * questionsPerPage + 1} to{" "}
+                    {Math.min(questionsPage * questionsPerPage, folderQuestions.length)} of{" "}
+                    {folderQuestions.length} questions
+                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      disabled={questionsPage <= 1}
+                      onClick={() => setQuestionsPage((p) => Math.max(1, p - 1))}
+                      className="gap-1 px-2.5 py-1 text-xs"
+                    >
+                      <ArrowLeft className="size-3" /> Prev
+                    </Button>
+                    {Array.from({ length: totalQuestionPages }, (_, i) => i + 1).map((pg) => (
+                      <button
+                        key={pg}
+                        type="button"
+                        onClick={() => setQuestionsPage(pg)}
+                        className={cn(
+                          "size-7 rounded-lg text-xs font-semibold transition-colors",
+                          questionsPage === pg
+                            ? "bg-brand text-white shadow-xs"
+                            : "text-ink-2 hover:bg-surface-2",
+                        )}
+                      >
+                        {pg}
+                      </button>
+                    ))}
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      disabled={questionsPage >= totalQuestionPages}
+                      onClick={() => setQuestionsPage((p) => Math.min(totalQuestionPages, p + 1))}
+                      className="gap-1 px-2.5 py-1 text-xs"
+                    >
+                      Next <ArrowRight className="size-3" />
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </>
+          );
+        })()
+      )}
           </div>
 
           {/* Quick jump to other folders */}
@@ -841,85 +974,143 @@ export function QuestionBankModule({ role }: { role?: Role }) {
               }
             />
           ) : (
-            <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
-              {processedFolders.map((folder) => {
-                const count = folder.filteredQuestions?.length ?? folder.count;
-                const sample = folder.questions[0];
+            (() => {
+              const totalFolderPages = Math.max(1, Math.ceil(processedFolders.length / foldersPerPage));
+              const paginatedFolders = processedFolders.slice(
+                (foldersPage - 1) * foldersPerPage,
+                foldersPage * foldersPerPage
+              );
 
-                return (
-                  <div
-                    key={folder.topic}
-                    onClick={() => handleSelectTopic(folder.topic)}
-                    className="group relative flex cursor-pointer flex-col justify-between overflow-hidden rounded-2xl border border-line bg-surface p-5 shadow-xs transition-all duration-200 hover:-translate-y-0.5 hover:border-amber-500/50 hover:shadow-md hover:shadow-amber-500/5"
-                  >
-                    {/* Folder Tab Visual Edge */}
-                    <div className="absolute -top-1 left-6 h-2 w-20 rounded-b-md bg-amber-500/20 group-hover:bg-amber-500/40" />
+              return (
+                <>
+                  <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
+                    {paginatedFolders.map((folder) => {
+                      const count = folder.filteredQuestions?.length ?? folder.count;
+                      const sample = folder.questions[0];
 
-                    <div>
-                      {/* Folder Top Row: Icon + Counter */}
-                      <div className="flex items-center justify-between">
-                        <div className="flex size-12 items-center justify-center rounded-xl bg-amber-500/10 text-amber-600 transition-transform duration-200 group-hover:scale-105 group-hover:bg-amber-500/20">
-                          <Folder className="size-6 transition-all group-hover:hidden" />
-                          <FolderOpen className="hidden size-6 transition-all group-hover:block" />
-                        </div>
+                      return (
+                        <div
+                          key={folder.topic}
+                          onClick={() => handleSelectTopic(folder.topic)}
+                          className="group relative flex cursor-pointer flex-col justify-between overflow-hidden rounded-2xl border border-line bg-surface p-5 shadow-xs transition-all duration-200 hover:-translate-y-0.5 hover:border-amber-500/50 hover:shadow-md hover:shadow-amber-500/5"
+                        >
+                          {/* Folder Tab Visual Edge */}
+                          <div className="absolute -top-1 left-6 h-2 w-20 rounded-b-md bg-amber-500/20 group-hover:bg-amber-500/40" />
 
-                        <div className="flex items-center gap-1.5">
-                          <Badge tone="brand" className="px-2.5 py-0.5 font-semibold text-xs">
-                            {count} {count === 1 ? "Question" : "Questions"}
-                          </Badge>
-                        </div>
-                      </div>
+                          <div>
+                            {/* Folder Top Row: Icon + Counter + Delete */}
+                            <div className="flex items-center justify-between">
+                              <div className="flex size-12 items-center justify-center rounded-xl bg-amber-500/10 text-amber-600 transition-transform duration-200 group-hover:scale-105 group-hover:bg-amber-500/20">
+                                <Folder className="size-6 transition-all group-hover:hidden" />
+                                <FolderOpen className="hidden size-6 transition-all group-hover:block" />
+                              </div>
 
-                      {/* Folder Heading (Topic) */}
-                      <h4 className="mt-4 text-lg font-bold text-ink transition-colors group-hover:text-amber-600">
-                        {folder.topic}
-                      </h4>
+                              <div className="flex items-center gap-1.5">
+                                <Badge tone="brand" className="px-2.5 py-0.5 font-semibold text-xs">
+                                  {count} {count === 1 ? "Question" : "Questions"}
+                                </Badge>
+                              </div>
+                            </div>
 
-                      <p className="mt-1 text-xs text-ink-3">
-                        {folder.totalMarks} total marks · {folder.activeCount} active · {folder.draftCount} draft
-                      </p>
+                            {/* Folder Heading (Topic) */}
+                            <h4 className="mt-4 text-lg font-bold text-ink transition-colors group-hover:text-amber-600">
+                              {folder.topic}
+                            </h4>
 
-                      {/* Difficulty Pills */}
-                      <div className="mt-3.5 flex flex-wrap items-center gap-1.5">
-                        {Object.entries(folder.difficulties).map(([diff, cnt]) =>
-                          cnt > 0 ? (
-                            <span
-                              key={diff}
-                              className={cn(
-                                "inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-medium",
-                                diff === "Easy" && "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
-                                diff === "Medium" && "bg-amber-500/10 text-amber-700 dark:text-amber-300",
-                                diff === "Hard" && "bg-rose-500/10 text-rose-700 dark:text-rose-300",
+                            <p className="mt-1 text-xs text-ink-3">
+                              {folder.totalMarks} total marks · {folder.activeCount} active · {folder.draftCount} draft
+                            </p>
+
+                            {/* Difficulty Pills */}
+                            <div className="mt-3.5 flex flex-wrap items-center gap-1.5">
+                              {Object.entries(folder.difficulties).map(([diff, cnt]) =>
+                                cnt > 0 ? (
+                                  <span
+                                    key={diff}
+                                    className={cn(
+                                      "inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-medium",
+                                      diff === "Easy" && "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
+                                      diff === "Medium" && "bg-amber-500/10 text-amber-700 dark:text-amber-300",
+                                      diff === "Hard" && "bg-rose-500/10 text-rose-700 dark:text-rose-300",
+                                    )}
+                                  >
+                                    {diff}: {cnt}
+                                  </span>
+                                ) : null,
                               )}
-                            >
-                              {diff}: {cnt}
+                            </div>
+
+                            {/* Sample Question Preview */}
+                            {sample && (
+                              <div className="mt-3 rounded-lg bg-surface-2/60 p-2.5 text-xs text-ink-3 line-clamp-2 italic">
+                                &quot;{sample.question}&quot;
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Folder Card Footer */}
+                          <div className="mt-4 flex items-center justify-between border-t border-line/60 pt-3 text-xs font-semibold text-amber-600">
+                            <span className="flex items-center gap-1 group-hover:underline">
+                              Open folder
+                              <ArrowRight className="size-3.5 transition-transform group-hover:translate-x-1" />
                             </span>
-                          ) : null,
-                        )}
-                      </div>
-
-                      {/* Sample Question Preview */}
-                      {sample && (
-                        <div className="mt-3 rounded-lg bg-surface-2/60 p-2.5 text-xs text-ink-3 line-clamp-2 italic">
-                          &quot;{sample.question}&quot;
+                            <span className="text-[11px] font-normal text-ink-3">
+                              {Object.keys(folder.bloomLevels).slice(0, 2).join(", ")}
+                            </span>
+                          </div>
                         </div>
-                      )}
-                    </div>
-
-                    {/* Folder Card Footer */}
-                    <div className="mt-4 flex items-center justify-between border-t border-line/60 pt-3 text-xs font-semibold text-amber-600">
-                      <span className="flex items-center gap-1 group-hover:underline">
-                        Open folder
-                        <ArrowRight className="size-3.5 transition-transform group-hover:translate-x-1" />
-                      </span>
-                      <span className="text-[11px] font-normal text-ink-3">
-                        {Object.keys(folder.bloomLevels).slice(0, 2).join(", ")}
-                      </span>
-                    </div>
+                      );
+                    })}
                   </div>
-                );
-              })}
-            </div>
+
+                  {/* Folder Pagination Controls */}
+                  {processedFolders.length > foldersPerPage && (
+                    <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-line/60 pt-4 text-xs text-ink-3">
+                      <span>
+                        Showing {(foldersPage - 1) * foldersPerPage + 1} to{" "}
+                        {Math.min(foldersPage * foldersPerPage, processedFolders.length)} of{" "}
+                        {processedFolders.length} folders
+                      </span>
+                      <div className="flex items-center gap-1.5">
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          disabled={foldersPage <= 1}
+                          onClick={() => setFoldersPage((p) => Math.max(1, p - 1))}
+                          className="gap-1 px-2.5 py-1 text-xs"
+                        >
+                          <ArrowLeft className="size-3" /> Prev
+                        </Button>
+                        {Array.from({ length: totalFolderPages }, (_, i) => i + 1).map((pg) => (
+                          <button
+                            key={pg}
+                            type="button"
+                            onClick={() => setFoldersPage(pg)}
+                            className={cn(
+                              "size-7 rounded-lg text-xs font-semibold transition-colors",
+                              foldersPage === pg
+                                ? "bg-brand text-white shadow-xs"
+                                : "text-ink-2 hover:bg-surface-2",
+                            )}
+                          >
+                            {pg}
+                          </button>
+                        ))}
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          disabled={foldersPage >= totalFolderPages}
+                          onClick={() => setFoldersPage((p) => Math.min(totalFolderPages, p + 1))}
+                          className="gap-1 px-2.5 py-1 text-xs"
+                        >
+                          Next <ArrowRight className="size-3" />
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </>
+              );
+            })()
           )}
         </div>
       )}
@@ -996,6 +1187,54 @@ export function QuestionBankModule({ role }: { role?: Role }) {
               >
                 {del.isPending ? <Spinner className="size-3.5" /> : <Trash2 className="size-3.5" />}
                 Delete Question
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* ─────────────────────────────────────────────────────────────
+          MODAL: Delete Folder Confirmation
+          ───────────────────────────────────────────────────────────── */}
+      {folderToDelete && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs animate-in fade-in"
+        >
+          <div className="w-full max-w-md rounded-2xl border border-line bg-surface p-6 shadow-2xl">
+            <div className="flex items-center gap-3 text-rose-600">
+              <div className="flex size-10 items-center justify-center rounded-xl bg-rose-500/10">
+                <Trash2 className="size-5" />
+              </div>
+              <h3 className="text-lg font-semibold text-ink">Delete Topic Folder?</h3>
+            </div>
+
+            <p className="mt-3 text-sm text-ink-2">
+              Are you sure you want to permanently delete the folder{" "}
+              <span className="font-semibold text-ink">&quot;{folderToDelete.topic}&quot;</span> and all of its{" "}
+              <span className="font-semibold text-ink">{folderToDelete.questions.length}</span> question(s)?
+            </p>
+
+            <div className="mt-3 rounded-lg bg-rose-500/10 p-3 text-xs text-rose-600">
+              This action cannot be undone. All questions filed under this topic heading will be removed from the bank.
+            </div>
+
+            <div className="mt-6 flex items-center justify-end gap-2">
+              <Button
+                variant="secondary"
+                onClick={() => setFolderToDelete(null)}
+                disabled={delFolder.isPending}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="danger"
+                onClick={() => delFolder.mutate(folderToDelete)}
+                disabled={delFolder.isPending}
+                className="gap-1.5"
+              >
+                {delFolder.isPending ? <Spinner className="size-3.5" /> : <Trash2 className="size-3.5" />}
+                Delete Folder
               </Button>
             </div>
           </div>

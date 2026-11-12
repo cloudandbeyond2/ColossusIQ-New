@@ -238,8 +238,17 @@ export async function dispatchQuestionBankFolders(session: SessionPayload): Prom
     };
   });
 
-  // Sort folders alphabetically by topic name
-  folders.sort((a, b) => a.topic.localeCompare(b.topic));
+  // Sort folders newest first (by latest question created or updated)
+  folders.sort((a, b) => {
+    const getLatest = (f: (typeof folders)[number]) => {
+      const times = f.questions.map((q) => {
+        const t = new Date(q.updatedAt || q.createdAt || 0).getTime();
+        return isNaN(t) ? 0 : t;
+      });
+      return times.length ? Math.max(...times) : 0;
+    };
+    return getLatest(b) - getLatest(a) || a.topic.localeCompare(b.topic);
+  });
 
   const totalQuestions = questions.length;
   const activeCount = questions.filter((q) => q.status === "Active").length;
