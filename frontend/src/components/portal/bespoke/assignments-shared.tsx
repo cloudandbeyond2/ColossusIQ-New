@@ -58,7 +58,7 @@ export function Modal({ title, onClose, children, wide }: { title: string; onClo
     return () => document.removeEventListener("keydown", onKey);
   }, [onClose]);
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 p-4 sm:p-8" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 p-4 sm:p-8 print:static print:overflow-visible print:bg-transparent print:p-0" onClick={onClose}>
       <div
         ref={ref}
         tabIndex={-1}
@@ -66,9 +66,9 @@ export function Modal({ title, onClose, children, wide }: { title: string; onClo
         aria-modal="true"
         aria-label={title}
         onClick={(e) => e.stopPropagation()}
-        className={`w-full ${wide ? "max-w-3xl" : "max-w-lg"} rounded-2xl border border-line bg-surface p-6 shadow-xl outline-none`}
+        className={`w-full ${wide ? "max-w-3xl" : "max-w-lg"} rounded-2xl border border-line bg-surface p-6 shadow-xl outline-none print:max-w-none print:border-none print:bg-transparent print:p-0 print:shadow-none`}
       >
-        <div className="mb-4 flex items-center justify-between gap-4 border-b border-line pb-3">
+        <div className="mb-4 flex items-center justify-between gap-4 border-b border-line pb-3 print:hidden">
           <h3 className="text-lg font-semibold text-ink">{title}</h3>
           <button type="button" onClick={onClose} className="rounded-md p-1 text-ink-3 hover:bg-surface-2 hover:text-ink" aria-label="Close">
             <X className="size-5" />

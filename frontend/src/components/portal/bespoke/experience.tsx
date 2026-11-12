@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Award, Check, Clock, ExternalLink, Filter, Pencil, Plus, Printer, RotateCcw, Search, ShieldCheck, Trash2 } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { z } from "zod";
 import { LoadError } from "@/components/ui/load-error";
 import { Badge, Button, Card, CardBody, EmptyState, Field, Skeleton, Spinner, inputClass } from "@/components/ui/primitives";
@@ -11,6 +11,7 @@ import { EXPERIENCE_CATEGORIES, ExperienceItem, ExperienceOverview, type Experie
 import { cn } from "@/lib/utils";
 import { Modal, problemOf } from "./assignments-shared";
 import { GoldSeal } from "@/components/certificate/seals";
+import { printCertificate } from "@/lib/certificate-print";
 
 const KEY = ["experience"] as const;
 const ExperienceOverviewOk = z.object({ ok: z.boolean() });
@@ -559,16 +560,30 @@ function EvidenceCertificateModal({ item, onClose }: { item: ExperienceItem; onC
   const year = item.reviewedAt ? new Date(item.reviewedAt).getFullYear().toString() : new Date().getFullYear().toString();
   const uid = item.id.replace(/[^A-Za-z0-9]/g, "").slice(0, 8);
   const certId = `EXP-${item.id.replace(/[^A-Za-z0-9]/g, "").slice(0, 8).toUpperCase()}`;
+  const certRef = useRef<HTMLDivElement>(null);
 
   const handlePrint = () => {
-    window.print();
+    const title = `${certId} - Certificate of Experience - ${item.studentName || "Student"}`;
+    if (certRef.current) {
+      printCertificate(certRef.current, title);
+    } else {
+      const prev = document.title;
+      document.title = title;
+      window.print();
+      setTimeout(() => {
+        document.title = prev;
+      }, 1000);
+    }
   };
 
   return (
     <Modal title="Evidence Certificate" onClose={onClose} wide>
-      <div className="space-y-5">
+      <div className="space-y-5 print:space-y-0">
         {/* Certificate Display Sheet */}
-        <div className="relative overflow-hidden rounded-2xl border-2 border-amber-500/30 bg-gradient-to-br from-amber-50/70 via-surface to-amber-100/40 p-6 sm:p-8 shadow-inner">
+        <div
+          ref={certRef}
+          className="print-area relative overflow-hidden rounded-2xl border-2 border-amber-500/30 bg-gradient-to-br from-amber-50/70 via-surface to-amber-100/40 p-6 sm:p-8 shadow-inner print:m-0 print:w-full print:border-2 print:border-amber-600/40 print:rounded-2xl print:p-8"
+        >
           {/* Decorative Corner Borders */}
           <div className="pointer-events-none absolute inset-2.5 rounded-xl border border-amber-600/20" />
           <div className="pointer-events-none absolute inset-3.5 rounded-lg border border-amber-600/10" />
@@ -674,7 +689,7 @@ function EvidenceCertificateModal({ item, onClose }: { item: ExperienceItem; onC
         </div>
 
         {/* Evidence Link / Attachment Section */}
-        <div className="rounded-xl border border-line bg-surface-2/60 p-4">
+        <div className="rounded-xl border border-line bg-surface-2/60 p-4 print:hidden">
           <h4 className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-ink-3">
             Submitted Proof & External Evidence
           </h4>
@@ -702,7 +717,7 @@ function EvidenceCertificateModal({ item, onClose }: { item: ExperienceItem; onC
         </div>
 
         {/* Action Buttons */}
-        <div className="flex items-center justify-between gap-3 border-t border-line pt-3">
+        <div className="flex items-center justify-between gap-3 border-t border-line pt-3 print:hidden">
           <Button variant="secondary" onClick={handlePrint} className="gap-1.5 text-xs">
             <Printer className="size-3.5" /> Print Certificate
           </Button>
