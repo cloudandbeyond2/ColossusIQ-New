@@ -311,6 +311,10 @@ const LEVELS = [
   { name: "Champion", min: 220 },
 ];
 
+export async function getBoosterData(sub: string) {
+  return booster(sub);
+}
+
 async function booster(sub: string) {
   const done = await getStore().booster.steps(sub);
   const counts = await eventCounts(sub);
