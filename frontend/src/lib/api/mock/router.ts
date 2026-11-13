@@ -2490,7 +2490,22 @@ async function dispatchFaculty(
   // GET /faculty/question-papers — question paper history & repository
   if (method === "GET" && segs.length === 2 && segs[1] === "question-papers") {
     const courseCode = query.get("courseCode") || undefined;
-    return ok({ papers: listQuestionPapers(session.college, courseCode) });
+    const search = query.get("search") || undefined;
+    const examType = query.get("examType") || undefined;
+    const status = query.get("status") || undefined;
+    const page = query.get("page") ? parseInt(query.get("page")!, 10) : 1;
+    const pageSize = query.get("pageSize") ? parseInt(query.get("pageSize")!, 10) : 10;
+
+    const res = await listQuestionPapers({
+      collegeId: session.college,
+      courseCode,
+      search,
+      examType,
+      status,
+      page,
+      pageSize,
+    });
+    return ok(res);
   }
 
   // POST /faculty/question-papers — save generated question paper
@@ -2499,7 +2514,7 @@ async function dispatchFaculty(
     if (!rec?.courseCode || !rec?.markdown) {
       return err(400, "invalid_body", "courseCode and markdown are required");
     }
-    const saved = createQuestionPaper({
+    const saved = await createQuestionPaper({
       collegeId: session.college,
       courseCode: String(rec.courseCode),
       courseTitle: String(rec.courseTitle || rec.courseCode),
@@ -2522,14 +2537,14 @@ async function dispatchFaculty(
 
   // PATCH /faculty/question-papers/:id — update status
   if (method === "PATCH" && segs.length === 3 && segs[1] === "question-papers" && segs[2]) {
-    const updated = updateQuestionPaper(segs[2], rawBody as any);
+    const updated = await updateQuestionPaper(segs[2], rawBody as any);
     if (!updated) return err(404, "not_found", "Question paper not found");
     return ok({ ok: true, paper: updated });
   }
 
   // DELETE /faculty/question-papers/:id — delete question paper
   if (method === "DELETE" && segs.length === 3 && segs[1] === "question-papers" && segs[2]) {
-    const deleted = deleteQuestionPaper(segs[2]);
+    const deleted = await deleteQuestionPaper(segs[2]);
     if (!deleted) return err(404, "not_found", "Question paper not found");
     return ok({ ok: true });
   }

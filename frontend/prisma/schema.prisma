@@ -2711,3 +2711,33 @@ model AttendanceRecord {
   @@index([rollNo])
   @@map("attendance_records")
 }
+
+model QuestionPaper {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  publicId     String    @unique @map("public_id") @db.VarChar(120)
+  collegeId    String?   @map("college_id") @db.Uuid
+  courseCode   String    @map("course_code") @db.VarChar(50)
+  courseTitle  String    @map("course_title") @db.VarChar(255)
+  department   String?   @db.VarChar(120)
+  semester     String?   @db.VarChar(50)
+  academicYear String?   @map("academic_year") @db.VarChar(50)
+  examType     String    @default("Internal Assessment I") @map("exam_type") @db.VarChar(100)
+  units        String    @default("Units 1–2") @db.VarChar(100)
+  marks        Int       @default(50)
+  duration     String    @default("90 Minutes") @db.VarChar(50)
+  pattern      String    @default("Part A (2 marks) + Part B (13 marks)") @db.VarChar(255)
+  bloomLevels  String[]  @default([]) @map("bloom_levels")
+  markdown     String    @db.Text
+  authorName   String    @default("Faculty Member") @map("author_name") @db.VarChar(120)
+  authorSub    String    @default("USR-004") @map("author_sub") @db.VarChar(120)
+  status       String    @default("Approved") @db.VarChar(50)
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@index([collegeId])
+  @@index([courseCode])
+  @@index([examType])
+  @@index([status])
+  @@index([createdAt(sort: Desc)])
+  @@map("question_papers")
+}
