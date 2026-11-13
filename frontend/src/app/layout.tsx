@@ -10,8 +10,8 @@ import "@flaticon/flaticon-uicons/css/solid/rounded.css";
 import "./globals.css";
 
 const poppins = Poppins({ subsets: ["latin"], weight: ["300", "400", "500", "600", "700"], variable: "--font-poppins", display: "swap" });
-// Editorial display serif (variable optical size + softness) and a mono for labels, IDs and numbers.
-const fraunces = Fraunces({ subsets: ["latin"], variable: "--font-fraunces", display: "swap", style: ["normal", "italic"], axes: ["opsz", "SOFT"] });
+// Editorial display serif and a mono for labels, IDs and numbers.
+const fraunces = Fraunces({ subsets: ["latin"], variable: "--font-fraunces", display: "swap", weight: ["400", "500", "600", "700"] });
 // Signature script on certificates when the Principal has not uploaded a signature image.
 const script = Great_Vibes({ subsets: ["latin"], weight: "400", variable: "--font-script", display: "swap" });
 const mono = JetBrains_Mono({ subsets: ["latin"], variable: "--font-jetbrains", display: "swap", weight: ["400", "500"] });
