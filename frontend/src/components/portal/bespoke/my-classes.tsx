@@ -20,9 +20,13 @@ import {
   History,
   MapPin,
   ChevronRight,
+  ChevronLeft,
+  Filter,
+  FileSpreadsheet,
   Send,
   UserCheck,
 } from "lucide-react";
+import * as XLSX from "xlsx";
 import { apiFetch } from "@/lib/api/client";
 import type { Role } from "@/lib/auth/roles";
 import {
@@ -119,8 +123,15 @@ export function MyClassesModule({ role: _role }: { role?: Role }) {
   const [attendancePeriod, setAttendancePeriod] = useState(1);
   const [attendanceTopic, setAttendanceTopic] = useState("");
   const [rosterSearch, setRosterSearch] = useState("");
+  const [rosterStatusFilter, setRosterStatusFilter] = useState<"all" | "Present" | "Absent" | "Late" | "OD">("all");
   const [attendanceMarks, setAttendanceMarks] = useState<Record<string, "Present" | "Absent" | "Late" | "OD">>({});
   const [studentRemarks, setStudentRemarks] = useState<Record<string, string>>({});
+
+  // History search, filter, and pagination state
+  const [historySearch, setHistorySearch] = useState("");
+  const [historySectionFilter, setHistorySectionFilter] = useState("all");
+  const [historyPage, setHistoryPage] = useState(1);
+  const [historyPageSize, setHistoryPageSize] = useState(10);
 
   // Sync attendance marks whenever student roster loads for a section
   useEffect(() => {
@@ -256,14 +267,70 @@ export function MyClassesModule({ role: _role }: { role?: Role }) {
     },
   });
 
+  /* ── Filtered Roster for Live Attendance Register & Modal ───────────────── */
+  const filteredStudentsRoster = useMemo(() => {
+    return studentsRoster.filter((s) => {
+      const q = rosterSearch.toLowerCase().trim();
+      const matchSearch =
+        !q ||
+        s.name.toLowerCase().includes(q) ||
+        s.rollNo.toLowerCase().includes(q);
+      const st = attendanceMarks[s.id] || "Present";
+      const matchStatus = rosterStatusFilter === "all" || st === rosterStatusFilter;
+      return matchSearch && matchStatus;
+    });
+  }, [studentsRoster, rosterSearch, rosterStatusFilter, attendanceMarks]);
+
+  /* ── Distinct Sections for Filters ─────────────────────────────────────── */
+  const availableSectionsList = useMemo(() => {
+    if (!profile?.assignedSections) return [];
+    const list: string[] = [];
+    profile.assignedSections.forEach((s) => {
+      if (!list.includes(s.section)) list.push(s.section);
+    });
+    return list;
+  }, [profile?.assignedSections]);
+
+  /* ── Attendance History Filter & Pagination ─────────────────────────────── */
+  const filteredHistory = useMemo(() => {
+    return attendanceSessions.filter((s) => {
+      const q = historySearch.toLowerCase().trim();
+      const matchSearch =
+        !q ||
+        s.date.toLowerCase().includes(q) ||
+        s.section.toLowerCase().includes(q) ||
+        s.courseCode.toLowerCase().includes(q) ||
+        s.topicTaught.toLowerCase().includes(q) ||
+        (s.absentRolls && s.absentRolls.some((r) => r.toLowerCase().includes(q)));
+
+      const matchSection =
+        historySectionFilter === "all" ||
+        s.section.toLowerCase() === historySectionFilter.toLowerCase() ||
+        s.sectionId === historySectionFilter;
+
+      return matchSearch && matchSection;
+    });
+  }, [attendanceSessions, historySearch, historySectionFilter]);
+
+  const totalHistoryPages = Math.max(1, Math.ceil(filteredHistory.length / historyPageSize));
+  const paginatedHistory = useMemo(() => {
+    const start = (historyPage - 1) * historyPageSize;
+    return filteredHistory.slice(start, start + historyPageSize);
+  }, [filteredHistory, historyPage, historyPageSize]);
+
+  useEffect(() => {
+    setHistoryPage(1);
+  }, [historySearch, historySectionFilter, historyPageSize]);
+
   /* ── Export CSV Helper ──────────────────────────────────────────────────── */
   const handleExportCSV = () => {
-    if (attendanceSessions.length === 0) {
+    const dataToExport = filteredHistory.length > 0 ? filteredHistory : attendanceSessions;
+    if (dataToExport.length === 0) {
       showToast("No attendance logs to export", false);
       return;
     }
-    const headers = ["Date", "Period", "Time Slot", "Section", "Course Code", "Topic", "Total", "Present", "Absent", "Attendance %", "Absent Roll Numbers"];
-    const rows = attendanceSessions.map((s) => [
+    const headers = ["Date", "Period", "Time Slot", "Section", "Course Code", "Topic", "Total", "Present", "Absent", "Late", "OD", "Attendance %", "Absent Roll Numbers"];
+    const rows = dataToExport.map((s) => [
       s.date,
       s.period,
       `"${s.timeSlot}"`,
@@ -273,8 +340,10 @@ export function MyClassesModule({ role: _role }: { role?: Role }) {
       s.totalStudents,
       s.presentCount,
       s.absentCount,
+      s.lateCount,
+      s.odCount || 0,
       `${s.attendancePercent}%`,
-      `"${s.absentRolls.join(", ")}"`,
+      `"${(s.absentRolls || []).join(", ")}"`,
     ]);
 
     const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
@@ -286,6 +355,36 @@ export function MyClassesModule({ role: _role }: { role?: Role }) {
     link.click();
     document.body.removeChild(link);
     showToast("Attendance CSV log exported!");
+  };
+
+  /* ── Export Excel Helper (.xlsx) ────────────────────────────────────────── */
+  const handleExportExcel = () => {
+    const dataToExport = filteredHistory.length > 0 ? filteredHistory : attendanceSessions;
+    if (dataToExport.length === 0) {
+      showToast("No attendance logs to export", false);
+      return;
+    }
+    const excelRows = dataToExport.map((s) => ({
+      "Date": s.date,
+      "Period": s.period,
+      "Time Slot": s.timeSlot,
+      "Section": s.section,
+      "Course Code": s.courseCode,
+      "Course Title": s.courseTitle || "",
+      "Topic Covered": s.topicTaught,
+      "Total Students": s.totalStudents,
+      "Present": s.presentCount,
+      "Absent": s.absentCount,
+      "Late": s.lateCount,
+      "On Duty (OD)": s.odCount || 0,
+      "Attendance %": `${s.attendancePercent}%`,
+      "Absent Roll Numbers": (s.absentRolls || []).join(", "),
+    }));
+    const worksheet = XLSX.utils.json_to_sheet(excelRows);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Attendance Log");
+    XLSX.writeFile(workbook, `attendance_report_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    showToast("Attendance sheet exported to Excel (.xlsx)!");
   };
 
   /* ── Filtered Sections ──────────────────────────────────────────────────── */
@@ -991,8 +1090,8 @@ export function MyClassesModule({ role: _role }: { role?: Role }) {
 
           {/* Student Roster Table for Attendance Marking */}
           <Card className="overflow-hidden border-line">
-            <div className="p-3.5 border-b border-line bg-surface flex items-center justify-between">
-              <div className="relative max-w-sm flex-1">
+            <div className="p-3.5 border-b border-line bg-surface flex flex-wrap items-center justify-between gap-3">
+              <div className="relative max-w-sm flex-1 min-w-[200px]">
                 <Search className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-ink-3" />
                 <input
                   type="search"
@@ -1002,9 +1101,25 @@ export function MyClassesModule({ role: _role }: { role?: Role }) {
                   className={cn(inputClass, "pl-8 py-1.5 text-xs")}
                 />
               </div>
-              <span className="text-xs text-ink-3 font-medium">
-                Click status pill to toggle P / A / L / OD
-              </span>
+
+              {/* Status Filter Buttons */}
+              <div className="flex flex-wrap items-center gap-1.5">
+                {(["all", "Present", "Absent", "Late", "OD"] as const).map((st) => (
+                  <button
+                    key={st}
+                    type="button"
+                    onClick={() => setRosterStatusFilter(st)}
+                    className={cn(
+                      "rounded-lg px-2.5 py-1 text-xs font-semibold transition-all",
+                      rosterStatusFilter === st
+                        ? "bg-brand text-white shadow-xs"
+                        : "bg-surface-2 text-ink-3 hover:text-ink hover:bg-surface-3"
+                    )}
+                  >
+                    {st === "all" ? `All (${studentsRoster.length})` : st}
+                  </button>
+                ))}
+              </div>
             </div>
 
             <div className="overflow-x-auto max-h-[500px]">
@@ -1019,12 +1134,14 @@ export function MyClassesModule({ role: _role }: { role?: Role }) {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-line/60 bg-surface">
-                  {studentsRoster
-                    .filter((s) => {
-                      const q = rosterSearch.toLowerCase().trim();
-                      return !q || s.name.toLowerCase().includes(q) || s.rollNo.toLowerCase().includes(q);
-                    })
-                    .map((s) => {
+                  {filteredStudentsRoster.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="py-8 text-center text-ink-3">
+                        No students match your search or status filter.
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredStudentsRoster.map((s) => {
                       const status = attendanceMarks[s.id] || "Present";
                       return (
                         <tr
@@ -1116,14 +1233,15 @@ export function MyClassesModule({ role: _role }: { role?: Role }) {
                           </td>
                         </tr>
                       );
-                    })}
+                    })
+                  )}
                 </tbody>
               </table>
             </div>
 
             <div className="p-3 bg-surface-2/40 border-t border-line flex items-center justify-between">
               <span className="text-xs text-ink-3">
-                Showing {studentsRoster.length} students enrolled in {activeSection?.section}
+                Showing {filteredStudentsRoster.length} of {studentsRoster.length} students enrolled in {activeSection?.section}
               </span>
               <Button
                 size="sm"
@@ -1294,23 +1412,65 @@ export function MyClassesModule({ role: _role }: { role?: Role }) {
       {/* ── TAB 5: Attendance History & Past Sessions ───────────────────── */}
       {activeTab === "history" && (
         <div className="space-y-4 animate-in fade-in-50 duration-200">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <h3 className="text-base font-semibold text-ink">
-              Recorded Attendance Sessions
-            </h3>
+          {/* Controls: Search, Filter, Export */}
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex flex-wrap items-center gap-2.5 flex-1 max-w-2xl">
+              {/* Search input */}
+              <div className="relative flex-1 min-w-[220px]">
+                <Search className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-ink-3" />
+                <input
+                  type="search"
+                  value={historySearch}
+                  onChange={(e) => setHistorySearch(e.target.value)}
+                  placeholder="Search by topic, course, section, absent roll..."
+                  className={cn(inputClass, "pl-8 py-1.5 text-xs")}
+                />
+              </div>
+
+              {/* Section Filter */}
+              <div className="flex items-center gap-1.5">
+                <Filter className="size-3.5 text-ink-3" />
+                <select
+                  value={historySectionFilter}
+                  onChange={(e) => setHistorySectionFilter(e.target.value)}
+                  className="rounded-xl border border-line bg-surface px-3 py-1.5 text-xs font-semibold text-ink focus:outline-none focus:ring-2 focus:ring-brand"
+                >
+                  <option value="all">All Sections ({attendanceSessions.length})</option>
+                  {availableSectionsList.map((sec) => (
+                    <option key={sec} value={sec}>
+                      Section {sec}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Export buttons */}
             <div className="flex items-center gap-2">
               <Button
                 size="sm"
                 variant="secondary"
                 onClick={handleExportCSV}
                 className="text-xs gap-1.5"
+                title="Download as CSV format"
               >
                 <Download className="size-3.5" />
-                Download Report (.csv)
+                Export CSV
+              </Button>
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={handleExportExcel}
+                className="text-xs gap-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 dark:hover:bg-emerald-900/60 border-emerald-300 dark:border-emerald-800"
+                title="Download as Excel (.xlsx) format"
+              >
+                <FileSpreadsheet className="size-3.5" />
+                Export Excel (.xlsx)
               </Button>
             </div>
           </div>
 
+          {/* History Log Table */}
           <Card className="overflow-hidden border-line">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs border-collapse">
@@ -1320,18 +1480,21 @@ export function MyClassesModule({ role: _role }: { role?: Role }) {
                     <th className="px-4 py-3">Section & Course</th>
                     <th className="px-4 py-3">Topic Covered</th>
                     <th className="px-4 py-3 text-center">Turnout</th>
+                    <th className="px-4 py-3">OD / Late</th>
                     <th className="px-4 py-3">Absent Rolls</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-line/60 bg-surface">
-                  {attendanceSessions.length === 0 ? (
+                  {filteredHistory.length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="py-8 text-center text-ink-3">
-                        No recorded sessions found yet. Take attendance to see logs here.
+                      <td colSpan={6} className="py-8 text-center text-ink-3">
+                        {attendanceSessions.length === 0
+                          ? "No recorded sessions found yet. Take attendance to see logs here."
+                          : "No attendance logs match your search or section filter."}
                       </td>
                     </tr>
                   ) : (
-                    attendanceSessions.map((session) => (
+                    paginatedHistory.map((session) => (
                       <tr key={session.id} className="hover:bg-surface-2/40 transition-colors">
                         <td className="px-4 py-3">
                           <p className="font-semibold text-ink">{session.date}</p>
@@ -1349,22 +1512,44 @@ export function MyClassesModule({ role: _role }: { role?: Role }) {
                           </p>
                         </td>
                         <td className="px-4 py-3 text-center">
-                          <span
-                            className={cn(
-                              "font-bold font-mono text-xs px-2 py-0.5 rounded-full",
-                              session.attendancePercent >= 80
-                                ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300"
-                                : "bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300"
-                            )}
-                          >
-                            {session.presentCount} / {session.totalStudents} ({session.attendancePercent}%)
-                          </span>
+                          {(() => {
+                            const attendingCount =
+                              (session.presentCount || 0) +
+                              (session.lateCount || 0) +
+                              (session.odCount || 0);
+                            const pct = Math.round(session.attendancePercent);
+                            return (
+                              <span
+                                className={cn(
+                                  "font-bold font-mono text-xs px-2.5 py-0.5 rounded-full inline-block",
+                                  pct >= 75
+                                    ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300"
+                                    : pct >= 50
+                                    ? "bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300"
+                                    : "bg-rose-100 text-rose-800 dark:bg-rose-950/60 dark:text-rose-300"
+                                )}
+                              >
+                                {attendingCount} / {session.totalStudents} ({pct}%)
+                              </span>
+                            );
+                          })()}
                         </td>
-                        <td className="px-4 py-3 font-mono text-[11px] text-rose-600 dark:text-rose-400">
-                          {session.absentRolls && session.absentRolls.length > 0
-                            ? session.absentRolls.slice(0, 4).join(", ") +
-                              (session.absentRolls.length > 4 ? ` (+${session.absentRolls.length - 4})` : "")
-                            : "Nil (100%)"}
+                        <td className="px-4 py-3 text-[11px]">
+                          <span className="text-sky-600 font-semibold">OD: {session.odCount || 0}</span>
+                          <span className="mx-1 text-ink-3">·</span>
+                          <span className="text-amber-600 font-semibold">Late: {session.lateCount || 0}</span>
+                        </td>
+                        <td className="px-4 py-3 text-[11px]">
+                          {session.absentRolls && session.absentRolls.length > 0 ? (
+                            <span className="font-mono font-bold text-rose-600 dark:text-rose-400">
+                              {session.absentRolls.slice(0, 4).join(", ")}
+                              {session.absentRolls.length > 4 ? ` (+${session.absentRolls.length - 4})` : ""}
+                            </span>
+                          ) : (
+                            <span className="text-emerald-600 dark:text-emerald-400 font-medium">
+                              None (0 Absent)
+                            </span>
+                          )}
                         </td>
                       </tr>
                     ))
@@ -1372,6 +1557,65 @@ export function MyClassesModule({ role: _role }: { role?: Role }) {
                 </tbody>
               </table>
             </div>
+
+            {/* Pagination Controls */}
+            {filteredHistory.length > 0 && (
+              <div className="p-3 bg-surface-2/40 border-t border-line flex flex-wrap items-center justify-between gap-3 text-xs">
+                <div className="flex items-center gap-2 text-ink-3">
+                  <span>
+                    Showing{" "}
+                    <strong className="text-ink">
+                      {(historyPage - 1) * historyPageSize + 1}
+                    </strong>{" "}
+                    to{" "}
+                    <strong className="text-ink">
+                      {Math.min(historyPage * historyPageSize, filteredHistory.length)}
+                    </strong>{" "}
+                    of <strong className="text-ink">{filteredHistory.length}</strong> sessions
+                  </span>
+
+                  <div className="ml-4 flex items-center gap-1.5">
+                    <span className="text-[11px]">Per page:</span>
+                    <select
+                      value={historyPageSize}
+                      onChange={(e) => setHistoryPageSize(Number(e.target.value))}
+                      className="rounded-lg border border-line bg-surface px-2 py-0.5 text-xs font-semibold text-ink"
+                    >
+                      <option value={5}>5</option>
+                      <option value={10}>10</option>
+                      <option value={25}>25</option>
+                      <option value={50}>50</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-1.5">
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => setHistoryPage((p) => Math.max(1, p - 1))}
+                    disabled={historyPage <= 1}
+                    className="h-7 px-2 text-xs"
+                  >
+                    <ChevronLeft className="size-3.5" />
+                    Prev
+                  </Button>
+                  <span className="px-2 text-xs font-semibold text-ink">
+                    Page {historyPage} of {totalHistoryPages}
+                  </span>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => setHistoryPage((p) => Math.min(totalHistoryPages, p + 1))}
+                    disabled={historyPage >= totalHistoryPages}
+                    className="h-7 px-2 text-xs"
+                  >
+                    Next
+                    <ChevronRight className="size-3.5" />
+                  </Button>
+                </div>
+              </div>
+            )}
           </Card>
         </div>
       )}
@@ -1443,10 +1687,11 @@ export function MyClassesModule({ role: _role }: { role?: Role }) {
               </div>
 
               <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
-                <div className="flex items-center gap-3 text-xs font-semibold">
+                <div className="flex flex-wrap items-center gap-3 text-xs font-semibold">
                   <span className="text-emerald-600">Present: {attendanceStats.present}</span>
                   <span className="text-rose-600">Absent: {attendanceStats.absent}</span>
                   <span className="text-amber-600">Late: {attendanceStats.late}</span>
+                  <span className="text-sky-600">OD: {attendanceStats.od}</span>
                   <span className="rounded bg-brand/10 px-2 py-0.5 text-brand">
                     Turnout: {attendanceStats.percent}%
                   </span>
@@ -1473,61 +1718,114 @@ export function MyClassesModule({ role: _role }: { role?: Role }) {
               </div>
             </div>
 
+            {/* Modal Search & Status Filter Bar */}
+            <div className="px-4 py-2.5 bg-surface border-b border-line flex flex-wrap items-center justify-between gap-2">
+              <div className="relative flex-1 min-w-[200px] max-w-xs">
+                <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-ink-3" />
+                <input
+                  type="search"
+                  value={rosterSearch}
+                  onChange={(e) => setRosterSearch(e.target.value)}
+                  placeholder="Search student by roll no or name..."
+                  className={cn(inputClass, "pl-8 py-1 text-xs")}
+                />
+              </div>
+
+              <div className="flex flex-wrap items-center gap-1">
+                {(["all", "Present", "Absent", "Late", "OD"] as const).map((st) => (
+                  <button
+                    key={st}
+                    type="button"
+                    onClick={() => setRosterStatusFilter(st)}
+                    className={cn(
+                      "rounded-lg px-2 py-0.5 text-[11px] font-semibold transition-all",
+                      rosterStatusFilter === st
+                        ? "bg-brand text-white shadow-xs"
+                        : "bg-surface-2 text-ink-3 hover:text-ink hover:bg-surface-3"
+                    )}
+                  >
+                    {st === "all" ? `All (${studentsRoster.length})` : st}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             {/* Student List */}
             <div className="flex-1 overflow-y-auto max-h-[380px] p-4 divide-y divide-line/60">
-              {studentsRoster.map((s) => {
-                const status = attendanceMarks[s.id] || "Present";
-                return (
-                  <div
-                    key={s.id}
-                    className="flex items-center justify-between py-2 text-xs hover:bg-surface-2/40 px-2 rounded-lg"
-                  >
-                    <div className="flex items-center gap-3">
-                      <span className="font-mono font-bold text-ink w-20">{s.rollNo}</span>
-                      <span className="font-medium text-ink">{s.name}</span>
-                    </div>
+              {filteredStudentsRoster.length === 0 ? (
+                <div className="py-8 text-center text-xs text-ink-3">
+                  No students match your search or filter.
+                </div>
+              ) : (
+                filteredStudentsRoster.map((s) => {
+                  const status = attendanceMarks[s.id] || "Present";
+                  return (
+                    <div
+                      key={s.id}
+                      className={cn(
+                        "flex items-center justify-between py-2 text-xs hover:bg-surface-2/40 px-2 rounded-lg transition-colors",
+                        status === "Absent" && "bg-rose-50/40 dark:bg-rose-950/20"
+                      )}
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className="font-mono font-bold text-ink w-20">{s.rollNo}</span>
+                        <span className="font-medium text-ink">{s.name}</span>
+                      </div>
 
-                    <div className="flex items-center gap-1">
-                      <button
-                        type="button"
-                        onClick={() => toggleStudentStatus(s.id, "Present")}
-                        className={cn(
-                          "size-7 rounded font-bold text-[11px] transition-all",
-                          status === "Present"
-                            ? "bg-emerald-600 text-white shadow-xs"
-                            : "bg-surface-2 text-ink-3 hover:bg-emerald-100 hover:text-emerald-800"
-                        )}
-                      >
-                        P
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => toggleStudentStatus(s.id, "Absent")}
-                        className={cn(
-                          "size-7 rounded font-bold text-[11px] transition-all",
-                          status === "Absent"
-                            ? "bg-rose-600 text-white shadow-xs"
-                            : "bg-surface-2 text-ink-3 hover:bg-rose-100 hover:text-rose-800"
-                        )}
-                      >
-                        A
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => toggleStudentStatus(s.id, "Late")}
-                        className={cn(
-                          "size-7 rounded font-bold text-[11px] transition-all",
-                          status === "Late"
-                            ? "bg-amber-500 text-white shadow-xs"
-                            : "bg-surface-2 text-ink-3 hover:bg-amber-100 hover:text-amber-800"
-                        )}
-                      >
-                        L
-                      </button>
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => toggleStudentStatus(s.id, "Present")}
+                          className={cn(
+                            "size-7 rounded font-bold text-[11px] transition-all",
+                            status === "Present"
+                              ? "bg-emerald-600 text-white shadow-xs ring-1 ring-emerald-500"
+                              : "bg-surface-2 text-ink-3 hover:bg-emerald-100 hover:text-emerald-800"
+                          )}
+                        >
+                          P
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => toggleStudentStatus(s.id, "Absent")}
+                          className={cn(
+                            "size-7 rounded font-bold text-[11px] transition-all",
+                            status === "Absent"
+                              ? "bg-rose-600 text-white shadow-xs ring-1 ring-rose-500"
+                              : "bg-surface-2 text-ink-3 hover:bg-rose-100 hover:text-rose-800"
+                          )}
+                        >
+                          A
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => toggleStudentStatus(s.id, "Late")}
+                          className={cn(
+                            "size-7 rounded font-bold text-[11px] transition-all",
+                            status === "Late"
+                              ? "bg-amber-500 text-white shadow-xs ring-1 ring-amber-400"
+                              : "bg-surface-2 text-ink-3 hover:bg-amber-100 hover:text-amber-800"
+                          )}
+                        >
+                          L
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => toggleStudentStatus(s.id, "OD")}
+                          className={cn(
+                            "size-7 rounded font-bold text-[11px] transition-all",
+                            status === "OD"
+                              ? "bg-sky-600 text-white shadow-xs ring-1 ring-sky-500"
+                              : "bg-surface-2 text-ink-3 hover:bg-sky-100 hover:text-sky-800"
+                          )}
+                        >
+                          OD
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                })
+              )}
             </div>
 
             {/* Footer */}

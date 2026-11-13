@@ -2665,3 +2665,49 @@ model EventPlan {
   @@index([collegeId, updatedAt(sort: Desc)], map: "event_plans_college_idx")
   @@map("event_plans")
 }
+
+
+model AttendanceSession {
+  id                String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  publicId          String?            @unique @map("public_id") @db.VarChar(64)
+  collegeId         String?            @map("college_id") @db.Uuid
+  facultyId         String?            @map("faculty_id") @db.Uuid
+  facultyName       String?            @map("faculty_name") @db.VarChar(120)
+  sectionId         String             @map("section_id") @db.VarChar(100)
+  sectionName       String             @map("section_name") @db.VarChar(120)
+  courseCode        String?            @map("course_code") @db.VarChar(32)
+  courseTitle       String?            @map("course_title") @db.VarChar(150)
+  classDate         DateTime           @default(dbgenerated("CURRENT_DATE")) @map("class_date") @db.Date
+  timeSlot          String             @default("09:00 - 10:00") @map("time_slot") @db.VarChar(50)
+  period            Int                @default(1)
+  topicTaught       String             @map("topic_taught") @db.VarChar(255)
+  totalStudents     Int                @default(0) @map("total_students")
+  presentCount      Int                @default(0) @map("present_count")
+  absentCount       Int                @default(0) @map("absent_count")
+  lateCount         Int                @default(0) @map("late_count")
+  odCount           Int                @default(0) @map("od_count")
+  attendancePercent Decimal            @default(0) @map("attendance_percent") @db.Decimal(5, 2)
+  createdAt         DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime           @default(now()) @map("updated_at") @db.Timestamptz(6)
+  records           AttendanceRecord[]
+
+  @@index([sectionId, classDate(sort: Desc)])
+  @@index([collegeId])
+  @@map("attendance_sessions")
+}
+
+model AttendanceRecord {
+  id         String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sessionId  String            @map("session_id") @db.Uuid
+  studentId  String?           @map("student_id") @db.Uuid
+  rollNo     String            @map("roll_no") @db.VarChar(50)
+  name       String            @db.VarChar(120)
+  status     String            @default("Present") @db.VarChar(20)
+  remark     String?           @db.VarChar(255)
+  createdAt  DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  session    AttendanceSession @relation(fields: [sessionId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([sessionId])
+  @@index([rollNo])
+  @@map("attendance_records")
+}

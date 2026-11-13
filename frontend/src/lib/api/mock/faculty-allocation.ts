@@ -761,7 +761,75 @@ export async function getSectionRoster(sectionId: string, collegeId?: string): P
   return roster;
 }
 
-export function getAttendanceHistory(sectionId?: string): AttendanceSessionRecord[] {
+export async function getAttendanceHistory(sectionId?: string, collegeScope?: string): Promise<AttendanceSessionRecord[]> {
+  if (dataBackend() === "postgres") {
+    try {
+      const t = db();
+      const rows = await t.$queryRaw<any[]>`
+        SELECT 
+          s.id::text,
+          s.public_id as "publicId",
+          s.section_id as "sectionId",
+          s.course_code as "courseCode",
+          s.course_title as "courseTitle",
+          s.section_name as "section",
+          to_char(s.class_date, 'YYYY-MM-DD') as "date",
+          s.time_slot as "timeSlot",
+          s.period,
+          s.topic_taught as "topicTaught",
+          s.total_students as "totalStudents",
+          s.present_count as "presentCount",
+          s.absent_count as "absentCount",
+          s.late_count as "lateCount",
+          s.od_count as "odCount",
+          s.attendance_percent::float as "attendancePercent",
+          s.created_at as "createdAt"
+        FROM attendance_sessions s
+        ORDER BY s.class_date DESC, s.created_at DESC
+        LIMIT 100
+      `;
+
+      if (rows && rows.length > 0) {
+        const sessionIds = rows.map((r) => r.id);
+        const subRecords = await t.$queryRaw<any[]>`
+          SELECT 
+            session_id::text as "sessionId",
+            student_id::text as "studentId",
+            roll_no as "rollNo",
+            name,
+            status,
+            remark
+          FROM attendance_records
+          WHERE session_id::text = ANY(${sessionIds})
+        `;
+
+        const recordsBySession = new Map<string, any[]>();
+        subRecords.forEach((sr) => {
+          const list = recordsBySession.get(sr.sessionId) || [];
+          list.push(sr);
+          recordsBySession.set(sr.sessionId, list);
+        });
+
+        const fullSessions: AttendanceSessionRecord[] = rows.map((r) => {
+          const recs = recordsBySession.get(r.id) || [];
+          const absentRolls = recs.filter((sr) => sr.status === "Absent").map((sr) => sr.rollNo);
+          return {
+            ...r,
+            absentRolls,
+            records: recs,
+          };
+        });
+
+        if (sectionId && sectionId !== "all") {
+          return fullSessions.filter((s) => matchesSection(s, sectionId));
+        }
+        return fullSessions;
+      }
+    } catch (e) {
+      console.warn("[faculty-allocation] Postgres attendance query error:", e);
+    }
+  }
+
   const store = getAttendanceStore();
   if (sectionId && sectionId !== "all") {
     return store.filter((s) => matchesSection(s, sectionId));
@@ -769,7 +837,12 @@ export function getAttendanceHistory(sectionId?: string): AttendanceSessionRecor
   return [...store];
 }
 
-export function saveAttendanceSession(record: Omit<AttendanceSessionRecord, "id" | "createdAt">): AttendanceSessionRecord {
+export async function saveAttendanceSession(
+  record: Omit<AttendanceSessionRecord, "id" | "createdAt">,
+  collegeScope?: string,
+  facultyId?: string,
+  facultyName?: string
+): Promise<AttendanceSessionRecord> {
   const newId = `att-rec-${Date.now()}`;
   const fullRecord: AttendanceSessionRecord = {
     ...record,
@@ -780,6 +853,92 @@ export function saveAttendanceSession(record: Omit<AttendanceSessionRecord, "id"
   const store = getAttendanceStore();
   const updatedStore = [fullRecord, ...store];
   setAttendanceStore(updatedStore);
+
+  if (dataBackend() === "postgres") {
+    try {
+      const t = db();
+      let collegeUuid: string | null = null;
+      if (collegeScope && collegeScope !== "all") {
+        const col = await t.college.findFirst({
+          where: {
+            OR: [
+              { publicId: collegeScope },
+              { id: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(collegeScope) ? collegeScope : undefined },
+            ].filter(Boolean) as any,
+          },
+          select: { id: true },
+        });
+        collegeUuid = col?.id || null;
+      }
+
+      const inserted = await t.$queryRaw<Array<{ id: string }>>`
+        INSERT INTO attendance_sessions (
+          public_id,
+          college_id,
+          faculty_id,
+          faculty_name,
+          section_id,
+          section_name,
+          course_code,
+          course_title,
+          class_date,
+          time_slot,
+          period,
+          topic_taught,
+          total_students,
+          present_count,
+          absent_count,
+          late_count,
+          od_count,
+          attendance_percent
+        ) VALUES (
+          ${newId},
+          ${collegeUuid}::uuid,
+          ${facultyId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(facultyId) ? facultyId : null}::uuid,
+          ${facultyName || "Faculty"},
+          ${record.sectionId},
+          ${record.section},
+          ${record.courseCode || null},
+          ${record.courseTitle || null},
+          ${record.date}::date,
+          ${record.timeSlot || "09:00 - 10:00"},
+          ${record.period || 1},
+          ${record.topicTaught || "Lecture Topic"},
+          ${record.totalStudents || 60},
+          ${record.presentCount || 0},
+          ${record.absentCount || 0},
+          ${record.lateCount || 0},
+          ${record.odCount || 0},
+          ${record.attendancePercent || 0}
+        ) RETURNING id::text
+      `;
+
+      const sessionDbId = inserted[0]?.id;
+      if (sessionDbId && record.records && record.records.length > 0) {
+        for (const sr of record.records) {
+          await t.$executeRaw`
+            INSERT INTO attendance_records (
+              session_id,
+              student_id,
+              roll_no,
+              name,
+              status,
+              remark
+            ) VALUES (
+              ${sessionDbId}::uuid,
+              ${sr.studentId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(sr.studentId) ? sr.studentId : null}::uuid,
+              ${sr.rollNo || ""},
+              ${sr.name || ""},
+              ${sr.status || "Present"},
+              ${sr.remark || null}
+            )
+          `;
+        }
+      }
+    } catch (e) {
+      console.warn("[faculty-allocation] Error saving attendance to PostgreSQL:", e);
+    }
+  }
 
   // Update section average attendance dynamically in allocation table
   for (const streamKey of Object.keys(STREAM_FACULTY_ALLOCATIONS) as Stream[]) {

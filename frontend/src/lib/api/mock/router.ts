@@ -2454,19 +2454,19 @@ async function dispatchFaculty(
     return ok({ students });
   }
 
-  // GET /faculty/attendance — attendance history logs
+  // GET /faculty/attendance — attendance history logs (persisted in PostgreSQL)
   if (method === "GET" && segs.length === 2 && segs[1] === "attendance") {
     const sectionId = query.get("sectionId") || undefined;
-    return ok({ sessions: getAttendanceHistory(sectionId) });
+    return ok({ sessions: await getAttendanceHistory(sectionId, session.college) });
   }
 
-  // POST /faculty/attendance — record attendance session
+  // POST /faculty/attendance — record attendance session in PostgreSQL
   if (method === "POST" && segs.length === 2 && segs[1] === "attendance") {
     const rec = rawBody as any;
     if (!rec?.sectionId || !rec?.date) {
       return err(400, "invalid_body", "sectionId and date are required");
     }
-    const saved = saveAttendanceSession({
+    const saved = await saveAttendanceSession({
       sectionId: String(rec.sectionId),
       courseCode: String(rec.courseCode || ""),
       courseTitle: String(rec.courseTitle || ""),
@@ -2483,7 +2483,7 @@ async function dispatchFaculty(
       attendancePercent: Number(rec.attendancePercent || 0),
       absentRolls: Array.isArray(rec.absentRolls) ? rec.absentRolls : [],
       records: Array.isArray(rec.records) ? rec.records : [],
-    });
+    }, session.college, session.sub, session.name);
     return ok({ ok: true, session: saved });
   }
 
