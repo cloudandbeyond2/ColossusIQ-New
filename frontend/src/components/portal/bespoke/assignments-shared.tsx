@@ -66,7 +66,7 @@ export function Modal({ title, onClose, children, wide }: { title: string; onClo
         aria-modal="true"
         aria-label={title}
         onClick={(e) => e.stopPropagation()}
-        className={`w-full ${wide ? "max-w-3xl" : "max-w-lg"} rounded-2xl border border-line bg-surface p-6 shadow-xl outline-none print:max-w-none print:border-none print:bg-transparent print:p-0 print:shadow-none`}
+        className={`w-full ${wide ? "max-w-4xl" : "max-w-lg"} rounded-2xl border border-line bg-surface p-6 shadow-xl outline-none print:max-w-none print:border-none print:bg-transparent print:p-0 print:shadow-none`}
       >
         <div className="mb-4 flex items-center justify-between gap-4 border-b border-line pb-3 print:hidden">
           <h3 className="text-lg font-semibold text-ink">{title}</h3>
