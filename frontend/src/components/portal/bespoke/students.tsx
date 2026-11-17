@@ -19,6 +19,8 @@ import {
   EyeOff,
   Users,
   Building2,
+  ChevronLeft,
+  ChevronRight,
   GraduationCap,
 } from "lucide-react";
 import { apiFetch } from "@/lib/api/client";
@@ -111,6 +113,8 @@ export function StudentsModule({ role }: { role: Role }) {
   const [collegeFilter, setCollegeFilter] = useState("all");
   const [deptFilter, setDeptFilter] = useState("all");
   const [sectionFilter, setSectionFilter] = useState("all");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   const [unmasked, setUnmasked] = useState<Record<string, boolean>>({});
 
   // Sync collegeFilter with session college for non-superadmins
@@ -450,6 +454,13 @@ export function StudentsModule({ role }: { role: Role }) {
     });
   }, [students, q, sectionFilter, collegeFilter, deptFilter]);
 
+  const totalPages = Math.max(1, Math.ceil(filteredStudents.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const start = (currentPage - 1) * pageSize;
+  const paginatedStudents = useMemo(() => {
+    return filteredStudents.slice(start, start + pageSize);
+  }, [filteredStudents, start, pageSize]);
+
   /* ── Excel / CSV File Handlers ───────────────────── */
 
   const parseCsvText = (text: string) => {
@@ -669,10 +680,29 @@ export function StudentsModule({ role }: { role: Role }) {
               id="student-search"
               type="text"
               value={q}
-              onChange={(e) => setQ(e.target.value)}
+              onChange={(e) => {
+                setQ(e.target.value);
+                setPage(1);
+              }}
               placeholder="Search students.."
-              className={cn(inputClass, "pl-9 text-sm py-2")}
+              className={cn(
+                inputClass,
+                "pl-9 pr-8 text-sm py-2 outline-none focus:outline-none focus-visible:outline-none focus:ring-4 focus:ring-brand/10 focus:border-brand"
+              )}
             />
+            {q && (
+              <button
+                type="button"
+                onClick={() => {
+                  setQ("");
+                  setPage(1);
+                }}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-full p-1 text-ink-3 hover:bg-surface-2 hover:text-ink focus-visible:outline-none transition-colors"
+                aria-label="Clear search"
+              >
+                <X className="size-3.5" />
+              </button>
+            )}
           </div>
 
           {/* College Filter Dropdown - Only for University Super Admin */}
@@ -682,7 +712,10 @@ export function StudentsModule({ role }: { role: Role }) {
               <select
                 id="student-college-filter"
                 value={collegeFilter}
-                onChange={(e) => setCollegeFilter(e.target.value)}
+                onChange={(e) => {
+                  setCollegeFilter(e.target.value);
+                  setPage(1);
+                }}
                 className={cn(selectFilterClass, "w-full sm:w-auto text-sm py-2 px-3 min-w-[140px] max-w-full sm:max-w-[210px]")}
                 title="Filter by college"
               >
@@ -703,7 +736,10 @@ export function StudentsModule({ role }: { role: Role }) {
               <select
                 id="student-department-filter"
                 value={deptFilter}
-                onChange={(e) => setDeptFilter(e.target.value)}
+                onChange={(e) => {
+                  setDeptFilter(e.target.value);
+                  setPage(1);
+                }}
                 className={cn(selectFilterClass, "w-full sm:w-auto text-sm py-2 px-3 min-w-[140px] max-w-full sm:max-w-[200px]")}
                 title="Filter by department"
               >
@@ -723,7 +759,10 @@ export function StudentsModule({ role }: { role: Role }) {
             <select
               id="student-section-filter"
               value={sectionFilter}
-              onChange={(e) => setSectionFilter(e.target.value)}
+              onChange={(e) => {
+                setSectionFilter(e.target.value);
+                setPage(1);
+              }}
               className={cn(selectFilterClass, "w-full sm:w-auto text-sm py-2 px-3 min-w-[120px] max-w-full sm:max-w-[160px]")}
               title="Filter by section"
             >
@@ -845,7 +884,7 @@ export function StudentsModule({ role }: { role: Role }) {
                 </tr>
               </thead>
               <tbody className="divide-y divide-line">
-                {filteredStudents.map((student) => {
+                {paginatedStudents.map((student) => {
                   const isLow = student.readiness < 45;
                   const isMid = student.readiness >= 45 && student.readiness < 70;
 
@@ -990,16 +1029,57 @@ export function StudentsModule({ role }: { role: Role }) {
           </div>
         )}
 
-        {/* Footer */}
-        <div className="border-t border-line px-4 py-3 text-xs text-ink-3 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="font-medium text-ink-2">
-              Showing {filteredStudents.length} of {students.length} students
+        {/* Footer with Pagination Controls */}
+        <div className="border-t border-line px-4 py-3 text-xs text-ink-3 flex flex-col sm:flex-row items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-3">
+            <span>
+              Showing <strong className="text-ink">{filteredStudents.length === 0 ? 0 : start + 1}</strong>–<strong className="text-ink">{Math.min(start + pageSize, filteredStudents.length)}</strong> of <strong className="text-ink">{filteredStudents.length}</strong> student{filteredStudents.length === 1 ? "" : "s"}
+              {filteredStudents.length !== students.length ? ` (filtered from ${students.length})` : ""}
             </span>
+            <div className="flex items-center gap-1.5">
+              <span>Rows per page:</span>
+              <select
+                aria-label="Students per page"
+                value={pageSize}
+                onChange={(e) => {
+                  setPageSize(Number(e.target.value));
+                  setPage(1);
+                }}
+                className={cn(selectFilterClass, "py-1 px-2 text-xs")}
+              >
+                <option value={10}>10</option>
+                <option value={25}>25</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+              </select>
+            </div>
           </div>
-          <span className="text-[11px] text-ink-3">
-            Institutional Student Directory
-          </span>
+
+          <div className="flex items-center gap-2">
+            <span className="mr-1 text-ink-3">
+              Page <strong className="text-ink">{currentPage}</strong> of <strong className="text-ink">{totalPages}</strong>
+            </span>
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={currentPage <= 1}
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              aria-label="Previous page"
+              className="gap-1 text-xs px-2.5 py-1"
+            >
+              <ChevronLeft className="size-3.5" /> Prev
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={currentPage >= totalPages}
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              aria-label="Next page"
+              className="gap-1 text-xs px-2.5 py-1"
+            >
+              Next <ChevronRight className="size-3.5" />
+            </Button>
+          </div>
         </div>
       </Card>
 

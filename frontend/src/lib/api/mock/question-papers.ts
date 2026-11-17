@@ -3,6 +3,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { randomBytes } from "node:crypto";
 import { cleanText } from "@/lib/security/sanitize";
+import { dataBackend } from "@/lib/data";
+import { db } from "@/lib/data/postgres/db";
 
 export interface QuestionPaperRecord {
   id: string;
@@ -284,23 +286,283 @@ function persistPapers(records: QuestionPaperRecord[]): void {
   }
 }
 
-export function listQuestionPapers(collegeId?: string | null, courseCode?: string | null): QuestionPaperRecord[] {
+export interface ListQuestionPapersOptions {
+  collegeId?: string | null;
+  courseCode?: string | null;
+  search?: string | null;
+  examType?: string | null;
+  status?: string | null;
+  page?: number;
+  pageSize?: number;
+}
+
+export interface PaginatedQuestionPapersResult {
+  papers: QuestionPaperRecord[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+}
+
+export async function listQuestionPapers(
+  collegeIdOrOptions?: string | null | ListQuestionPapersOptions,
+  courseCodeParam?: string | null
+): Promise<PaginatedQuestionPapersResult> {
+  let collegeId: string | null | undefined;
+  let courseCode: string | null | undefined;
+  let search: string | null | undefined;
+  let examType: string | null | undefined;
+  let status: string | null | undefined;
+  let page = 1;
+  let pageSize = 10;
+
+  if (typeof collegeIdOrOptions === "object" && collegeIdOrOptions !== null) {
+    collegeId = collegeIdOrOptions.collegeId;
+    courseCode = collegeIdOrOptions.courseCode;
+    search = collegeIdOrOptions.search;
+    examType = collegeIdOrOptions.examType;
+    status = collegeIdOrOptions.status;
+    page = collegeIdOrOptions.page || 1;
+    pageSize = collegeIdOrOptions.pageSize || 10;
+  } else {
+    collegeId = collegeIdOrOptions;
+    courseCode = courseCodeParam;
+  }
+
+  if (dataBackend() === "postgres") {
+    try {
+      const t = db();
+      let collegeUuid: string | null = null;
+      if (collegeId && collegeId !== "all" && collegeId !== "COL-001") {
+        const col = await t.college.findFirst({
+          where: {
+            OR: [
+              { publicId: collegeId },
+              { id: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(collegeId) ? collegeId : undefined },
+            ].filter(Boolean) as any,
+          },
+          select: { id: true },
+        });
+        collegeUuid = col?.id || null;
+      }
+
+      // Build WHERE conditions
+      const q = (search || "").trim();
+      const codeFilter = (courseCode || "").trim();
+      const typeFilter = (examType || "").trim();
+      const statusFilter = (status || "").trim();
+
+      const whereClauses: string[] = ["1=1"];
+      const params: any[] = [];
+
+      if (collegeUuid) {
+        params.push(collegeUuid);
+        whereClauses.push(`(college_id = $${params.length}::uuid OR college_id IS NULL)`);
+      }
+
+      if (codeFilter && codeFilter !== "ALL") {
+        params.push(`%${codeFilter}%`);
+        whereClauses.push(`(course_code ILIKE $${params.length} OR course_title ILIKE $${params.length})`);
+      }
+
+      if (q) {
+        params.push(`%${q}%`);
+        whereClauses.push(`(
+          course_code ILIKE $${params.length} OR 
+          course_title ILIKE $${params.length} OR 
+          units ILIKE $${params.length} OR 
+          markdown ILIKE $${params.length} OR
+          author_name ILIKE $${params.length}
+        )`);
+      }
+
+      if (typeFilter && typeFilter !== "ALL") {
+        params.push(`%${typeFilter}%`);
+        whereClauses.push(`exam_type ILIKE $${params.length}`);
+      }
+
+      if (statusFilter && statusFilter !== "ALL") {
+        params.push(statusFilter);
+        whereClauses.push(`status = $${params.length}`);
+      }
+
+      const whereSql = whereClauses.join(" AND ");
+
+      const countResult = await t.$queryRawUnsafe<Array<{ count: string | number }>>(
+        `SELECT COUNT(*)::int as count FROM question_papers WHERE ${whereSql}`,
+        ...params
+      );
+      const total = Number(countResult[0]?.count || 0);
+
+      const offset = (page - 1) * pageSize;
+      params.push(pageSize);
+      const limitParamIdx = params.length;
+      params.push(offset);
+      const offsetParamIdx = params.length;
+
+      const rows = await t.$queryRawUnsafe<any[]>(
+        `SELECT 
+          public_id as id,
+          college_id as "collegeId",
+          course_code as "courseCode",
+          course_title as "courseTitle",
+          department,
+          semester,
+          academic_year as "academicYear",
+          exam_type as "examType",
+          units,
+          marks,
+          duration,
+          pattern,
+          bloom_levels as "bloomLevels",
+          markdown,
+          author_name as "authorName",
+          author_sub as "authorSub",
+          status,
+          to_char(created_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') as "createdAt",
+          to_char(updated_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') as "updatedAt"
+        FROM question_papers
+        WHERE ${whereSql}
+        ORDER BY created_at DESC
+        LIMIT $${limitParamIdx} OFFSET $${offsetParamIdx}`,
+        ...params
+      );
+
+      const papers: QuestionPaperRecord[] = (rows || []).map((r: any) => ({
+        id: r.id,
+        collegeId: r.collegeId || "COL-001",
+        courseCode: r.courseCode,
+        courseTitle: r.courseTitle,
+        department: r.department || "Computer Science & Engineering",
+        semester: r.semester || "Semester 5",
+        academicYear: r.academicYear || "2026-2027",
+        examType: r.examType,
+        units: r.units,
+        marks: Number(r.marks) || 50,
+        duration: r.duration || "90 Minutes",
+        pattern: r.pattern,
+        bloomLevels: Array.isArray(r.bloomLevels) ? r.bloomLevels : ["Remember", "Understand", "Apply"],
+        markdown: r.markdown,
+        authorName: r.authorName || "Faculty Member",
+        authorSub: r.authorSub || "USR-004",
+        status: r.status,
+        createdAt: r.createdAt || new Date().toISOString(),
+        updatedAt: r.updatedAt || new Date().toISOString(),
+      }));
+
+      const totalPages = Math.max(1, Math.ceil(total / pageSize));
+
+      return {
+        papers,
+        total,
+        page,
+        pageSize,
+        totalPages,
+      };
+    } catch (e) {
+      console.warn("[question-papers] Postgres query error, falling back to disk store:", e);
+    }
+  }
+
+  // Fallback to disk / in-memory store
   const all = loadPapers();
-  return all
+  const filtered = all
     .filter((p) => {
       if (collegeId && p.collegeId !== collegeId && p.collegeId !== "COL-001") return false;
-      if (courseCode && p.courseCode.toLowerCase() !== courseCode.toLowerCase()) return false;
+      if (courseCode && courseCode !== "ALL" && !p.courseCode.toLowerCase().includes(courseCode.toLowerCase()) && !p.courseTitle.toLowerCase().includes(courseCode.toLowerCase())) return false;
+      if (search && search.trim()) {
+        const q = search.toLowerCase();
+        const match =
+          p.courseCode.toLowerCase().includes(q) ||
+          p.courseTitle.toLowerCase().includes(q) ||
+          p.units.toLowerCase().includes(q) ||
+          p.markdown.toLowerCase().includes(q);
+        if (!match) return false;
+      }
+      if (examType && examType !== "ALL" && !p.examType.toLowerCase().includes(examType.toLowerCase())) return false;
+      if (status && status !== "ALL" && p.status !== status) return false;
       return true;
     })
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+  const total = filtered.length;
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const start = (page - 1) * pageSize;
+  const papers = filtered.slice(start, start + pageSize);
+
+  return {
+    papers,
+    total,
+    page,
+    pageSize,
+    totalPages,
+  };
 }
 
-export function getQuestionPaperById(id: string): QuestionPaperRecord | null {
+export async function getQuestionPaperById(id: string): Promise<QuestionPaperRecord | null> {
+  if (dataBackend() === "postgres") {
+    try {
+      const t = db();
+      const rows = await t.$queryRawUnsafe<any[]>(
+        `SELECT 
+          public_id as id,
+          college_id as "collegeId",
+          course_code as "courseCode",
+          course_title as "courseTitle",
+          department,
+          semester,
+          academic_year as "academicYear",
+          exam_type as "examType",
+          units,
+          marks,
+          duration,
+          pattern,
+          bloom_levels as "bloomLevels",
+          markdown,
+          author_name as "authorName",
+          author_sub as "authorSub",
+          status,
+          to_char(created_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') as "createdAt",
+          to_char(updated_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') as "updatedAt"
+        FROM question_papers
+        WHERE public_id = $1 OR id::text = $1
+        LIMIT 1`,
+        id
+      );
+      if (rows && rows.length > 0) {
+        const r = rows[0];
+        return {
+          id: r.id,
+          collegeId: r.collegeId || "COL-001",
+          courseCode: r.courseCode,
+          courseTitle: r.courseTitle,
+          department: r.department || "Computer Science & Engineering",
+          semester: r.semester || "Semester 5",
+          academicYear: r.academicYear || "2026-2027",
+          examType: r.examType,
+          units: r.units,
+          marks: Number(r.marks) || 50,
+          duration: r.duration || "90 Minutes",
+          pattern: r.pattern,
+          bloomLevels: Array.isArray(r.bloomLevels) ? r.bloomLevels : ["Remember", "Understand", "Apply"],
+          markdown: r.markdown,
+          authorName: r.authorName || "Faculty Member",
+          authorSub: r.authorSub || "USR-004",
+          status: r.status,
+          createdAt: r.createdAt,
+          updatedAt: r.updatedAt,
+        };
+      }
+    } catch (err) {
+      console.warn("[question-papers] Error fetching by id from PostgreSQL:", err);
+    }
+  }
+
   const all = loadPapers();
   return all.find((p) => p.id === id) ?? null;
 }
 
-export function createQuestionPaper(data: {
+export async function createQuestionPaper(data: {
   collegeId: string;
   courseCode: string;
   courseTitle: string;
@@ -317,7 +579,7 @@ export function createQuestionPaper(data: {
   authorName: string;
   authorSub: string;
   status?: QuestionPaperRecord["status"];
-}): QuestionPaperRecord {
+}): Promise<QuestionPaperRecord> {
   const all = loadPapers();
   const id = `QP-${new Date().getFullYear()}-${cleanText(data.courseCode, 10).toUpperCase().replace(/[^A-Z0-9]/g, "")}-${randomBytes(3).toString("hex").toUpperCase()}`;
   const now = new Date().toISOString();
@@ -347,33 +609,173 @@ export function createQuestionPaper(data: {
   const updated = [record, ...all];
   inMemoryPapers = updated;
   persistPapers(updated);
+
+  if (dataBackend() === "postgres") {
+    try {
+      const t = db();
+      let collegeUuid: string | null = null;
+      if (record.collegeId && record.collegeId !== "COL-001") {
+        const col = await t.college.findFirst({
+          where: {
+            OR: [
+              { publicId: record.collegeId },
+              { id: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(record.collegeId) ? record.collegeId : undefined },
+            ].filter(Boolean) as any,
+          },
+          select: { id: true },
+        });
+        collegeUuid = col?.id || null;
+      }
+
+      await t.$executeRawUnsafe(`
+        INSERT INTO question_papers (
+          public_id,
+          college_id,
+          course_code,
+          course_title,
+          department,
+          semester,
+          academic_year,
+          exam_type,
+          units,
+          marks,
+          duration,
+          pattern,
+          bloom_levels,
+          markdown,
+          author_name,
+          author_sub,
+          status,
+          created_at,
+          updated_at
+        ) VALUES (
+          $1, $2::uuid, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18::timestamptz, $19::timestamptz
+        );
+      `,
+        record.id,
+        collegeUuid,
+        record.courseCode,
+        record.courseTitle,
+        record.department,
+        record.semester,
+        record.academicYear,
+        record.examType,
+        record.units,
+        record.marks,
+        record.duration,
+        record.pattern,
+        record.bloomLevels,
+        record.markdown,
+        record.authorName,
+        record.authorSub,
+        record.status,
+        record.createdAt,
+        record.updatedAt
+      );
+    } catch (err) {
+      console.warn("[question-papers] Error saving to PostgreSQL:", err);
+    }
+  }
+
   return record;
 }
 
-export function updateQuestionPaper(id: string, updates: Partial<QuestionPaperRecord>): QuestionPaperRecord | null {
+export async function updateQuestionPaper(id: string, updates: Partial<QuestionPaperRecord>): Promise<QuestionPaperRecord | null> {
   const all = loadPapers();
   const idx = all.findIndex((p) => p.id === id);
-  if (idx < 0) return null;
+  const now = new Date().toISOString();
 
-  const existing = all[idx]!;
-  const updatedRecord: QuestionPaperRecord = {
-    ...existing,
-    ...updates,
-    id: existing.id,
-    updatedAt: new Date().toISOString(),
-  };
+  let updatedRecord: QuestionPaperRecord;
+  if (idx >= 0) {
+    const existing = all[idx]!;
+    updatedRecord = {
+      ...existing,
+      ...updates,
+      id: existing.id,
+      updatedAt: now,
+    };
+    all[idx] = updatedRecord;
+    inMemoryPapers = all;
+    persistPapers(all);
+  } else {
+    updatedRecord = {
+      id,
+      collegeId: "COL-001",
+      courseCode: updates.courseCode || "COURSE",
+      courseTitle: updates.courseTitle || "",
+      department: updates.department || "",
+      semester: updates.semester || "",
+      academicYear: updates.academicYear || "2026-2027",
+      examType: updates.examType || "Internal Assessment I",
+      units: updates.units || "Units 1–2",
+      marks: updates.marks || 50,
+      duration: updates.duration || "90 Minutes",
+      pattern: updates.pattern || "Part A (2 marks) + Part B (13 marks)",
+      bloomLevels: updates.bloomLevels || ["Remember", "Understand"],
+      markdown: updates.markdown || "",
+      authorName: updates.authorName || "Faculty Member",
+      authorSub: updates.authorSub || "USR-004",
+      status: updates.status || "Approved",
+      createdAt: now,
+      updatedAt: now,
+    };
+  }
 
-  all[idx] = updatedRecord;
-  inMemoryPapers = all;
-  persistPapers(all);
+  if (dataBackend() === "postgres") {
+    try {
+      const t = db();
+      const setClauses: string[] = ["updated_at = now()"];
+      const params: any[] = [];
+
+      if (updates.status) {
+        params.push(updates.status);
+        setClauses.push(`status = $${params.length}`);
+      }
+      if (updates.marks !== undefined) {
+        params.push(updates.marks);
+        setClauses.push(`marks = $${params.length}`);
+      }
+      if (updates.markdown) {
+        params.push(updates.markdown);
+        setClauses.push(`markdown = $${params.length}`);
+      }
+
+      params.push(id);
+      const idParamIdx = params.length;
+
+      await t.$executeRawUnsafe(
+        `UPDATE question_papers SET ${setClauses.join(", ")} WHERE public_id = $${idParamIdx} OR id::text = $${idParamIdx};`,
+        ...params
+      );
+    } catch (err) {
+      console.warn("[question-papers] Error updating in PostgreSQL:", err);
+    }
+  }
+
   return updatedRecord;
 }
 
-export function deleteQuestionPaper(id: string): boolean {
+export async function deleteQuestionPaper(id: string): Promise<boolean> {
   const all = loadPapers();
   const filtered = all.filter((p) => p.id !== id);
-  if (filtered.length === all.length) return false;
-  inMemoryPapers = filtered;
-  persistPapers(filtered);
-  return true;
+  const foundInDisk = filtered.length !== all.length;
+  if (foundInDisk) {
+    inMemoryPapers = filtered;
+    persistPapers(filtered);
+  }
+
+  if (dataBackend() === "postgres") {
+    try {
+      const t = db();
+      await t.$executeRawUnsafe(
+        `DELETE FROM question_papers WHERE public_id = $1 OR id::text = $1;`,
+        id
+      );
+      return true;
+    } catch (err) {
+      console.warn("[question-papers] Error deleting from PostgreSQL:", err);
+    }
+  }
+
+  return foundInDisk;
 }

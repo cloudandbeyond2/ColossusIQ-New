@@ -1,8 +1,8 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronLeft, ChevronRight, Eye, Pencil, Plus, Search, Send, Trash2 } from "lucide-react";
-import { useState } from "react";
+import { ChevronLeft, ChevronRight, Eye, Pencil, Plus, Search, Send, Trash2, X } from "lucide-react";
+import { useMemo, useState } from "react";
 import { z } from "zod";
 import { apiFetch } from "@/lib/api/client";
 import { AssignmentItem, Submission, type AssignmentStatus } from "@/lib/api/assignments-schemas";
@@ -353,15 +353,60 @@ function AssignmentForm({ initial, onClose }: { initial: AssignmentItem | null; 
 
 /* ───────────────────────────── submissions and marking ───────────────────────────── */
 
+type SubmissionFilter = "All" | "Submitted" | "Graded" | "Late" | "Pending Review";
+
 function SubmissionsDialog({ assignment, onClose }: { assignment: AssignmentItem; onClose: () => void }) {
   const q = useQuery({ queryKey: submissionsKey(assignment.id), queryFn: () => apiFetch(`/api/v1/assignments/${assignment.id}/submissions`, z.array(Submission)) });
   const st = assignment.stats;
+
+  const [search, setSearch] = useState("");
+  const [filter, setFilter] = useState<SubmissionFilter>("All");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+
+  const submissions = q.data ?? [];
+
+  const counts = useMemo(() => {
+    return {
+      all: submissions.length,
+      submitted: submissions.filter((s) => !s.late).length,
+      late: submissions.filter((s) => Boolean(s.late)).length,
+      graded: submissions.filter((s) => s.marks !== null).length,
+      pending: submissions.filter((s) => s.marks === null).length,
+    };
+  }, [submissions]);
+
+  const filtered = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    return submissions.filter((s) => {
+      // Search: student name or roll number
+      if (query) {
+        const nameMatch = s.studentName.toLowerCase().includes(query);
+        const rollMatch = s.rollNo ? s.rollNo.toLowerCase().includes(query) : false;
+        if (!nameMatch && !rollMatch) return false;
+      }
+
+      // Filter: Submitted, Graded, Late, Pending Review, All
+      if (filter === "Submitted") return !s.late;
+      if (filter === "Graded") return s.marks !== null;
+      if (filter === "Late") return Boolean(s.late);
+      if (filter === "Pending Review") return s.marks === null;
+      return true;
+    });
+  }, [submissions, search, filter]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const start = (currentPage - 1) * pageSize;
+  const paginated = filtered.slice(start, start + pageSize);
+
   return (
     <Modal title={`Submissions · ${assignment.title}`} onClose={onClose} wide>
       <p className="mb-4 text-sm text-ink-3">
         {assignment.course} · out of {assignment.maxMarks} · due {assignment.due}
         {st ? ` · ${st.submitted}${st.enrolled ? ` of ${st.enrolled}` : ""} handed in, ${st.graded} marked` : ""}
       </p>
+
       {q.isPending ? (
         <div className="space-y-3">
           <Skeleton className="h-28" />
@@ -369,16 +414,186 @@ function SubmissionsDialog({ assignment, onClose }: { assignment: AssignmentItem
         </div>
       ) : q.isError ? (
         <LoadError error={q.error} onRetry={() => void q.refetch()} />
-      ) : q.data.length === 0 ? (
+      ) : submissions.length === 0 ? (
         <EmptyState title="Nothing handed in yet" body="Submissions appear here as students send them." />
       ) : (
-        <ul className="space-y-4">
-          {q.data.map((s) => (
-            <li key={s.id}>
-              <SubmissionCard sub={s} assignment={assignment} />
-            </li>
-          ))}
-        </ul>
+        <div className="space-y-4">
+          {/* Controls bar: Search & Filter */}
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="relative flex-1">
+              <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ink-3" aria-hidden />
+              <input
+                type="search"
+                aria-label="Search student name or roll number"
+                placeholder="Search student name or roll number…"
+                value={search}
+                onChange={(e) => {
+                  setSearch(e.target.value);
+                  setPage(1);
+                }}
+                className={`${inputClass} pl-9 pr-9`}
+              />
+              {search ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearch("");
+                    setPage(1);
+                  }}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded p-1 text-ink-3 hover:text-ink"
+                  aria-label="Clear search"
+                >
+                  <X className="size-3.5" />
+                </button>
+              ) : null}
+            </div>
+
+            <div className="flex items-center gap-2">
+              <label htmlFor="filter-submissions-status" className="text-xs font-medium text-ink-3 whitespace-nowrap">
+                Filter:
+              </label>
+              <select
+                id="filter-submissions-status"
+                aria-label="Filter submissions by status"
+                value={filter}
+                onChange={(e) => {
+                  setFilter(e.target.value as SubmissionFilter);
+                  setPage(1);
+                }}
+                className="rounded-xl border border-line bg-surface px-3 py-2 text-sm font-medium text-ink focus:outline-none focus:ring-2 focus:ring-brand"
+              >
+                <option value="All">All ({counts.all})</option>
+                <option value="Submitted">Submitted ({counts.submitted})</option>
+                <option value="Pending Review">Pending Review ({counts.pending})</option>
+                <option value="Graded">Graded ({counts.graded})</option>
+                <option value="Late">Late ({counts.late})</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Quick filter tabs */}
+          <div className="flex flex-wrap items-center gap-2">
+            {(
+              [
+                { id: "All" as const, label: "All", count: counts.all },
+                { id: "Submitted" as const, label: "Submitted", count: counts.submitted },
+                { id: "Pending Review" as const, label: "Pending Review", count: counts.pending },
+                { id: "Graded" as const, label: "Graded", count: counts.graded },
+                { id: "Late" as const, label: "Late", count: counts.late },
+              ] as const
+            ).map((tab) => {
+              const active = filter === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => {
+                    setFilter(tab.id);
+                    setPage(1);
+                  }}
+                  className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium transition-colors ${
+                    active
+                      ? "bg-brand text-white shadow-sm"
+                      : "border border-line bg-surface text-ink-2 hover:bg-surface-2 hover:text-ink"
+                  }`}
+                >
+                  <span>{tab.label}</span>
+                  <span
+                    className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${
+                      active ? "bg-white/20 text-white" : "bg-surface-2 text-ink-3"
+                    }`}
+                  >
+                    {tab.count}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Submissions items */}
+          {filtered.length === 0 ? (
+            <div className="rounded-xl border border-line/60 bg-surface-2/20 py-8 text-center">
+              <EmptyState
+                title="No submissions match"
+                body={search ? `No submissions matching “${search}” with status “${filter}”.` : `No submissions found with status “${filter}”.`}
+              />
+              <div className="mt-4">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => {
+                    setSearch("");
+                    setFilter("All");
+                    setPage(1);
+                  }}
+                >
+                  Clear search & filters
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <ul className="space-y-4">
+              {paginated.map((s) => (
+                <li key={s.id}>
+                  <SubmissionCard sub={s} assignment={assignment} />
+                </li>
+              ))}
+            </ul>
+          )}
+
+          {/* Pagination bar */}
+          {filtered.length > 0 && (
+            <div className="flex flex-col items-center justify-between gap-3 border-t border-line pt-3 text-xs text-ink-3 sm:flex-row">
+              <div className="flex flex-wrap items-center gap-3">
+                <span>
+                  Showing {start + 1}–{Math.min(start + pageSize, filtered.length)} of {filtered.length} submissions
+                  {filtered.length !== submissions.length ? ` (filtered from ${submissions.length})` : ""}
+                </span>
+                <div className="flex items-center gap-1.5">
+                  <span>Rows per page:</span>
+                  <select
+                    aria-label="Submissions per page"
+                    value={pageSize}
+                    onChange={(e) => {
+                      setPageSize(Number(e.target.value));
+                      setPage(1);
+                    }}
+                    className="rounded-lg border border-line bg-surface px-2 py-1 text-xs text-ink focus:outline-none focus:ring-1 focus:ring-brand"
+                  >
+                    <option value={5}>5</option>
+                    <option value={10}>10</option>
+                    <option value={20}>20</option>
+                    <option value={50}>50</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span className="mr-1 text-ink-3">
+                  Page {currentPage} of {totalPages}
+                </span>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  disabled={currentPage <= 1}
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  aria-label="Previous page"
+                >
+                  <ChevronLeft className="size-3.5" /> Prev
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  disabled={currentPage >= totalPages}
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  aria-label="Next page"
+                >
+                  Next <ChevronRight className="size-3.5" />
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
       )}
     </Modal>
   );
@@ -423,10 +638,10 @@ function SubmissionCard({ sub, assignment }: { sub: Submission; assignment: Assi
     <Card className="p-4">
       <div className="flex flex-wrap items-center gap-2">
         <p className="font-semibold text-ink">{sub.studentName}</p>
-        {sub.rollNo ? <span className="text-xs text-ink-3">{sub.rollNo}</span> : null}
+        {sub.rollNo ? <span className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-xs text-ink-3">{sub.rollNo}</span> : null}
         <span className="text-xs text-ink-3">· handed in {when(sub.submittedAt)}</span>
-        {sub.late ? <Badge tone="rose">Late</Badge> : null}
-        {sub.marks !== null ? <Badge tone="teal">{`${sub.marks} / ${assignment.maxMarks}`}</Badge> : <Badge tone="amber">Not marked</Badge>}
+        {sub.late ? <Badge tone="rose">Late</Badge> : <Badge tone="teal">Submitted</Badge>}
+        {sub.marks !== null ? <Badge tone="teal">{`Graded · ${sub.marks} / ${assignment.maxMarks}`}</Badge> : <Badge tone="amber">Pending Review</Badge>}
       </div>
       {sub.text ? <p className="mt-3 max-h-48 overflow-y-auto whitespace-pre-wrap rounded-lg bg-surface-2/60 p-3 text-sm text-ink-2">{sub.text}</p> : null}
       {sub.link ? (

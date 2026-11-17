@@ -286,8 +286,9 @@ export async function dynamicFacultyHome(session: SessionPayload): Promise<RoleH
   // 2. Dynamic Question Paper generation task
   let draftPaperCourse = primarySubj;
   try {
-    const papers = listQuestionPapers(session.college);
-    const draftPaper = papers.find((p) => p.status === "Draft");
+    const res = await listQuestionPapers(session.college);
+    const papersList = Array.isArray(res) ? res : res.papers;
+    const draftPaper = papersList.find((p) => p.status === "Draft");
     if (draftPaper) {
       draftPaperCourse = draftPaper.courseCode;
     }

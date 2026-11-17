@@ -84,6 +84,17 @@ export function MyClassesModule({ role: _role }: { role?: Role }) {
     setTimeout(() => setToastMessage(null), 4500);
   };
 
+  // Helper to open attendance modal with correct context & topic
+  const openTakeAttendance = (sec?: AllocatedClassSection) => {
+    const target = sec || (selectedSectionId ? profile?.assignedSections.find((s) => s.id === selectedSectionId) : profile?.assignedSections[0]);
+    if (target) {
+      setSelectedSectionId(target.id);
+      setAttendanceTopic(`${target.courseTitle || target.shortName} Lecture Session`);
+    }
+    setRosterSection(null);
+    setIsAttendanceModalOpen(true);
+  };
+
   /* ── 1. Fetch Faculty Allocation Profile ────────────────────────────────── */
   const { data: profile, isLoading, isError, refetch } = useQuery<FacultyAllocationProfile>({
     queryKey: ["faculty-allocations"],
@@ -543,12 +554,7 @@ export function MyClassesModule({ role: _role }: { role?: Role }) {
 
         <div className="flex flex-wrap items-center gap-2.5">
           <Button
-            onClick={() => {
-              if (profile.assignedSections[0]) {
-                setSelectedSectionId(profile.assignedSections[0].id);
-              }
-              setIsAttendanceModalOpen(true);
-            }}
+            onClick={() => openTakeAttendance()}
             className="shadow-sm"
           >
             <UserCheck className="size-4" />
@@ -799,10 +805,7 @@ export function MyClassesModule({ role: _role }: { role?: Role }) {
                     <div className="grid grid-cols-2 gap-2">
                       <Button
                         size="sm"
-                        onClick={() => {
-                          setSelectedSectionId(sec.id);
-                          setIsAttendanceModalOpen(true);
-                        }}
+                        onClick={() => openTakeAttendance(sec)}
                         className="text-xs"
                       >
                         <UserCheck className="size-3.5" />
@@ -961,6 +964,7 @@ export function MyClassesModule({ role: _role }: { role?: Role }) {
                           setSelectedSectionId(slot.sectionId);
                           setAttendancePeriod(slot.period);
                           setAttendanceTopic(slot.topic || `${slot.shortName} Period ${slot.period}`);
+                          setRosterSection(null);
                           setIsAttendanceModalOpen(true);
                         }}
                         className="text-xs"
@@ -987,7 +991,14 @@ export function MyClassesModule({ role: _role }: { role?: Role }) {
                 <label className="text-xs font-semibold text-ink-2">Class Section</label>
                 <select
                   value={selectedSectionId}
-                  onChange={(e) => setSelectedSectionId(e.target.value)}
+                  onChange={(e) => {
+                    const newId = e.target.value;
+                    setSelectedSectionId(newId);
+                    const found = profile.assignedSections.find((s) => s.id === newId);
+                    if (found) {
+                      setAttendanceTopic(`${found.courseTitle || found.shortName} Lecture Session`);
+                    }
+                  }}
                   className={cn(inputClass, "mt-1.5 text-xs")}
                 >
                   {profile.assignedSections.map((sec) => (

@@ -7,19 +7,22 @@ import {
   Building2,
   Check,
   CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
   Code2,
   ExternalLink,
+  Filter,
   Globe,
   Lightbulb,
   Mic,
   Plus,
+  RotateCcw,
   Search,
   ShieldCheck,
   Sparkles,
   Trash2,
   UserCheck,
   Users,
-  Wand2,
   X,
 } from "lucide-react";
 import { z } from "zod";
@@ -36,6 +39,7 @@ import {
   CardHeader,
   LinkButton,
   Progress,
+  inputClass,
   toneForScore,
 } from "@/components/ui/primitives";
 import { cn } from "@/lib/utils";
@@ -52,6 +56,40 @@ const STAGES_LIST = [
   "Demo",
   "Portfolio",
 ] as const;
+
+export const STAGE_FILTERS = [
+  { id: "all", label: "All Stages", description: "All project stages" },
+  { id: "Idea", label: "Idea", description: "Idea & Team Formation" },
+  { id: "Blueprint", label: "Blueprint", description: "Architecture & Milestones" },
+  { id: "Prototype", label: "Prototype", description: "Implementation & Testing" },
+  { id: "Review", label: "Review", description: "AI & Faculty Review" },
+  { id: "Completed", label: "Completed", description: "Demo & Portfolio" },
+] as const;
+
+export function matchesStage(projectStage: string, selectedFilter: string): boolean {
+  if (selectedFilter === "all") return true;
+  const s = projectStage.toLowerCase().trim();
+  const f = selectedFilter.toLowerCase().trim();
+  if (s === f) return true;
+
+  if (f === "idea") {
+    return s.includes("idea") || s.includes("team formation") || s.includes("concept");
+  }
+  if (f === "blueprint") {
+    return s.includes("blueprint") || s.includes("architecture") || s.includes("milestone") || s.includes("design");
+  }
+  if (f === "prototype") {
+    return s.includes("prototype") || s.includes("implementation") || s.includes("testing") || s.includes("build");
+  }
+  if (f === "review") {
+    return s.includes("review");
+  }
+  if (f === "completed") {
+    return s.includes("completed") || s.includes("portfolio") || s.includes("demo") || s.includes("published");
+  }
+
+  return false;
+}
 
 const MEDICAL_DOMAINS = [
   "ICMR-STS · Short Term Studentship Research",
@@ -317,6 +355,9 @@ export function ProjectsModule({ role }: { role: Role }) {
   const [scopeFilter, setScopeFilter] = useState<"my" | "all">(
     role === "admin" || role === "institution" ? "all" : "my"
   );
+  const [stageFilter, setStageFilter] = useState<string>("all");
+  const [page, setPage] = useState<number>(1);
+  const [pageSize, setPageSize] = useState<number>(5);
 
   const myProjects = useMemo(() => {
     if (!data) return [];
@@ -332,20 +373,60 @@ export function ProjectsModule({ role }: { role: Role }) {
   const allCount = data?.length || 0;
   const myCount = myProjects.length;
 
-  const scopedList = scopeFilter === "my" ? myProjects : (data || []);
+  const scopedList = useMemo(
+    () => (scopeFilter === "my" ? myProjects : (data || [])),
+    [scopeFilter, myProjects, data]
+  );
 
-  const filteredProjects = useMemo(() => {
+  // Search query matches: title, student name, team members, domain, mentor, description, stage
+  const searchMatches = useMemo(() => {
     if (!scopedList) return [];
     if (!search.trim()) return scopedList;
-    const q = search.toLowerCase();
-    return scopedList.filter(
-      (p) =>
-        p.title.toLowerCase().includes(q) ||
-        p.domain.toLowerCase().includes(q) ||
-        p.mentor.toLowerCase().includes(q) ||
-        p.team.some((m) => m.toLowerCase().includes(q))
-    );
+    const words = search.toLowerCase().trim().split(/\s+/).filter(Boolean);
+    return scopedList.filter((p) => {
+      const hay = [
+        p.title,
+        p.domain,
+        p.mentor,
+        ...(p.team || []),
+        p.stage,
+        p.review?.facultyFeedback || "",
+      ]
+        .join(" ")
+        .toLowerCase();
+      return words.every((w) => hay.includes(w));
+    });
   }, [scopedList, search]);
+
+  // Stage counts dynamically reflect current search results
+  const stageCounts = useMemo(() => {
+    const counts: Record<string, number> = {
+      all: searchMatches.length,
+      Idea: 0,
+      Blueprint: 0,
+      Prototype: 0,
+      Review: 0,
+      Completed: 0,
+    };
+    for (const p of searchMatches) {
+      if (matchesStage(p.stage, "Idea")) counts.Idea = (counts.Idea || 0) + 1;
+      if (matchesStage(p.stage, "Blueprint")) counts.Blueprint = (counts.Blueprint || 0) + 1;
+      if (matchesStage(p.stage, "Prototype")) counts.Prototype = (counts.Prototype || 0) + 1;
+      if (matchesStage(p.stage, "Review")) counts.Review = (counts.Review || 0) + 1;
+      if (matchesStage(p.stage, "Completed")) counts.Completed = (counts.Completed || 0) + 1;
+    }
+    return counts;
+  }, [searchMatches]);
+
+  const filteredProjects = useMemo(() => {
+    if (stageFilter === "all") return searchMatches;
+    return searchMatches.filter((p) => matchesStage(p.stage, stageFilter));
+  }, [searchMatches, stageFilter]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredProjects.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const start = (currentPage - 1) * pageSize;
+  const paginatedProjects = filteredProjects.slice(start, start + pageSize);
 
   if (isLoading || !data) return <TemplateSkeleton />;
 
@@ -371,7 +452,7 @@ export function ProjectsModule({ role }: { role: Role }) {
       )}
 
       {/* Header Bar */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex flex-wrap items-center gap-2">
           {role === "student" && (
             <>
@@ -398,25 +479,14 @@ export function ProjectsModule({ role }: { role: Role }) {
           )}
         </div>
 
-        {/* Search */}
-        <div className="relative w-full max-w-xs">
-          <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ink-3" />
-          <input
-            type="text"
-            placeholder="Search projects, domains, mentors..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full rounded-xl border border-line bg-surface py-2 pl-9 pr-3 text-xs text-ink placeholder:text-ink-3 focus:border-brand focus:outline-none"
-          />
-        </div>
-      </div>
-
-      {/* Scope Filter Tabs (My Mentored Projects vs All College Projects) */}
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line pb-3">
+        {/* Scope Filter Tabs (My Mentored Projects vs All College Projects) */}
         <div className="flex items-center gap-1.5 rounded-xl border border-line bg-surface p-1">
           <button
             type="button"
-            onClick={() => setScopeFilter("my")}
+            onClick={() => {
+              setScopeFilter("my");
+              setPage(1);
+            }}
             className={cn(
               "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-all",
               scopeFilter === "my"
@@ -438,7 +508,10 @@ export function ProjectsModule({ role }: { role: Role }) {
 
           <button
             type="button"
-            onClick={() => setScopeFilter("all")}
+            onClick={() => {
+              setScopeFilter("all");
+              setPage(1);
+            }}
             className={cn(
               "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-all",
               scopeFilter === "all"
@@ -458,15 +531,104 @@ export function ProjectsModule({ role }: { role: Role }) {
             </span>
           </button>
         </div>
+      </div>
 
-        <div className="text-xs text-ink-3">
-          {scopeFilter === "my" ? (
-            <span>
-              Showing {filteredProjects.length} {role === "student" ? "project(s) in your team" : "project(s) assigned to you as mentor"}
+      {/* Search & Stage Filters Control Panel */}
+      <div className="flex flex-col gap-3 rounded-2xl border border-line bg-surface p-3.5 sm:p-4">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          {/* Search Box: Project Title, Student Name, Team, Domain, Mentor */}
+          <div className="relative flex-1 max-w-md">
+            <Search className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-ink-3" />
+            <input
+              type="text"
+              placeholder="Search by project title, student name, team, domain..."
+              value={search}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setPage(1);
+              }}
+              className={cn(
+                inputClass,
+                "pl-10 pr-9 text-xs sm:text-sm py-2 bg-surface outline-none focus:outline-none focus-visible:outline-none focus:ring-4 focus:ring-brand/10 focus:border-brand"
+              )}
+            />
+            {search && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearch("");
+                  setPage(1);
+                }}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-full p-1 text-ink-3 hover:bg-surface-2 hover:text-ink focus:outline-none focus-visible:outline-none transition-colors"
+                aria-label="Clear search"
+              >
+                <X className="size-3.5" />
+              </button>
+            )}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="text-xs text-ink-3">
+              {filteredProjects.length === scopedList.length ? (
+                <span>Showing <strong>{filteredProjects.length}</strong> project{filteredProjects.length === 1 ? "" : "s"}</span>
+              ) : (
+                <span>Filtered: <strong>{filteredProjects.length}</strong> of {scopedList.length}</span>
+              )}
             </span>
-          ) : (
-            <span>Showing {filteredProjects.length} project(s) across the college repository</span>
-          )}
+
+            {/* Quick Reset Filters Button */}
+            {(search || stageFilter !== "all") && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearch("");
+                  setStageFilter("all");
+                  setPage(1);
+                }}
+                className="inline-flex items-center gap-1.5 text-xs font-semibold text-rose hover:underline"
+              >
+                <RotateCcw className="size-3" /> Reset Filters
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Stage Filter Pills: Idea, Blueprint, Prototype, Review, Completed */}
+        <div className="flex flex-wrap items-center gap-1.5 pt-2 border-t border-line/60">
+          <span className="mr-1 text-[11px] font-bold uppercase tracking-wider text-ink-3 flex items-center gap-1">
+            <Filter className="size-3" /> Stage:
+          </span>
+          {STAGE_FILTERS.map((s) => {
+            const count = stageCounts[s.id] ?? 0;
+            const active = stageFilter === s.id;
+            return (
+              <button
+                key={s.id}
+                type="button"
+                onClick={() => {
+                  setStageFilter(s.id);
+                  setPage(1);
+                }}
+                className={cn(
+                  "inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium transition-all",
+                  active
+                    ? "bg-brand text-white shadow-sm"
+                    : "bg-surface-2 text-ink-2 hover:bg-surface-3 hover:text-ink"
+                )}
+                title={s.description}
+              >
+                <span>{s.label}</span>
+                <span
+                  className={cn(
+                    "rounded-full px-1.5 py-0.2 text-[10px] font-bold",
+                    active ? "bg-white/20 text-white" : "bg-surface text-ink-3"
+                  )}
+                >
+                  {count}
+                </span>
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -475,27 +637,51 @@ export function ProjectsModule({ role }: { role: Role }) {
         <Card className="p-8 text-center">
           <Lightbulb className="mx-auto mb-3 size-10 text-ink-3" />
           <p className="font-semibold text-ink">
-            {scopeFilter === "my" && role === "faculty"
+            {scopeFilter === "my" && role === "faculty" && !search && stageFilter === "all"
               ? "No Projects Assigned to You as Mentor Yet"
               : "No projects found"}
           </p>
           <p className="mt-1 text-sm text-ink-3">
-            {scopeFilter === "my" && role === "faculty"
+            {scopeFilter === "my" && role === "faculty" && !search && stageFilter === "all"
               ? "When students select you as their faculty mentor, their submissions will appear here for milestone review and sign-off."
-              : search
-              ? "No projects match your search criteria."
+              : search || stageFilter !== "all"
+              ? "No projects match your current search and stage filter criteria."
               : "Projects created in your college will appear here."}
           </p>
-          {scopeFilter === "my" && allCount > 0 && (
+          {(search || stageFilter !== "all") && (
             <div className="mt-4 flex justify-center">
-              <Button size="sm" variant="secondary" onClick={() => setScopeFilter("all")} className="gap-2">
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => {
+                  setSearch("");
+                  setStageFilter("all");
+                  setPage(1);
+                }}
+                className="gap-1.5"
+              >
+                <RotateCcw className="size-3.5" /> Clear Filters
+              </Button>
+            </div>
+          )}
+          {scopeFilter === "my" && allCount > 0 && !search && stageFilter === "all" && (
+            <div className="mt-4 flex justify-center">
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => {
+                  setScopeFilter("all");
+                  setPage(1);
+                }}
+                className="gap-2"
+              >
                 <Building2 className="size-3.5" /> View All College Projects ({allCount})
               </Button>
             </div>
           )}
         </Card>
       ) : (
-        filteredProjects.map((p) => {
+        paginatedProjects.map((p) => {
           return (
             <Card key={p.id}>
               <CardHeader
@@ -686,6 +872,61 @@ export function ProjectsModule({ role }: { role: Role }) {
             </Card>
           );
         })
+      )}
+
+      {/* Pagination Controls */}
+      {filteredProjects.length > 0 && (
+        <div className="flex flex-col items-center justify-between gap-3 border-t border-line pt-4 text-xs text-ink-3 sm:flex-row">
+          <div className="flex flex-wrap items-center gap-3">
+            <span>
+              Showing <strong className="text-ink">{start + 1}</strong>–<strong className="text-ink">{Math.min(start + pageSize, filteredProjects.length)}</strong> of <strong className="text-ink">{filteredProjects.length}</strong> project{filteredProjects.length === 1 ? "" : "s"}
+              {filteredProjects.length !== scopedList.length ? ` (filtered from ${scopedList.length})` : ""}
+            </span>
+            <div className="flex items-center gap-1.5">
+              <span>Cards per page:</span>
+              <select
+                aria-label="Projects per page"
+                value={pageSize}
+                onChange={(e) => {
+                  setPageSize(Number(e.target.value));
+                  setPage(1);
+                }}
+                className="rounded-lg border border-line bg-surface px-2.5 py-1 text-xs font-medium text-ink focus:outline-none focus:ring-1 focus:ring-brand"
+              >
+                <option value={5}>5</option>
+                <option value={10}>10</option>
+                <option value={20}>20</option>
+                <option value={50}>50</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="mr-1 text-ink-3">
+              Page <strong className="text-ink">{currentPage}</strong> of <strong className="text-ink">{totalPages}</strong>
+            </span>
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={currentPage <= 1}
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              aria-label="Previous page"
+              className="gap-1 text-xs"
+            >
+              <ChevronLeft className="size-3.5" /> Prev
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={currentPage >= totalPages}
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              aria-label="Next page"
+              className="gap-1 text-xs"
+            >
+              Next <ChevronRight className="size-3.5" />
+            </Button>
+          </div>
+        </div>
       )}
 
       {/* CREATE PROJECT MODAL */}
@@ -951,7 +1192,7 @@ function StageDeliverableModal({
   onClose,
   onSubmit,
   isSubmitting,
-  isMedical,
+  isMedical: _isMedical,
 }: {
   project: Project;
   onClose: () => void;
@@ -965,7 +1206,7 @@ function StageDeliverableModal({
   isSubmitting: boolean;
   isMedical?: boolean;
 }) {
-  const currIndex = STAGES_LIST.indexOf(project.stage as any);
+  const currIndex = STAGES_LIST.indexOf(project.stage as (typeof STAGES_LIST)[number]);
   const nextStage =
     currIndex >= 0 && currIndex < STAGES_LIST.length - 1
       ? STAGES_LIST[currIndex + 1]!
@@ -976,7 +1217,7 @@ function StageDeliverableModal({
   const [docUrl, setDocUrl] = useState(project.docUrl || "");
   const [demoUrl, setDemoUrl] = useState(project.demoUrl || "");
 
-  const selectedIdx = STAGES_LIST.indexOf(selectedStage as any);
+  const selectedIdx = STAGES_LIST.indexOf(selectedStage as (typeof STAGES_LIST)[number]);
   const targetProgress = Math.min(
     100,
     Math.round(((selectedIdx + 1) / STAGES_LIST.length) * 100)
@@ -1101,7 +1342,7 @@ function FacultyReviewModal({
   onClose,
   onSubmit,
   isSubmitting,
-  isMedical,
+  isMedical: _isMedical,
 }: {
   project: Project;
   onClose: () => void;
@@ -1258,7 +1499,7 @@ function DeleteConfirmModal({
 
         <p className="text-sm text-ink-2">
           Are you sure you want to delete{" "}
-          <span className="font-semibold text-ink">"{project.title}"</span>? All recorded
+          <span className="font-semibold text-ink">&ldquo;{project.title}&rdquo;</span>? All recorded
           lifecycle stages, repository links, and review scores will be permanently removed.
         </p>
 
