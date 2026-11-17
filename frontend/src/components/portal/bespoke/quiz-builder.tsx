@@ -76,6 +76,8 @@ function QuizList({ onNew, onEdit, onResults }: { onNew: () => void; onEdit: (id
   const [search, setSearch] = useState("");
   const [deptFilter, setDeptFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
   const rows = list.data ?? [];
 
@@ -95,6 +97,13 @@ function QuizList({ onNew, onEdit, onResults }: { onNew: () => void; onEdit: (id
       return true;
     });
   }, [rows, deptFilter, statusFilter, search]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredRows.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const start = (currentPage - 1) * pageSize;
+  const paginatedRows = useMemo(() => {
+    return filteredRows.slice(start, start + pageSize);
+  }, [filteredRows, start, pageSize]);
 
   const totals = useMemo(() => ({
     published: rows.filter((r) => r.status === "Published").length,
@@ -146,20 +155,39 @@ function QuizList({ onNew, onEdit, onResults }: { onNew: () => void; onEdit: (id
                 type="text"
                 placeholder="Search quizzes..."
                 value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="h-10 w-full rounded-xl border border-line bg-surface pl-9 pr-3 text-sm text-ink placeholder:text-ink-3 transition-colors hover:border-brand/40 focus:border-brand focus:outline-none focus:ring-4 focus:ring-brand/10"
+                onChange={(e) => {
+                  setSearch(e.target.value);
+                  setPage(1);
+                }}
+                className="h-10 w-full rounded-xl border border-line bg-surface pl-9 pr-8 text-sm text-ink placeholder:text-ink-3 transition-colors hover:border-brand/40 outline-none focus:outline-none focus-visible:outline-none focus:border-brand focus:ring-4 focus:ring-brand/10"
               />
               <span className="pointer-events-none absolute left-3 top-3 text-ink-3">
                 <Fi name="search" />
               </span>
+              {search && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearch("");
+                    setPage(1);
+                  }}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-full p-1 text-ink-3 hover:bg-surface-2 hover:text-ink focus-visible:outline-none transition-colors"
+                  aria-label="Clear search"
+                >
+                  <Fi name="cross" />
+                </button>
+              )}
             </div>
 
             {/* Department Filter */}
             <div className="w-full sm:w-auto">
               <select
                 value={deptFilter}
-                onChange={(e) => setDeptFilter(e.target.value)}
-                className="h-10 min-w-[240px] rounded-xl border border-line bg-surface px-3 py-2 text-sm font-medium leading-normal text-ink shadow-2xs transition-colors hover:border-brand/40 focus:border-brand focus:outline-none focus:ring-4 focus:ring-brand/10 cursor-pointer"
+                onChange={(e) => {
+                  setDeptFilter(e.target.value);
+                  setPage(1);
+                }}
+                className="h-10 min-w-[240px] rounded-xl border border-line bg-surface px-3 py-2 text-sm font-medium leading-normal text-ink shadow-2xs transition-colors hover:border-brand/40 outline-none focus:outline-none focus-visible:outline-none focus:border-brand focus:ring-4 focus:ring-brand/10 cursor-pointer"
               >
                 <option value="all">All departments ({rows.length})</option>
                 {departments.map((d) => (
@@ -176,7 +204,10 @@ function QuizList({ onNew, onEdit, onResults }: { onNew: () => void; onEdit: (id
                 <button
                   key={s}
                   type="button"
-                  onClick={() => setStatusFilter(s)}
+                  onClick={() => {
+                    setStatusFilter(s);
+                    setPage(1);
+                  }}
                   className={cn(
                     "h-full rounded-lg px-3 py-1 font-medium transition-colors",
                     statusFilter === s ? "bg-brand text-white shadow-xs" : "text-ink-2 hover:text-ink",
@@ -196,6 +227,7 @@ function QuizList({ onNew, onEdit, onResults }: { onNew: () => void; onEdit: (id
                 setSearch("");
                 setDeptFilter("all");
                 setStatusFilter("all");
+                setPage(1);
               }}
               className="text-xs text-ink-3 hover:text-ink"
             >
@@ -215,6 +247,7 @@ function QuizList({ onNew, onEdit, onResults }: { onNew: () => void; onEdit: (id
                   setSearch("");
                   setDeptFilter("all");
                   setStatusFilter("all");
+                  setPage(1);
                 }}
               >
                 Reset filters
@@ -235,7 +268,7 @@ function QuizList({ onNew, onEdit, onResults }: { onNew: () => void; onEdit: (id
                 </tr>
               </thead>
               <tbody>
-                {filteredRows.map((r) => (
+                {paginatedRows.map((r) => (
                   <tr key={r.id} className="border-b border-line/60 last:border-0">
                     <td className="py-3 pr-3">
                       <p className="font-medium text-ink">{r.title}</p>
@@ -279,6 +312,58 @@ function QuizList({ onNew, onEdit, onResults }: { onNew: () => void; onEdit: (id
             </table>
           )}
         </CardBody>
+        {filteredRows.length > 0 && (
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-line px-6 py-3.5 text-xs text-ink-3">
+            <div className="flex flex-wrap items-center gap-3">
+              <span>
+                Showing <strong className="text-ink">{filteredRows.length === 0 ? 0 : start + 1}</strong>–<strong className="text-ink">{Math.min(start + pageSize, filteredRows.length)}</strong> of <strong className="text-ink">{filteredRows.length}</strong> quiz{filteredRows.length === 1 ? "" : "zes"}
+                {filteredRows.length !== rows.length ? ` (filtered from ${rows.length})` : ""}
+              </span>
+              <div className="flex items-center gap-1.5">
+                <span>Quizzes per page:</span>
+                <select
+                  aria-label="Quizzes per page"
+                  value={pageSize}
+                  onChange={(e) => {
+                    setPageSize(Number(e.target.value));
+                    setPage(1);
+                  }}
+                  className="rounded-lg border border-line bg-surface px-2 py-1 text-xs font-medium text-ink focus:outline-none focus:ring-1 focus:ring-brand"
+                >
+                  <option value={10}>10</option>
+                  <option value={20}>20</option>
+                  <option value={50}>50</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <span className="mr-1 text-ink-3">
+                Page <strong className="text-ink">{currentPage}</strong> of <strong className="text-ink">{totalPages}</strong>
+              </span>
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={currentPage <= 1}
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                aria-label="Previous page"
+                className="gap-1 text-xs px-2.5 py-1"
+              >
+                <Fi name="angle-left" /> Prev
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={currentPage >= totalPages}
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                aria-label="Next page"
+                className="gap-1 text-xs px-2.5 py-1"
+              >
+                Next <Fi name="angle-right" />
+              </Button>
+            </div>
+          </div>
+        )}
       </Card>
 
       {toDelete ? (

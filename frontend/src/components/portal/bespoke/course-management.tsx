@@ -10,6 +10,8 @@ import {
   Edit3,
   X,
   BookOpen,
+  ChevronLeft,
+  ChevronRight,
   Users,
   CheckCircle2,
   AlertCircle,
@@ -352,6 +354,8 @@ export function CourseManagementModule({ role }: { role: Role }) {
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState<CourseType | "All">("All");
   const [semFilter, setSemFilter] = useState<number | string | "All">("All");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   const [modal, setModal] = useState<{ open: boolean; editing: Course | null; error?: string | null }>({
     open: false,
     editing: null,
@@ -500,6 +504,13 @@ export function CourseManagementModule({ role }: { role: Role }) {
     });
   }, [courses, search, typeFilter, semFilter]);
 
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const start = (currentPage - 1) * pageSize;
+  const paginated = useMemo(() => {
+    return filtered.slice(start, start + pageSize);
+  }, [filtered, start, pageSize]);
+
   const stats = useMemo(() => ({
     total: courses.length,
     active: courses.filter((c) => c.status === "Active").length,
@@ -532,18 +543,40 @@ export function CourseManagementModule({ role }: { role: Role }) {
       {/* Toolbar */}
       <div className="flex flex-wrap gap-2 items-center">
         <div className="relative flex-1 min-w-48">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-(--fg-muted)" />
+          <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-(--fg-muted)" />
           <input
-            className={cn(inputClass, "pl-9")}
+            className={cn(
+              inputClass,
+              "pl-9 pr-8 outline-none focus:outline-none focus-visible:outline-none focus:ring-4 focus:ring-brand/10 focus:border-brand"
+            )}
             placeholder="Search course name or code..."
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setPage(1);
+            }}
           />
+          {search && (
+            <button
+              type="button"
+              onClick={() => {
+                setSearch("");
+                setPage(1);
+              }}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-full p-1 text-ink-3 hover:bg-surface-2 hover:text-ink focus-visible:outline-none transition-colors"
+              aria-label="Clear search"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          )}
         </div>
         <select
           className={cn(inputClass, "w-auto")}
           value={typeFilter}
-          onChange={(e) => setTypeFilter(e.target.value as CourseType | "All")}
+          onChange={(e) => {
+            setTypeFilter(e.target.value as CourseType | "All");
+            setPage(1);
+          }}
         >
           <option value="All">All Types</option>
           {COURSE_TYPES.map((t) => <option key={t}>{t}</option>)}
@@ -551,7 +584,10 @@ export function CourseManagementModule({ role }: { role: Role }) {
         <select
           className={cn(inputClass, "w-auto")}
           value={semFilter}
-          onChange={(e) => setSemFilter(e.target.value === "All" ? "All" : e.target.value)}
+          onChange={(e) => {
+            setSemFilter(e.target.value === "All" ? "All" : e.target.value);
+            setPage(1);
+          }}
         >
           <option value="All">{`All ${def.termLabel}s`}</option>
           {semesters.map((s) => (
@@ -587,7 +623,7 @@ export function CourseManagementModule({ role }: { role: Role }) {
             </tr>
           </thead>
           <tbody>
-            {filtered.map((c) => (
+            {paginated.map((c) => (
               <tr key={c.id} className="border-b border-(--border) hover:bg-(--bg-subtle) transition-colors">
                 <td className="py-3 px-4">
                   <div className="font-medium">{c.name}</div>
@@ -648,7 +684,57 @@ export function CourseManagementModule({ role }: { role: Role }) {
         )}
       </div>
 
-      <p className="text-xs text-(--fg-muted)">Showing {filtered.length} of {courses.length} courses</p>
+      {/* Pagination Controls */}
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2 text-xs text-(--fg-muted)">
+        <div className="flex flex-wrap items-center gap-3">
+          <span>
+            Showing <strong className="text-(--fg)">{filtered.length === 0 ? 0 : start + 1}</strong>–<strong className="text-(--fg)">{Math.min(start + pageSize, filtered.length)}</strong> of <strong className="text-(--fg)">{filtered.length}</strong> course{filtered.length === 1 ? "" : "s"}
+            {filtered.length !== courses.length ? ` (filtered from ${courses.length})` : ""}
+          </span>
+          <div className="flex items-center gap-1.5">
+            <span>Courses per page:</span>
+            <select
+              aria-label="Courses per page"
+              value={pageSize}
+              onChange={(e) => {
+                setPageSize(Number(e.target.value));
+                setPage(1);
+              }}
+              className="rounded-lg border border-(--border) bg-(--bg-subtle) px-2 py-1 text-xs font-medium text-(--fg) focus:outline-none focus:ring-1 focus:ring-brand"
+            >
+              <option value={10}>10</option>
+              <option value={20}>20</option>
+              <option value={50}>50</option>
+            </select>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <span className="mr-1">
+            Page <strong className="text-(--fg)">{currentPage}</strong> of <strong className="text-(--fg)">{totalPages}</strong>
+          </span>
+          <Button
+            variant="secondary"
+            size="sm"
+            disabled={currentPage <= 1}
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            aria-label="Previous page"
+            className="gap-1 text-xs px-2.5 py-1"
+          >
+            <ChevronLeft className="h-3.5 w-3.5" /> Prev
+          </Button>
+          <Button
+            variant="secondary"
+            size="sm"
+            disabled={currentPage >= totalPages}
+            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+            aria-label="Next page"
+            className="gap-1 text-xs px-2.5 py-1"
+          >
+            Next <ChevronRight className="h-3.5 w-3.5" />
+          </Button>
+        </div>
+      </div>
 
       {modal.open && (
         <CourseModal

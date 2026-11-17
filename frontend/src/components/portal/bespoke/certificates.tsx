@@ -12,7 +12,8 @@ import { useOrigin } from "./certificate-authority";
 import { TemplateSkeleton } from "@/components/modules/shared";
 import { LoadError } from "@/components/ui/load-error";
 import { Fi } from "@/components/ui/icon";
-import { Badge, Card, CardBody, CardHeader, EmptyState, inputClass } from "@/components/ui/primitives";
+import { Badge, Button, Card, CardBody, CardHeader, EmptyState, inputClass } from "@/components/ui/primitives";
+import { cn } from "@/lib/utils";
 import { GradeScale } from "./my-quizzes";
 
 const fmtDate = (iso: string) => new Date(iso).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
@@ -97,10 +98,20 @@ export function IssuedCertificatesModule() {
   const certs = useQuery({ queryKey: ["issued-certificates"], queryFn: () => apiFetch("/api/v1/certificates", z.array(CertificateRow)) });
   const [search, setSearch] = useState("");
   const [grade, setGrade] = useState("All");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(15);
+
   const rows = useMemo(() => {
     const s = search.trim().toLowerCase();
     return (certs.data ?? []).filter((c) => (grade === "All" || c.grade === grade) && (!s || `${c.studentName} ${c.title} ${c.id} ${c.department}`.toLowerCase().includes(s)));
   }, [certs.data, search, grade]);
+
+  const totalPages = Math.max(1, Math.ceil(rows.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const start = (currentPage - 1) * pageSize;
+  const paginatedRows = useMemo(() => {
+    return rows.slice(start, start + pageSize);
+  }, [rows, start, pageSize]);
 
   if (certs.isError) return <LoadError error={certs.error} onRetry={() => void certs.refetch()} />;
   if (certs.isLoading || !certs.data) return <TemplateSkeleton />;
@@ -124,17 +135,51 @@ export function IssuedCertificatesModule() {
       <Card>
         <CardHeader title="Course & quiz certificates" subtitle="Issued automatically when students pass · signed under the Principal's authority · verifiable by QR at /verify" />
         <CardBody>
-          <div className="mb-4 flex flex-wrap gap-3">
+          <div className="mb-4 flex flex-wrap items-center gap-3">
             <label htmlFor="cert-search" className="sr-only">
               Search certificates
             </label>
-            <input id="cert-search" className={`${inputClass} max-w-xs`} placeholder="Search student, quiz or ID" value={search} onChange={(e) => setSearch(e.target.value)} maxLength={80} />
+            <div className="relative max-w-xs flex-1">
+              <input
+                id="cert-search"
+                className={cn(inputClass, "w-full pr-8 outline-none focus:outline-none focus-visible:outline-none focus:ring-4 focus:ring-brand/10 focus:border-brand")}
+                placeholder="Search student, quiz or ID"
+                value={search}
+                onChange={(e) => {
+                  setSearch(e.target.value);
+                  setPage(1);
+                }}
+                maxLength={80}
+              />
+              {search && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearch("");
+                    setPage(1);
+                  }}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-ink-3 hover:text-ink p-0.5 rounded transition-colors"
+                  aria-label="Clear search"
+                >
+                  <Fi name="cross" className="size-3.5" />
+                </button>
+              )}
+            </div>
             <label htmlFor="cert-grade" className="sr-only">
               Grade
             </label>
-            <select id="cert-grade" className={`${inputClass} w-auto!`} value={grade} onChange={(e) => setGrade(e.target.value)}>
-              {["All", "O", "A+", "A", "B", "C"].map((g) => (
-                <option key={g}>{g}</option>
+            <select
+              id="cert-grade"
+              className={cn(inputClass, "w-auto! outline-none focus:outline-none focus-visible:outline-none focus:ring-4 focus:ring-brand/10 focus:border-brand")}
+              value={grade}
+              onChange={(e) => {
+                setGrade(e.target.value);
+                setPage(1);
+              }}
+            >
+              <option value="All">All Grades</option>
+              {["O", "A+", "A", "B", "C"].map((g) => (
+                <option key={g} value={g}>Grade {g}</option>
               ))}
             </select>
           </div>
@@ -154,7 +199,7 @@ export function IssuedCertificatesModule() {
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.map((c) => (
+                  {paginatedRows.map((c) => (
                     <tr key={c.id} className="border-b border-line/60 last:border-0">
                       <td className="py-3 pr-3">
                         <Link href={`/verify/${c.id}`} target="_blank" rel="noopener noreferrer" className="font-mono text-xs text-brand hover:underline">
@@ -180,6 +225,55 @@ export function IssuedCertificatesModule() {
                   ))}
                 </tbody>
               </table>
+
+              <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-t border-line/60 pt-4">
+                <div className="flex items-center gap-3 text-xs text-ink-3">
+                  <span>
+                    Showing {rows.length === 0 ? 0 : start + 1}–{Math.min(start + pageSize, rows.length)} of {rows.length} certificates
+                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <span>Per page:</span>
+                    <select
+                      value={pageSize}
+                      onChange={(e) => {
+                        setPageSize(Number(e.target.value));
+                        setPage(1);
+                      }}
+                      className={cn(inputClass, "h-7 py-0 px-2 text-xs w-auto! outline-none focus:outline-none focus-visible:outline-none")}
+                    >
+                      {[15, 25, 50].map((sz) => (
+                        <option key={sz} value={sz}>{sz}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {totalPages > 1 && (
+                  <div className="flex items-center gap-2 self-end sm:self-auto">
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => setPage((p) => Math.max(1, p - 1))}
+                      disabled={currentPage <= 1}
+                      className="h-8 px-2.5 text-xs gap-1"
+                    >
+                      <Fi name="angle-left" /> Prev
+                    </Button>
+                    <span className="text-xs text-ink-2 px-1">
+                      Page {currentPage} of {totalPages}
+                    </span>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                      disabled={currentPage >= totalPages}
+                      className="h-8 px-2.5 text-xs gap-1"
+                    >
+                      Next <Fi name="angle-right" />
+                    </Button>
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </CardBody>
