@@ -1,8 +1,9 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState, type KeyboardEvent } from "react";
+import { useState, useMemo, type KeyboardEvent } from "react";
 import { z } from "zod";
+import { ChevronLeft, ChevronRight, RotateCcw } from "lucide-react";
 import { apiFetch, ApiError } from "@/lib/api/client";
 import { ILLUSTRATIONS, SavedOutline, StaffSummary, TeachingPack, TeachingSources, type Illustration } from "@/lib/api/teaching-schemas";
 import { TopicIllustration } from "@/components/learning/illustration";
@@ -31,6 +32,8 @@ const ILL_LABEL: Record<Illustration, string> = { flow: "Flow", layers: "Layers"
 
 export function TeachingStudioModule() {
   const sources = useQuery({ queryKey: ["teaching-sources"], queryFn: () => apiFetch("/api/v1/teaching/sources", TeachingSources) });
+  const shared = useQuery({ queryKey: ["teaching-summaries"], queryFn: () => apiFetch("/api/v1/teaching/summaries", z.array(StaffSummary)) });
+  const [mainTab, setMainTab] = useState<"builder" | "history">("builder");
   const [pack, setPack] = useState<TeachingPack | null>(null);
   const [tab, setTab] = useState<TabKey>("basics");
   const [illustration, setIllustration] = useState<Illustration>("flow");
@@ -47,69 +50,134 @@ export function TeachingStudioModule() {
 
   return (
     <div className="space-y-6">
-      <Chooser
-        sources={sources.data}
-        onPack={(p) => {
-          setPack(p);
-          setIllustration(p.illustration);
-          setTab("basics");
-        }}
-      />
+      {/* Top Tabs: Switch between "Build teaching pack" (the older format) and "Shared summaries history" */}
+      <div className="flex border-b border-line gap-2" role="tablist" aria-label="Teaching studio sections">
+        <button
+          type="button"
+          role="tab"
+          id="tab-builder"
+          aria-selected={mainTab === "builder"}
+          aria-controls="panel-builder"
+          onClick={() => setMainTab("builder")}
+          className={cn(
+            "inline-flex items-center gap-2 border-b-2 px-5 py-3.5 text-sm font-semibold transition-all",
+            mainTab === "builder"
+              ? "border-brand text-brand"
+              : "border-transparent text-ink-3 hover:border-line hover:text-ink"
+          )}
+        >
+          <Fi name="chalkboard-user" className="text-base" />
+          <span>Build teaching pack</span>
+        </button>
 
-      {!pack ? (
-        <Card className="bg-notebook p-10 text-center">
-          <span className="bg-brand-gradient mx-auto flex size-14 items-center justify-center rounded-2xl text-2xl text-[#e0b453]">
-            <Fi name="chalkboard-user" />
-          </span>
-          <h3 className="display mt-4 text-2xl text-ink">Everything for one class, in one place</h3>
-          <p className="mx-auto mt-2 max-w-xl text-sm text-ink-2">
-            Pick a chapter from your department&apos;s courses or type any topic. You get a plain-language explanation, a timed lesson outline, a semester roadmap, an infographic handout, smart-board slides and a class summary to share with students.
-          </p>
-        </Card>
+        <button
+          type="button"
+          role="tab"
+          id="tab-history"
+          aria-selected={mainTab === "history"}
+          aria-controls="panel-history"
+          onClick={() => setMainTab("history")}
+          className={cn(
+            "inline-flex items-center gap-2 border-b-2 px-5 py-3.5 text-sm font-semibold transition-all",
+            mainTab === "history"
+              ? "border-brand text-brand"
+              : "border-transparent text-ink-3 hover:border-line hover:text-ink"
+          )}
+        >
+          <Fi name="share" className="text-base" />
+          <span>Shared summaries history</span>
+          {shared.data && shared.data.length > 0 && (
+            <span
+              className={cn(
+                "rounded-full px-2 py-0.5 text-xs font-semibold transition-colors",
+                mainTab === "history" ? "bg-brand text-white" : "bg-surface-2 text-ink-2"
+              )}
+            >
+              {shared.data.length}
+            </span>
+          )}
+        </button>
+      </div>
+
+      {mainTab === "history" ? (
+        <div id="panel-history" role="tabpanel" aria-labelledby="tab-history">
+          <SharedSummariesHistory sources={sources.data} />
+        </div>
       ) : (
-        <>
-          <Card className="overflow-hidden">
-            <div className="flex flex-wrap items-center justify-between gap-4 p-5">
-              <div className="min-w-0">
-                <p className="eyebrow">{pack.source.courseTitle ? `${pack.source.code} · ${pack.source.courseTitle}` : pack.department}</p>
-                <h2 className="display mt-1 text-3xl text-ink">{pack.topic}</h2>
-                <div className="mt-2 flex flex-wrap items-center gap-2">
-                  <AiLabel />
-                  {pack.draft ? <Badge tone="amber">Generic draft — add your own notes</Badge> : <Badge tone="teal">From your course content</Badge>}
-                </div>
-              </div>
-              <Button variant="gold" size="lg" onClick={openBoard}>
-                <Fi name="chalkboard-user" /> Open smart board
-              </Button>
-            </div>
-            <div role="tablist" aria-label="Teaching pack" className="flex gap-1 overflow-x-auto border-t border-line px-3" onKeyDown={(e) => tabKeys(e, tab, setTab)}>
-              {TABS.map((t) => (
-                <button
-                  key={t.key}
-                  role="tab"
-                  id={`tt-${t.key}`}
-                  aria-selected={tab === t.key}
-                  aria-controls={`tp-${t.key}`}
-                  tabIndex={tab === t.key ? 0 : -1}
-                  onClick={() => setTab(t.key)}
-                  className={cn("inline-flex shrink-0 items-center gap-2 border-b-2 px-3 py-3 text-sm font-medium", tab === t.key ? "border-brand text-brand" : "border-transparent text-ink-3 hover:text-ink")}
-                >
-                  <Fi name={t.icon} /> {t.label}
-                </button>
-              ))}
-            </div>
-          </Card>
+        <div id="panel-builder" role="tabpanel" aria-labelledby="tab-builder" className="space-y-6">
+          <Chooser
+            sources={sources.data}
+            onPack={(p) => {
+              setPack(p);
+              setIllustration(p.illustration);
+              setTab("basics");
+            }}
+          />
 
-          <div role="tabpanel" id={`tp-${tab}`} aria-labelledby={`tt-${tab}`} key={tab} className="animate-fade-up">
-            {tab === "basics" ? <BasicsTab pack={pack} illustration={illustration} setIllustration={setIllustration} /> : null}
-            {tab === "outline" ? <OutlineTab pack={pack} /> : null}
-            {tab === "roadmap" ? <RoadmapTab pack={pack} /> : null}
-            {tab === "infographic" ? <InfographicTab pack={pack} illustration={illustration} onShare={() => setTab("summary")} /> : null}
-            {tab === "board" ? <BoardTab pack={pack} onOpen={openBoard} /> : null}
-            {tab === "summary" ? <SummaryTab pack={pack} illustration={illustration} departments={sources.data.departments} /> : null}
-          </div>
-          {board ? <SmartBoard pack={{ ...pack, illustration }} onClose={() => setBoard(false)} /> : null}
-        </>
+          {!pack ? (
+            <Card className="bg-notebook p-10 text-center">
+              <span className="bg-brand-gradient mx-auto flex size-14 items-center justify-center rounded-2xl text-2xl text-[#e0b453]">
+                <Fi name="chalkboard-user" />
+              </span>
+              <h3 className="display mt-4 text-2xl text-ink">Everything for one class, in one place</h3>
+              <p className="mx-auto mt-2 max-w-xl text-sm text-ink-2">
+                Pick a chapter from your department&apos;s courses or type any topic. You get a plain-language explanation, a timed lesson outline, a semester roadmap, an infographic handout, smart-board slides and a class summary to share with students.
+              </p>
+            </Card>
+          ) : (
+            <>
+              <Card className="overflow-hidden">
+                <div className="flex flex-wrap items-center justify-between gap-4 p-5">
+                  <div className="min-w-0">
+                    <p className="eyebrow">{pack.source.courseTitle ? `${pack.source.code} · ${pack.source.courseTitle}` : pack.department}</p>
+                    <h2 className="display mt-1 text-3xl text-ink">{pack.topic}</h2>
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      <AiLabel />
+                      {pack.draft ? <Badge tone="amber">Generic draft — add your own notes</Badge> : <Badge tone="teal">From your course content</Badge>}
+                    </div>
+                  </div>
+                  <Button variant="gold" size="lg" onClick={openBoard}>
+                    <Fi name="chalkboard-user" /> Open smart board
+                  </Button>
+                </div>
+                <div role="tablist" aria-label="Teaching pack" className="flex gap-1 overflow-x-auto border-t border-line px-3" onKeyDown={(e) => tabKeys(e, tab, setTab)}>
+                  {TABS.map((t) => (
+                    <button
+                      key={t.key}
+                      role="tab"
+                      id={`tt-${t.key}`}
+                      aria-selected={tab === t.key}
+                      aria-controls={`tp-${t.key}`}
+                      tabIndex={tab === t.key ? 0 : -1}
+                      onClick={() => setTab(t.key)}
+                      className={cn("inline-flex shrink-0 items-center gap-2 border-b-2 px-3 py-3 text-sm font-medium", tab === t.key ? "border-brand text-brand" : "border-transparent text-ink-3 hover:text-ink")}
+                    >
+                      <Fi name={t.icon} /> {t.label}
+                    </button>
+                  ))}
+                </div>
+              </Card>
+
+              <div role="tabpanel" id={`tp-${tab}`} aria-labelledby={`tt-${tab}`} key={tab} className="animate-fade-up">
+                {tab === "basics" ? <BasicsTab pack={pack} illustration={illustration} setIllustration={setIllustration} /> : null}
+                {tab === "outline" ? <OutlineTab pack={pack} /> : null}
+                {tab === "roadmap" ? <RoadmapTab pack={pack} /> : null}
+                {tab === "infographic" ? <InfographicTab pack={pack} illustration={illustration} onShare={() => setTab("summary")} /> : null}
+                {tab === "board" ? <BoardTab pack={pack} onOpen={openBoard} /> : null}
+                {tab === "summary" ? (
+                  <SummaryTab
+                    pack={pack}
+                    illustration={illustration}
+                    departments={sources.data.departments}
+                    sources={sources.data}
+                    onViewHistory={() => setMainTab("history")}
+                  />
+                ) : null}
+              </div>
+              {board ? <SmartBoard pack={{ ...pack, illustration }} onClose={() => setBoard(false)} /> : null}
+            </>
+          )}
+        </div>
       )}
     </div>
   );
@@ -586,8 +654,21 @@ function BoardTab({ pack, onOpen }: { pack: TeachingPack; onOpen: () => void }) 
 }
 
 /* ─────────────────────────────── class summary ─────────────────────────────── */
-function SummaryTab({ pack, illustration, departments }: { pack: TeachingPack; illustration: Illustration; departments: string[] }) {
+function SummaryTab({
+  pack,
+  illustration,
+  departments,
+  sources,
+  onViewHistory,
+}: {
+  pack: TeachingPack;
+  illustration: Illustration;
+  departments: string[];
+  sources?: TeachingSources;
+  onViewHistory?: () => void;
+}) {
   const qc = useQueryClient();
+  const [subView, setSubView] = useState<"form" | "history">("form");
   const today = new Date().toISOString().slice(0, 10);
   const initialResources = [...pack.videos.map((v) => ({ label: v.title, url: v.url })), ...pack.links].slice(0, 6);
   const [form, setForm] = useState({
@@ -602,7 +683,6 @@ function SummaryTab({ pack, illustration, departments }: { pack: TeachingPack; i
   const [resources, setResources] = useState(initialResources);
   const [newLink, setNewLink] = useState({ label: "", url: "" });
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
-  const shared = useQuery({ queryKey: ["teaching-summaries"], queryFn: () => apiFetch("/api/v1/teaching/summaries", z.array(StaffSummary)) });
   const set = <K extends keyof typeof form>(k: K, v: (typeof form)[K]) => setForm((f) => ({ ...f, [k]: v }));
 
   const share = useMutation({
@@ -638,127 +718,471 @@ function SummaryTab({ pack, illustration, departments }: { pack: TeachingPack; i
     },
     onError: (e) => setMsg({ ok: false, text: e instanceof ApiError ? e.message : "Could not share." }),
   });
-  const withdraw = useMutation({
-    mutationFn: (id: string) => apiFetch(`/api/v1/teaching/summaries/${id}`, z.object({ ok: z.boolean() }), { method: "DELETE" }),
-    onSuccess: () => void qc.invalidateQueries({ queryKey: ["teaching-summaries"] }),
-  });
+
   const linkOk = !newLink.url || isReferenceUrl(newLink.url) || parseVideoUrl(newLink.url) !== null;
 
   return (
-    <div className="grid gap-5 xl:grid-cols-[1.3fr_1fr]">
-      <Card>
-        <CardHeader title="Share a class summary" subtitle="What you covered, the homework and where to revise — sent to your students' Class Notes." />
-        <CardBody>
-          <form
-            className="space-y-4"
-            onSubmit={(e) => {
-              e.preventDefault();
-              setMsg(null);
-              share.mutate();
-            }}
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div className="inline-flex rounded-xl border border-line bg-surface p-1 text-sm" role="group" aria-label="Summary view">
+          <button
+            type="button"
+            onClick={() => setSubView("form")}
+            className={cn(
+              "inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 font-medium transition-colors",
+              subView === "form" ? "bg-brand text-white shadow-sm" : "text-ink-2 hover:text-ink"
+            )}
           >
-            <div className="grid gap-3 sm:grid-cols-[1fr_170px]">
-              <Field label="Title" htmlFor="cs-title">
-                <input id="cs-title" className={inputClass} maxLength={140} value={form.title} onChange={(e) => set("title", e.target.value)} />
-              </Field>
-              <Field label="Class date" htmlFor="cs-date">
-                <input id="cs-date" type="date" className={inputClass} value={form.date} onChange={(e) => set("date", e.target.value)} />
-              </Field>
-            </div>
-            <Field label="Share with" htmlFor="cs-dept" hint="Students of this department see it first in their Class Notes.">
-              <select id="cs-dept" className={inputClass} value={form.department} onChange={(e) => set("department", e.target.value)}>
-                {departments.map((d) => (
-                  <option key={d}>{d}</option>
-                ))}
-              </select>
-            </Field>
-            <Field label="What we covered (one point per line)" htmlFor="cs-points">
-              <textarea id="cs-points" rows={5} className={inputClass} value={form.points} onChange={(e) => set("points", e.target.value)} />
-            </Field>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <Field label="Homework" htmlFor="cs-hw">
-                <textarea id="cs-hw" rows={3} maxLength={600} className={inputClass} value={form.homework} onChange={(e) => set("homework", e.target.value)} />
-              </Field>
-              <Field label="Next class" htmlFor="cs-next">
-                <textarea id="cs-next" rows={3} maxLength={200} className={inputClass} value={form.nextClass} onChange={(e) => set("nextClass", e.target.value)} />
-              </Field>
-            </div>
-            <div>
-              <p className="text-sm font-medium text-ink">Resources</p>
-              <ul className="mt-2 space-y-1.5">
-                {resources.map((r, i) => (
-                  <li key={r.url} className="flex items-center gap-2 rounded-lg bg-surface-2 px-3 py-1.5 text-[13px]">
-                    <Fi name={hostLabel(r.url) === "YouTube" ? "play-circle" : "globe"} className="text-brand" />
-                    <span className="min-w-0 flex-1 truncate text-ink">{r.label}</span>
-                    <span className="font-sans tabular-nums text-[10.5px] text-ink-3">{hostLabel(r.url)}</span>
-                    <button type="button" aria-label={`Remove ${r.label}`} className="text-ink-3 hover:text-rose" onClick={() => setResources((rs) => rs.filter((_, j) => j !== i))}>
-                      <Fi name="cross-small" />
-                    </button>
-                  </li>
-                ))}
-              </ul>
-              <div className="mt-2 grid gap-2 sm:grid-cols-[1fr_1.4fr_auto]">
-                <input aria-label="Resource name" placeholder="Name" className={inputClass} maxLength={120} value={newLink.label} onChange={(e) => setNewLink((l) => ({ ...l, label: e.target.value }))} />
-                <input aria-label="Resource link" aria-invalid={!linkOk} placeholder="https://www.youtube.com/watch?v=…" className={inputClass} maxLength={400} value={newLink.url} onChange={(e) => setNewLink((l) => ({ ...l, url: e.target.value }))} />
-                <Button
-                  variant="secondary"
-                  disabled={!newLink.url || !newLink.label.trim() || !linkOk || resources.length >= 8}
-                  onClick={() => {
-                    setResources((rs) => [...rs, { label: newLink.label.trim(), url: newLink.url.trim() }]);
-                    setNewLink({ label: "", url: "" });
-                  }}
-                >
-                  Add
-                </Button>
-              </div>
-              {!linkOk ? <p className="mt-1 text-xs text-rose">Use an https link from YouTube, NPTEL, SWAYAM or Wikipedia.</p> : null}
-            </div>
-            <label className="flex items-start gap-3 rounded-xl border border-line p-3 text-sm">
-              <input type="checkbox" className="mt-0.5 accent-[var(--brand)]" checked={form.attach} onChange={(e) => set("attach", e.target.checked)} />
-              <span>
-                <span className="font-medium text-ink">Attach the infographic lesson</span>
-                <span className="block text-xs text-ink-3">Students get the one-page handout with the illustration, key terms and a quick check.</span>
-              </span>
-            </label>
-            {msg ? (
-              <p role={msg.ok ? "status" : "alert"} className={cn("rounded-xl px-4 py-3 text-sm", msg.ok ? "bg-teal-soft text-teal" : "bg-rose-soft text-rose")}>
-                {msg.text}
-              </p>
-            ) : null}
-            <Button type="submit" size="lg" variant="gold" disabled={share.isPending || !form.points.trim()}>
-              {share.isPending ? <Spinner /> : <Fi name="paper-plane" />} Share with students
-            </Button>
-          </form>
-        </CardBody>
-      </Card>
+            <Fi name="paper-plane" /> Share class summary
+          </button>
+          <button
+            type="button"
+            onClick={() => setSubView("history")}
+            className={cn(
+              "inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 font-medium transition-colors",
+              subView === "history" ? "bg-brand text-white shadow-sm" : "text-ink-2 hover:text-ink"
+            )}
+          >
+            <Fi name="share" /> Shared summaries history
+          </button>
+        </div>
+      </div>
 
-      <Card>
-        <CardHeader title="Shared summaries" subtitle="Read counts update as students open them" />
-        <CardBody>
-          {shared.data?.length ? (
-            <ul className="space-y-3">
-              {shared.data.map((s) => (
-                <li key={s.id} className="rounded-xl border border-line p-3">
-                  <p className="font-medium text-ink">{s.title}</p>
-                  <p className="text-xs text-ink-3">
-                    {s.date} · {s.department} {s.infographic ? "· infographic attached" : ""}
-                  </p>
-                  <div className="mt-2 flex items-center justify-between">
-                    <span className="inline-flex items-center gap-1 text-xs text-teal">
-                      <Fi name="eye" /> Read by {s.readCount} student{s.readCount === 1 ? "" : "s"}
-                    </span>
-                    <Button size="sm" variant="ghost" onClick={() => withdraw.mutate(s.id)}>
-                      Withdraw
+      {subView === "history" ? (
+        <SharedSummariesHistory sources={sources} />
+      ) : (
+        <Card>
+          <CardHeader title="Share a class summary" subtitle="What you covered, the homework and where to revise — sent to your students' Class Notes." />
+          <CardBody>
+            <form
+              className="space-y-4"
+              onSubmit={(e) => {
+                e.preventDefault();
+                setMsg(null);
+                share.mutate();
+              }}
+            >
+              <div className="grid gap-3 sm:grid-cols-[1fr_170px]">
+                <Field label="Title" htmlFor="cs-title">
+                  <input id="cs-title" className={inputClass} maxLength={140} value={form.title} onChange={(e) => set("title", e.target.value)} />
+                </Field>
+                <Field label="Class date" htmlFor="cs-date">
+                  <input id="cs-date" type="date" className={inputClass} value={form.date} onChange={(e) => set("date", e.target.value)} />
+                </Field>
+              </div>
+              <Field label="Share with" htmlFor="cs-dept" hint="Students of this department see it first in their Class Notes.">
+                <select id="cs-dept" className={inputClass} value={form.department} onChange={(e) => set("department", e.target.value)}>
+                  {departments.map((d) => (
+                    <option key={d}>{d}</option>
+                  ))}
+                </select>
+              </Field>
+              <Field label="What we covered (one point per line)" htmlFor="cs-points">
+                <textarea id="cs-points" rows={5} className={inputClass} value={form.points} onChange={(e) => set("points", e.target.value)} />
+              </Field>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Field label="Homework" htmlFor="cs-hw">
+                  <textarea id="cs-hw" rows={3} maxLength={600} className={inputClass} value={form.homework} onChange={(e) => set("homework", e.target.value)} />
+                </Field>
+                <Field label="Next class" htmlFor="cs-next">
+                  <textarea id="cs-next" rows={3} maxLength={200} className={inputClass} value={form.nextClass} onChange={(e) => set("nextClass", e.target.value)} />
+                </Field>
+              </div>
+              <div>
+                <p className="text-sm font-medium text-ink">Resources</p>
+                <ul className="mt-2 space-y-1.5">
+                  {resources.map((r, i) => (
+                    <li key={r.url} className="flex items-center gap-2 rounded-lg bg-surface-2 px-3 py-1.5 text-[13px]">
+                      <Fi name={hostLabel(r.url) === "YouTube" ? "play-circle" : "globe"} className="text-brand" />
+                      <span className="min-w-0 flex-1 truncate text-ink">{r.label}</span>
+                      <span className="font-sans tabular-nums text-[10.5px] text-ink-3">{hostLabel(r.url)}</span>
+                      <button type="button" aria-label={`Remove ${r.label}`} className="text-ink-3 hover:text-rose" onClick={() => setResources((rs) => rs.filter((_, j) => j !== i))}>
+                        <Fi name="cross-small" />
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+                <div className="mt-2 grid gap-2 sm:grid-cols-[1fr_1.4fr_auto]">
+                  <input aria-label="Resource name" placeholder="Name" className={inputClass} maxLength={120} value={newLink.label} onChange={(e) => setNewLink((l) => ({ ...l, label: e.target.value }))} />
+                  <input aria-label="Resource link" aria-invalid={!linkOk} placeholder="https://www.youtube.com/watch?v=…" className={inputClass} maxLength={400} value={newLink.url} onChange={(e) => setNewLink((l) => ({ ...l, url: e.target.value }))} />
+                  <Button
+                    variant="secondary"
+                    disabled={!newLink.url || !newLink.label.trim() || !linkOk || resources.length >= 8}
+                    onClick={() => {
+                      setResources((rs) => [...rs, { label: newLink.label.trim(), url: newLink.url.trim() }]);
+                      setNewLink({ label: "", url: "" });
+                    }}
+                  >
+                    Add
+                  </Button>
+                </div>
+                {!linkOk ? <p className="mt-1 text-xs text-rose">Use an https link from YouTube, NPTEL, SWAYAM or Wikipedia.</p> : null}
+              </div>
+              <label className="flex items-start gap-3 rounded-xl border border-line p-3 text-sm">
+                <input type="checkbox" className="mt-0.5 accent-[var(--brand)]" checked={form.attach} onChange={(e) => set("attach", e.target.checked)} />
+                <span>
+                  <span className="font-medium text-ink">Attach the infographic lesson</span>
+                  <span className="block text-xs text-ink-3">Students get the one-page handout with the illustration, key terms and a quick check.</span>
+                </span>
+              </label>
+              {msg ? (
+                <div className={cn("flex flex-wrap items-center justify-between gap-3 rounded-xl px-4 py-3 text-sm", msg.ok ? "bg-teal-soft text-teal" : "bg-rose-soft text-rose")}>
+                  <p role={msg.ok ? "status" : "alert"}>{msg.text}</p>
+                  {msg.ok && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => {
+                        if (onViewHistory) onViewHistory();
+                        else setSubView("history");
+                      }}
+                    >
+                      View in history →
                     </Button>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="text-sm text-ink-3">Nothing shared yet.</p>
-          )}
-        </CardBody>
-      </Card>
+                  )}
+                </div>
+              ) : null}
+              <Button type="submit" size="lg" variant="gold" disabled={share.isPending || !form.points.trim()}>
+                {share.isPending ? <Spinner /> : <Fi name="paper-plane" />} Share with students
+              </Button>
+            </form>
+          </CardBody>
+        </Card>
+      )}
     </div>
+  );
+}
+
+/* ─────────────────────────────── shared summaries history ─────────────────────────────── */
+export function SharedSummariesHistory({ sources }: { sources?: TeachingSources }) {
+  const qc = useQueryClient();
+  const shared = useQuery({ queryKey: ["teaching-summaries"], queryFn: () => apiFetch("/api/v1/teaching/summaries", z.array(StaffSummary)) });
+  const [courseFilter, setCourseFilter] = useState<string>("All");
+  const [startDate, setStartDate] = useState<string>("");
+  const [endDate, setEndDate] = useState<string>("");
+  const [page, setPage] = useState<number>(1);
+  const [pageSize, setPageSize] = useState<number>(5);
+  const [withdrawingId, setWithdrawingId] = useState<string | null>(null);
+
+  const withdraw = useMutation({
+    mutationFn: (id: string) => apiFetch(`/api/v1/teaching/summaries/${id}`, z.object({ ok: z.boolean() }), { method: "DELETE" }),
+    onSuccess: () => {
+      setWithdrawingId(null);
+      void qc.invalidateQueries({ queryKey: ["teaching-summaries"] });
+      void qc.invalidateQueries({ queryKey: ["booster"] });
+    },
+    onError: () => setWithdrawingId(null),
+  });
+
+  const courseOptions = useMemo(() => {
+    const set = new Set<string>();
+    if (sources?.courses) {
+      for (const c of sources.courses) {
+        if (c.title) set.add(c.title);
+      }
+    }
+    if (shared.data) {
+      for (const s of shared.data) {
+        if (s.courseTitle) set.add(s.courseTitle);
+        else if (s.department) set.add(s.department);
+      }
+    }
+    return Array.from(set).sort();
+  }, [sources?.courses, shared.data]);
+
+  const filtered = useMemo(() => {
+    const data = shared.data ?? [];
+    return data.filter((s) => {
+      // Course filter
+      if (courseFilter !== "All") {
+        const matchCourse = s.courseTitle === courseFilter || s.department === courseFilter;
+        if (!matchCourse) return false;
+      }
+      // Date range filter
+      if (startDate && s.date < startDate) return false;
+      if (endDate && s.date > endDate) return false;
+      return true;
+    });
+  }, [shared.data, courseFilter, startDate, endDate]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const start = (currentPage - 1) * pageSize;
+  const paginated = filtered.slice(start, start + pageSize);
+
+  const hasFilters = courseFilter !== "All" || Boolean(startDate) || Boolean(endDate);
+  const clearFilters = () => {
+    setCourseFilter("All");
+    setStartDate("");
+    setEndDate("");
+    setPage(1);
+  };
+
+  const applyPreset = (preset: "today" | "7d" | "30d" | "month") => {
+    const now = new Date();
+    const toStr = (d: Date) => d.toISOString().slice(0, 10);
+    const todayStr = toStr(now);
+
+    if (preset === "today") {
+      setStartDate(todayStr);
+      setEndDate(todayStr);
+    } else if (preset === "7d") {
+      const d = new Date();
+      d.setDate(d.getDate() - 7);
+      setStartDate(toStr(d));
+      setEndDate(todayStr);
+    } else if (preset === "30d") {
+      const d = new Date();
+      d.setDate(d.getDate() - 30);
+      setStartDate(toStr(d));
+      setEndDate(todayStr);
+    } else if (preset === "month") {
+      const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+      setStartDate(toStr(firstDay));
+      setEndDate(todayStr);
+    }
+    setPage(1);
+  };
+
+  return (
+    <Card className="overflow-hidden">
+      <CardHeader
+        title="Shared Summaries History"
+        subtitle="Review student read counts, filter by course and date, or withdraw past summaries"
+      />
+      <CardBody className="space-y-4">
+        {shared.isPending ? (
+          <div className="space-y-3 py-4">
+            <div className="h-10 animate-pulse rounded-xl bg-surface-2" />
+            <div className="h-28 animate-pulse rounded-xl bg-surface-2" />
+          </div>
+        ) : shared.isError ? (
+          <LoadError error={shared.error} onRetry={() => void shared.refetch()} />
+        ) : (
+          <div className="space-y-4">
+            {/* Filters bar: Course & Date Range */}
+            <div className="flex flex-col gap-3 rounded-xl border border-line bg-surface-2/20 p-3 lg:flex-row lg:items-center lg:justify-between">
+              <div className="flex flex-wrap items-center gap-3">
+                {/* Course filter */}
+                <div className="flex items-center gap-1.5">
+                  <label htmlFor="sh-course-filter" className="text-xs font-semibold text-ink-3 whitespace-nowrap">
+                    Course:
+                  </label>
+                  <select
+                    id="sh-course-filter"
+                    aria-label="Filter by course"
+                    value={courseFilter}
+                    onChange={(e) => {
+                      setCourseFilter(e.target.value);
+                      setPage(1);
+                    }}
+                    className="max-w-[200px] truncate rounded-lg border border-line bg-surface px-2.5 py-1.5 text-xs font-medium text-ink focus:outline-none focus:ring-1 focus:ring-brand"
+                  >
+                    <option value="All">All Courses ({shared.data.length})</option>
+                    {courseOptions.map((c) => (
+                      <option key={c} value={c}>
+                        {c}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Date range filter */}
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className="text-xs font-semibold text-ink-3 whitespace-nowrap">Date:</span>
+                  <input
+                    type="date"
+                    aria-label="Start date"
+                    value={startDate}
+                    onChange={(e) => {
+                      setStartDate(e.target.value);
+                      setPage(1);
+                    }}
+                    className="rounded-lg border border-line bg-surface px-2 py-1 text-xs text-ink focus:outline-none focus:ring-1 focus:ring-brand"
+                  />
+                  <span className="text-xs text-ink-3">–</span>
+                  <input
+                    type="date"
+                    aria-label="End date"
+                    value={endDate}
+                    onChange={(e) => {
+                      setEndDate(e.target.value);
+                      setPage(1);
+                    }}
+                    className="rounded-lg border border-line bg-surface px-2 py-1 text-xs text-ink focus:outline-none focus:ring-1 focus:ring-brand"
+                  />
+                </div>
+              </div>
+
+              {/* Quick Presets & Clear */}
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="text-[11px] font-medium text-ink-3">Presets:</span>
+                {(
+                  [
+                    { id: "today" as const, label: "Today" },
+                    { id: "7d" as const, label: "7 Days" },
+                    { id: "30d" as const, label: "30 Days" },
+                    { id: "month" as const, label: "This Month" },
+                  ] as const
+                ).map((p) => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => applyPreset(p.id)}
+                    className="rounded-md border border-line bg-surface px-2 py-0.5 text-[11px] font-medium text-ink-2 hover:bg-surface-2 hover:text-ink"
+                  >
+                    {p.label}
+                  </button>
+                ))}
+                {hasFilters && (
+                  <button
+                    type="button"
+                    onClick={clearFilters}
+                    className="inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-medium text-rose hover:bg-rose-soft"
+                  >
+                    <RotateCcw className="size-3" /> Reset
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* History Table */}
+            <div className="overflow-x-auto rounded-xl border border-line">
+              <table className="w-full border-collapse text-left text-sm">
+                <thead>
+                  <tr className="border-b border-line bg-surface-2/60 text-[11px] font-bold uppercase tracking-wider text-ink-3">
+                    <th className="px-4 py-3">Summary & Topic</th>
+                    <th className="px-4 py-3">Course / Dept</th>
+                    <th className="px-4 py-3">Class Date</th>
+                    <th className="px-4 py-3">Student Reads</th>
+                    <th className="px-4 py-3 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-line">
+                  {filtered.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="py-10 text-center">
+                        <EmptyState
+                          title={hasFilters ? "No summaries match" : "Nothing shared yet"}
+                          body={
+                            hasFilters
+                              ? "No shared summaries match the selected course or date range."
+                              : "Build a teaching pack above and share a summary. It will appear here and in your students' Class Notes."
+                          }
+                        />
+                        {hasFilters && (
+                          <div className="mt-3">
+                            <Button size="sm" variant="secondary" onClick={clearFilters}>
+                              Clear filters
+                            </Button>
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  ) : (
+                    paginated.map((s) => (
+                      <tr key={s.id} className="transition-colors hover:bg-surface-2/30">
+                        <td className="px-4 py-3.5">
+                          <p className="font-semibold text-ink">{s.title}</p>
+                          <p className="text-xs text-ink-3">
+                            {s.topic}
+                            {s.infographic ? (
+                              <span className="ml-2 inline-flex items-center gap-1 rounded bg-brand/10 px-1.5 py-0.5 text-[10px] font-medium text-brand">
+                                <Fi name="picture" /> Infographic
+                              </span>
+                            ) : null}
+                          </p>
+                        </td>
+                        <td className="whitespace-nowrap px-4 py-3.5">
+                          <span className="rounded-lg bg-surface-2 px-2 py-1 text-xs font-medium text-ink-2">
+                            {s.courseTitle || s.department}
+                          </span>
+                        </td>
+                        <td className="whitespace-nowrap px-4 py-3.5 font-mono text-xs text-ink-2">
+                          {s.date}
+                        </td>
+                        <td className="whitespace-nowrap px-4 py-3.5">
+                          <span className="inline-flex items-center gap-1 text-xs font-medium text-teal">
+                            <Fi name="eye" /> Read by {s.readCount} student{s.readCount === 1 ? "" : "s"}
+                          </span>
+                        </td>
+                        <td className="whitespace-nowrap px-4 py-3.5 text-right">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="text-rose hover:bg-rose-soft hover:text-rose"
+                            disabled={withdraw.isPending && withdrawingId === s.id}
+                            onClick={() => {
+                              setWithdrawingId(s.id);
+                              withdraw.mutate(s.id);
+                            }}
+                          >
+                            {withdraw.isPending && withdrawingId === s.id ? <Spinner /> : "Withdraw"}
+                          </Button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Pagination Controls */}
+            {filtered.length > 0 && (
+              <div className="flex flex-col items-center justify-between gap-3 border-t border-line pt-3 text-xs text-ink-3 sm:flex-row">
+                <div className="flex flex-wrap items-center gap-3">
+                  <span>
+                    Showing {start + 1}–{Math.min(start + pageSize, filtered.length)} of {filtered.length} summaries
+                    {filtered.length !== shared.data.length ? ` (filtered from ${shared.data.length})` : ""}
+                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <span>Rows per page:</span>
+                    <select
+                      aria-label="Summaries per page"
+                      value={pageSize}
+                      onChange={(e) => {
+                        setPageSize(Number(e.target.value));
+                        setPage(1);
+                      }}
+                      className="rounded-lg border border-line bg-surface px-2 py-1 text-xs text-ink focus:outline-none focus:ring-1 focus:ring-brand"
+                    >
+                      <option value={5}>5</option>
+                      <option value={10}>10</option>
+                      <option value={20}>20</option>
+                      <option value={50}>50</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <span className="mr-1 text-ink-3">
+                    Page {currentPage} of {totalPages}
+                  </span>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    disabled={currentPage <= 1}
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    aria-label="Previous page"
+                  >
+                    <ChevronLeft className="size-3.5" /> Prev
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    disabled={currentPage >= totalPages}
+                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                    aria-label="Next page"
+                  >
+                    Next <ChevronRight className="size-3.5" />
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </CardBody>
+    </Card>
   );
 }
