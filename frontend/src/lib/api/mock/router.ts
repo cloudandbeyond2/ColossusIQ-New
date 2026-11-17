@@ -2291,12 +2291,17 @@ async function dispatchStudents(
   session: SessionPayload,
   query: URLSearchParams
 ): Promise<MockResult> {
-  const requestedCollege = query.get("college");
+  const isSuperAdmin = session.role === "admin" || session.college === ALL_COLLEGES;
   let collegeId: string | null = null;
-  if (requestedCollege !== null && requestedCollege !== undefined) {
-    collegeId = requestedCollege === "all" ? null : requestedCollege;
+  if (!isSuperAdmin) {
+    collegeId = session.college;
   } else {
-    collegeId = session.college === ALL_COLLEGES ? null : session.college;
+    const requestedCollege = query.get("college");
+    if (requestedCollege !== null && requestedCollege !== undefined) {
+      collegeId = requestedCollege === "all" ? null : requestedCollege;
+    } else {
+      collegeId = null;
+    }
   }
 
   // GET /students/student-options or /students/options (available to authenticated users for selection dropdowns)
@@ -2361,7 +2366,7 @@ async function dispatchStudents(
       : (body as { items?: unknown[]; students?: unknown[] })?.items ||
         (body as { items?: unknown[]; students?: unknown[] })?.students ||
         [];
-    const targetCollege = (body as any)?.collegeId || collegeId;
+    const targetCollege = isSuperAdmin ? ((body as any)?.collegeId || collegeId) : session.college;
     const res = await importStudents(items as any, targetCollege);
     await audit(session.name, `Imported ${res.imported} students`, "Student Directory", {
       collegeId: targetCollege ?? undefined,
@@ -2384,7 +2389,7 @@ async function dispatchStudents(
     if (!data?.name || !data?.roll) {
       return err(400, "invalid_body", "Student name and roll number are required.");
     }
-    const targetCollege = data?.collegeId || collegeId;
+    const targetCollege = isSuperAdmin ? (data?.collegeId || collegeId) : session.college;
     const created = await createStudent(data, targetCollege);
     await audit(session.name, `Added student ${created.name}`, created.roll, {
       collegeId: targetCollege ?? undefined,

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useRef } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import { z } from "zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -81,8 +81,32 @@ const StudentSchema = z.object({
 
 /* ── Main Component ────────────────────────────────── */
 
-export function StudentsModule({ role: _role }: { role: Role }) {
+export function StudentsModule({ role }: { role: Role }) {
   const qc = useQueryClient();
+
+  // Query Session for Active College Context
+  const { data: session } = useQuery({
+    queryKey: ["auth-session"],
+    queryFn: async () => {
+      try {
+        return await apiFetch(
+          "/api/v1/auth/session",
+          z.object({
+            role: z.string(),
+            name: z.string(),
+            college: z.string().optional(),
+            collegeName: z.string().optional(),
+          })
+        );
+      } catch {
+        return null;
+      }
+    },
+    staleTime: 10 * 60 * 1000,
+  });
+
+  const isSuperAdmin = role === "admin" || session?.role === "admin" || session?.college === "all";
+  const sessionCollegeId = session?.college && session.college !== "all" ? session.college : "";
 
   // Filters & Search
   const [q, setQ] = useState("");
@@ -92,6 +116,13 @@ export function StudentsModule({ role: _role }: { role: Role }) {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [unmasked, setUnmasked] = useState<Record<string, boolean>>({});
+
+  // Sync collegeFilter with session college for non-superadmins
+  useEffect(() => {
+    if (!isSuperAdmin && sessionCollegeId && collegeFilter !== sessionCollegeId) {
+      setCollegeFilter(sessionCollegeId);
+    }
+  }, [isSuperAdmin, sessionCollegeId, collegeFilter]);
 
   // Query Colleges for Dropdown Filter & Creation
   const { data: colleges = [] } = useQuery({
@@ -117,27 +148,6 @@ export function StudentsModule({ role: _role }: { role: Role }) {
       }
     },
     staleTime: 5 * 60 * 1000,
-  });
-
-  // Query Session for Active College Context
-  const { data: session } = useQuery({
-    queryKey: ["auth-session"],
-    queryFn: async () => {
-      try {
-        return await apiFetch(
-          "/api/v1/auth/session",
-          z.object({
-            role: z.string(),
-            name: z.string(),
-            college: z.string().optional(),
-            collegeName: z.string().optional(),
-          })
-        );
-      } catch {
-        return null;
-      }
-    },
-    staleTime: 10 * 60 * 1000,
   });
 
   // Modals state
@@ -174,12 +184,14 @@ export function StudentsModule({ role: _role }: { role: Role }) {
   };
 
   /* ── Query Students (GET) ────────────────────────── */
+  const effectiveCollegeFilter = !isSuperAdmin && sessionCollegeId ? sessionCollegeId : collegeFilter;
+
   const { data: queryData, isLoading, isError, error } = useQuery({
-    queryKey: ["students-list", collegeFilter],
+    queryKey: ["students-list", effectiveCollegeFilter],
     queryFn: async () => {
       const url =
-        collegeFilter && collegeFilter !== "all"
-          ? `/api/v1/students?college=${encodeURIComponent(collegeFilter)}`
+        effectiveCollegeFilter && effectiveCollegeFilter !== "all"
+          ? `/api/v1/students?college=${encodeURIComponent(effectiveCollegeFilter)}`
           : "/api/v1/students?college=all";
       const res = await apiFetch(url, StudentSchema);
       return res.students;
@@ -193,9 +205,10 @@ export function StudentsModule({ role: _role }: { role: Role }) {
   // POST single student
   const createMutation = useMutation({
     mutationFn: async (payload: Partial<StudentItem>) => {
+      const targetCollege = !isSuperAdmin && sessionCollegeId ? sessionCollegeId : (payload.collegeId || activeCollegeId);
       return apiFetch("/api/v1/students", z.any(), {
         method: "POST",
-        body: { data: { ...payload, collegeId: payload.collegeId || activeCollegeId } },
+        body: { data: { ...payload, collegeId: targetCollege } },
       });
     },
     onSuccess: () => {
@@ -223,11 +236,12 @@ export function StudentsModule({ role: _role }: { role: Role }) {
   // Bulk import from Excel / CSV
   const importMutation = useMutation({
     mutationFn: async (items: StudentItem[]) => {
+      const targetCollege = !isSuperAdmin && sessionCollegeId ? sessionCollegeId : activeCollegeId;
       return apiFetch("/api/v1/students/import", z.any(), {
         method: "POST",
         body: {
-          items: items.map((it) => ({ ...it, collegeId: it.collegeId || activeCollegeId })),
-          collegeId: activeCollegeId,
+          items: items.map((it) => ({ ...it, collegeId: it.collegeId || targetCollege })),
+          collegeId: targetCollege,
         },
       });
     },
@@ -283,10 +297,9 @@ export function StudentsModule({ role: _role }: { role: Role }) {
     },
   });
 
-  const sessionCollegeId = session?.college && session.college !== "all" ? session.college : "";
   const activeCollegeId =
     newStudent.collegeId ||
-    (collegeFilter !== "all" ? collegeFilter : sessionCollegeId || colleges[0]?.id || "");
+    (!isSuperAdmin && sessionCollegeId ? sessionCollegeId : (collegeFilter !== "all" ? collegeFilter : sessionCollegeId || colleges[0]?.id || ""));
   const selectedCollege = useMemo(() => {
     return colleges.find((c) => c.id === activeCollegeId);
   }, [colleges, activeCollegeId]);
@@ -336,7 +349,7 @@ export function StudentsModule({ role: _role }: { role: Role }) {
   }, [isNursingCollege, selectedStream]);
 
   const openAddStudentModal = () => {
-    const initColId = collegeFilter !== 'all' ? collegeFilter : sessionCollegeId || colleges[0]?.id || '';
+    const initColId = !isSuperAdmin && sessionCollegeId ? sessionCollegeId : (collegeFilter !== 'all' ? collegeFilter : sessionCollegeId || colleges[0]?.id || '');
     const colObj = colleges.find((c) => c.id === initColId);
     const isNurs = (colObj?.name || '').toLowerCase().includes('nurs') || (colObj?.type || '').toLowerCase().includes('nurs');
     const st = streamOfType(colObj?.type || colObj?.name);
@@ -386,20 +399,21 @@ export function StudentsModule({ role: _role }: { role: Role }) {
 
   const departmentsList = useMemo(() => {
     const set = new Set<string>();
-    if (collegeFilter !== "all") {
-      const col = colleges.find((c) => c.id === collegeFilter);
+    const effectiveColId = !isSuperAdmin && sessionCollegeId ? sessionCollegeId : collegeFilter;
+    if (effectiveColId !== "all") {
+      const col = colleges.find((c) => c.id === effectiveColId);
       if (col) {
         const st = streamOfType(col.type || col.name);
         streamOptions("department", st).filter((d) => !/Administration/.test(d)).forEach((d) => set.add(d));
       }
     }
     students.forEach((s) => {
-      if ((collegeFilter === "all" || s.collegeId === collegeFilter) && s.department) {
+      if ((effectiveColId === "all" || s.collegeId === effectiveColId) && s.department) {
         set.add(s.department);
       }
     });
     return Array.from(set).sort();
-  }, [students, collegeFilter, colleges]);
+  }, [students, collegeFilter, colleges, isSuperAdmin, sessionCollegeId]);
 
   const _legacyDepts = useMemo(() => {
 
@@ -691,27 +705,29 @@ export function StudentsModule({ role: _role }: { role: Role }) {
             )}
           </div>
 
-          {/* College Filter Dropdown */}
-          <div className="flex items-center gap-2 w-full sm:w-auto shrink-0">
-            <Building2 className="size-4 text-ink-3 shrink-0" />
-            <select
-              id="student-college-filter"
-              value={collegeFilter}
-              onChange={(e) => {
-                setCollegeFilter(e.target.value);
-                setPage(1);
-              }}
-              className={cn(selectFilterClass, "w-full sm:w-auto text-sm py-2 px-3 min-w-[140px] max-w-full sm:max-w-[210px]")}
-              title="Filter by college"
-            >
-              <option value="all">All Colleges</option>
-              {colleges.map((col) => (
-                <option key={col.id} value={col.id}>
-                  {col.name}
-                </option>
-              ))}
-            </select>
-          </div>
+          {/* College Filter Dropdown - Only for University Super Admin */}
+          {isSuperAdmin && (
+            <div className="flex items-center gap-2 w-full sm:w-auto shrink-0">
+              <Building2 className="size-4 text-ink-3 shrink-0" />
+              <select
+                id="student-college-filter"
+                value={collegeFilter}
+                onChange={(e) => {
+                  setCollegeFilter(e.target.value);
+                  setPage(1);
+                }}
+                className={cn(selectFilterClass, "w-full sm:w-auto text-sm py-2 px-3 min-w-[140px] max-w-full sm:max-w-[210px]")}
+                title="Filter by college"
+              >
+                <option value="all">All Colleges</option>
+                {colleges.map((col) => (
+                  <option key={col.id} value={col.id}>
+                    {col.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           {/* Department Filter Dropdown */}
           {departmentsList.length > 0 && (
@@ -1163,8 +1179,8 @@ export function StudentsModule({ role: _role }: { role: Role }) {
                   </Field>
                 </div>
 
-                {/* College Selection */}
-                {colleges.length > 0 && (
+                {/* College Selection - Only for University Super Admin */}
+                {isSuperAdmin && colleges.length > 0 && (
                   <Field label="College / Institution" htmlFor="inp-college">
                     <select
                       id="inp-college"
