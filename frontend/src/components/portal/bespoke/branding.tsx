@@ -797,7 +797,7 @@ function BrandingEditor({ data, onSaveSuccess }: { data: SettingsData; onSaveSuc
                         <p className="font-semibold">{dnsCheckResult.ok ? "DNS points to the platform" : dnsCheckResult.status === "pending" ? "DNS not found yet" : "DNS does not point to the platform"}</p>
                         <p className="mt-0.5 text-[11px] text-ink-2">
                           {dnsCheckResult.ok
-                            ? `${dnsCheckResult.address ? `Address: ${dnsCheckResult.address} Â· ` : ""}SSL: ${dnsCheckResult.ssl} Â· Lookup: ${dnsCheckResult.latency}`
+                            ? `${dnsCheckResult.address ? `Address: ${dnsCheckResult.address}· ` : ""}SSL: ${dnsCheckResult.ssl}· Lookup: ${dnsCheckResult.latency}`
                             : dnsCheckResult.message}
                         </p>
                       </div>
