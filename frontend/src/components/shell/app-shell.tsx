@@ -103,7 +103,7 @@ export function AppShell({
           {children}
         </main>
         <footer className="border-t border-line px-4 py-4 text-center text-xs text-ink-3 sm:px-6">
-          {universityName} Â· {collegeName} Â· Powered by ColossusIQ.ai Â· AI suggestions are reviewed by people for high-impact decisions
+          {universityName} Â· {collegeName}· Powered by ColossusIQ.ai· AI suggestions are reviewed by people for high-impact decisions
         </footer>
       </div>
 
