@@ -86,7 +86,7 @@ export default async function CollegeSiteLayout({ children, params }: { children
               </Link>
             </p>
             <p className="mt-4 text-xs text-white/40">
-              Powered by CollossusIQ.ai
+              Powered by ColossusIQ.ai
             </p>
           </div>
         </div>

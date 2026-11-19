@@ -17,10 +17,10 @@ const script = Great_Vibes({ subsets: ["latin"], weight: "400", variable: "--fon
 const mono = JetBrains_Mono({ subsets: ["latin"], variable: "--font-jetbrains", display: "swap", weight: ["400", "500"] });
 
 export const metadata: Metadata = {
-  title: { default: "CollossusIQ.ai — AI-native Higher Education OS", template: "%s · CollossusIQ.ai" },
+  title: { default: "ColossusIQ.ai — AI-native Higher Education OS", template: "%s · ColossusIQ.ai" },
   description:
     "One AI platform for every student, faculty member, department and campus: learning, assessment, projects, careers and institutional intelligence.",
-  applicationName: "CollossusIQ.ai",
+  applicationName: "ColossusIQ.ai",
   manifest: "/manifest.webmanifest",
   icons: { icon: "/icons/icon.svg" },
   formatDetection: { telephone: false, email: false, address: false },

@@ -49,7 +49,7 @@ export function newTotpSecret(): Uint8Array {
   return new Uint8Array(randomBytes(20));
 }
 
-export function otpauthUri(secret: Uint8Array, account: string, issuer = "CollossusIQ"): string {
+export function otpauthUri(secret: Uint8Array, account: string, issuer = "ColossusIQ"): string {
   return `otpauth://totp/${encodeURIComponent(`${issuer}:${account}`)}?secret=${base32(secret)}&issuer=${encodeURIComponent(issuer)}&algorithm=SHA1&digits=6&period=${STEP}`;
 }
 

@@ -5,7 +5,7 @@ export interface AgentDef {
   audience: "Student" | "Faculty" | "Institution" | "Platform";
 }
 
-/** The CollossusIQ Agent Mesh (requirements doc 2, §7). */
+/** The ColossusIQ Agent Mesh (requirements doc 2, §7). */
 export const AGENTS: AgentDef[] = [
   { id: "mentor", name: "AI Mentor", summary: "Master student assistant: answers questions, coordinates other agents and recommends the next best action.", audience: "Student" },
   { id: "tutor", name: "Academic Tutor", summary: "Explains topics with examples, simplification, questions and practice.", audience: "Student" },

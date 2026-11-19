@@ -210,7 +210,7 @@ export const RESOURCES: Record<string, ResourceDef> = {
       { name: "joiningDate", label: "Date of joining", type: "date", section: "Employment", required: true, minDate: "1970-01-01", maxDate: "2030-12-31" },
       { name: "experienceYears", label: "Experience (years)", type: "number", section: "Employment", min: 0, max: 50, placeholder: "e.g. 8" },
       { name: "status", label: "Status", type: "select", section: "Employment", required: true, options: ["Active", "On leave", "Resigned", "Retired"], defaultValue: "Active", column: "badge" },
-      { name: "platformAccess", label: "Create a CollossusIQ login for this staff member", type: "toggle", section: "Access", defaultValue: true, help: "An invitation is emailed; MFA enrolment is required on first sign-in." },
+      { name: "platformAccess", label: "Create a ColossusIQ login for this staff member", type: "toggle", section: "Access", defaultValue: true, help: "An invitation is emailed; MFA enrolment is required on first sign-in." },
       { name: "notes", label: "Notes", type: "textarea", section: "Access", maxLength: 1000, wide: true, placeholder: "Additional notes or remarks..." },
     ],
   },

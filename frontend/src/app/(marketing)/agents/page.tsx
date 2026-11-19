@@ -12,7 +12,7 @@ export default function AgentsPage() {
   return (
     <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6">
       <PageHeader
-        eyebrow="Collossus AI Core"
+        eyebrow="Colossus AI Core"
         title="An agent mesh, not a single chatbot"
         description="Thirty specialised agents coordinated by an orchestrator, grounded by institutional RAG and governed by audit logs, prompt versioning, confidence scoring and human review."
       />

@@ -1,5 +1,5 @@
 -- ════════════════════════════════════════════════════════════════════════════════════════════
---  CollossusIQ — PostgreSQL schema  (migration 0001_init)
+--  ColossusIQ — PostgreSQL schema  (migration 0001_init)
 --  Target: PostgreSQL 15+   ·   Mirrors the app's rules in src/config/*.ts and src/lib/api/mock/*.ts
 --
 --  Conventions

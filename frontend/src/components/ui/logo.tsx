@@ -20,7 +20,7 @@ export function Logo({ className, compact = false, light = false }: { className?
       {compact ? null : (
         <span className="leading-none">
           <span className={cn("block text-lg font-semibold tracking-tight", light ? "text-white" : "text-ink")}>
-            Collossus<span className="text-gold">IQ</span>
+            Colossus<span className="text-gold">IQ</span>
             <span className={light ? "text-white/60" : "text-ink-3"}>.ai</span>
           </span>
           <span className={cn("mt-0.5 block text-[10px] font-medium uppercase tracking-[0.18em]", light ? "text-white/55" : "text-ink-3")}>Higher-Education OS</span>

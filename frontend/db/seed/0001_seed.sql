@@ -1,5 +1,5 @@
 -- ════════════════════════════════════════════════════════════════════════════════════════════
---  CollossusIQ — demo seed data (matches the in-app demo: TNTU with 7 colleges)
+--  ColossusIQ — demo seed data (matches the in-app demo: TNTU with 7 colleges)
 --  Run after db/migrations/0001_init.sql as the migration owner (bypasses RLS).
 --  Passwords: no credentials are seeded. Create them through the app (argon2id) or use SSO.
 -- ════════════════════════════════════════════════════════════════════════════════════════════

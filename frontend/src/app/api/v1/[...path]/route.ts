@@ -53,7 +53,7 @@ import { audit } from "@/lib/api/mock/audit";
 import { publicCertificate } from "@/lib/api/mock/learning";
 
 /*
- * Mock implementation of the CollossusIQ REST API (/api/v1/*).
+ * Mock implementation of the ColossusIQ REST API (/api/v1/*).
  * It applies the same controls the real backend must: authentication, role checks, CSRF,
  * origin checks, body-size limits, input validation and rate limiting.
  */

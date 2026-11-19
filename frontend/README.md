@@ -1,6 +1,6 @@
-# CollossusIQ.ai — Frontend
+# ColossusIQ.ai — Frontend
 
-AI-native Higher-Education OS frontend, built from the requirement documents `COLLOSSUSIQ.docx` and `COLLOSSUSIQ2.docx`.
+AI-native Higher-Education OS frontend, built from the requirement documents `COLOSSUSIQ.docx` and `COLOSSUSIQ2.docx`.
 
 - **Stack:** Next.js 16 (App Router, Turbopack) · React 19 · TypeScript (strict) · Tailwind CSS v4 · TanStack Query · Zod · Recharts · lucide-react
 - **Theme:** "Scholar Indigo" — deep indigo → violet gradients, academic gold and teal on warm paper neutrals; **Poppins** typeface; **Flaticon UIcons** (self-hosted, credited in the footer as the free licence requires); full light/dark mode.

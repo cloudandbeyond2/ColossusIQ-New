@@ -1,4 +1,4 @@
-# CollossusIQ — database data dictionary
+# ColossusIQ — database data dictionary
 
 PostgreSQL 15+ schema for the whole platform: one university (TNTU) with many affiliated colleges across five
 streams. The API runs on it with `DATA_BACKEND=postgres`; without that setting it keeps using the in-memory demo

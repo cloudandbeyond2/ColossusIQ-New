@@ -1,5 +1,5 @@
 // ════════════════════════════════════════════════════════════════════════════════════════════
-//  CollossusIQ — Prisma schema (PostgreSQL 15+)
+//  ColossusIQ — Prisma schema (PostgreSQL 15+)
 //
 //  The SQL migration is the source of truth: db/migrations/0001_init.sql
 //  (copied to prisma/migrations/20260929000000_init/migration.sql as the Prisma baseline).

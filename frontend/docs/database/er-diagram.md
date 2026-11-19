@@ -1,4 +1,4 @@
-# CollossusIQ — entity-relationship diagrams
+# ColossusIQ — entity-relationship diagrams
 
 Source of truth: [`db/migrations/0001_init.sql`](../../db/migrations/0001_init.sql). Column-level detail is in the
 [data dictionary](data-dictionary.md). The diagrams are split by domain; each shows keys and the columns that matter for

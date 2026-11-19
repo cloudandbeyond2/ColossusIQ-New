@@ -139,7 +139,7 @@ export const ROLE_HOMES: Record<Exclude<Role, "student">, RoleHome> = {
         { name: "50–60", Candidates: 2310 }, { name: "60–70", Candidates: 3920 }, { name: "70–80", Candidates: 3480 }, { name: "80–90", Candidates: 2010 }, { name: "90+", Candidates: 760 },
       ] },
     ],
-    insights: [{ title: "Profiles are verified, not ranked", body: "Readiness is shown per dimension. Hiring decisions remain with your panel.", evidence: "CollossusIQ readiness policy", tone: "sky" }],
+    insights: [{ title: "Profiles are verified, not ranked", body: "Readiness is shown per dimension. Hiring decisions remain with your panel.", evidence: "ColossusIQ readiness policy", tone: "sky" }],
     queue: [
       { title: "Review 12 new matches for SDE-1", meta: "Python · SQL · readiness ≥ 75", href: "/recruiter/talent-search", tone: "brand" },
       { title: "Interviews today (2)", meta: "10:00, 14:30", href: "/recruiter/recruiter-interviews", tone: "gold" },

@@ -2,8 +2,8 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "CollossusIQ.ai — Higher Education OS",
-    short_name: "CollossusIQ",
+    name: "ColossusIQ.ai — Higher Education OS",
+    short_name: "ColossusIQ",
     description: "AI mentor, learning, assessments, projects and careers for every student and campus.",
     start_url: "/login",
     display: "standalone",

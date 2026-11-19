@@ -13,7 +13,7 @@ export function AuthFrame({ children }: { children: React.ReactNode }) {
             <Logo compact />
           </span>
           <span className="font-serif text-xl font-semibold">
-            Collossus<span className="text-[#e0b453]">IQ</span>.ai
+            Colossus<span className="text-[#e0b453]">IQ</span>.ai
           </span>
         </Link>
         <div className="relative mt-auto max-w-lg">
@@ -30,7 +30,7 @@ export function AuthFrame({ children }: { children: React.ReactNode }) {
             </li>
           </ul>
         </div>
-        <p className="relative mt-12 text-xs text-white/50">© {new Date().getFullYear()} CollossusIQ.ai · Built for Indian higher education</p>
+        <p className="relative mt-12 text-xs text-white/50">© {new Date().getFullYear()} ColossusIQ.ai · Built for Indian higher education</p>
       </aside>
       <main id="main" className="flex items-center justify-center px-4 py-10 sm:px-8">
         <div className="w-full max-w-md">

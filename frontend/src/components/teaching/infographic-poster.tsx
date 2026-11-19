@@ -118,7 +118,7 @@ export function InfographicPoster({ data, className }: { data: PosterData; class
         </div>
       </div>
       <footer className="flex flex-wrap items-center justify-between gap-2 border-t border-line bg-surface-2/60 px-6 py-3 text-[11.5px] text-ink-3 sm:px-9">
-        <span>{data.footer ?? "CollossusIQ · Teaching Studio"}</span>
+        <span>{data.footer ?? "ColossusIQ · Teaching Studio"}</span>
         <span className="font-sans tabular-nums">AI-assisted · reviewed by your faculty</span>
       </footer>
     </article>

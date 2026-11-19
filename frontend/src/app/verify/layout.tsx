@@ -6,7 +6,7 @@ export default function VerifyLayout({ children }: { children: React.ReactNode }
     <div className="flex min-h-dvh flex-col bg-bg">
       <header className="border-b border-line bg-surface print:hidden">
         <div className="mx-auto flex h-16 max-w-5xl items-center justify-between px-4 sm:px-6">
-          <Link href="/" aria-label="CollossusIQ home">
+          <Link href="/" aria-label="ColossusIQ home">
             <Logo />
           </Link>
           <Link href="/verify" className="text-sm font-medium text-brand hover:underline">

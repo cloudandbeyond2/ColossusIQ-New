@@ -19,7 +19,7 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
     <div className="marketing flex min-h-dvh flex-col">
       <header className="sticky top-0 z-40 border-b border-line bg-bg/85 backdrop-blur">
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-4 px-4 sm:px-6">
-          <Link href="/" aria-label="CollossusIQ home">
+          <Link href="/" aria-label="ColossusIQ home">
             <Logo />
           </Link>
           <MarketingDesktopNav links={LINKS} />
@@ -76,7 +76,7 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
           </div>
         </div>
         <p className="border-t border-line py-5 text-center text-xs text-ink-3">
-          © {new Date().getFullYear()} CollossusIQ.ai · Made for Indian higher education
+          © {new Date().getFullYear()} ColossusIQ.ai · Made for Indian higher education
         </p>
       </footer>
     </div>

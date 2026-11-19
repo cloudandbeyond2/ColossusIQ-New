@@ -103,7 +103,7 @@ export function AppShell({
           {children}
         </main>
         <footer className="border-t border-line px-4 py-4 text-center text-xs text-ink-3 sm:px-6">
-          {universityName} Â· {collegeName} Â· Powered by CollossusIQ.ai Â· AI suggestions are reviewed by people for high-impact decisions
+          {universityName} Â· {collegeName} Â· Powered by ColossusIQ.ai Â· AI suggestions are reviewed by people for high-impact decisions
         </footer>
       </div>
 
@@ -139,7 +139,7 @@ function SidebarContent({
   return (
     <>
       <div className="px-5 pb-4 pt-5">
-        <Link href={home} aria-label="CollossusIQ home">
+        <Link href={home} aria-label="ColossusIQ home">
           <Logo light />
         </Link>
         <div className="mt-5 flex items-center gap-3 rounded-2xl bg-white/[0.07] p-3 ring-1 ring-white/10">

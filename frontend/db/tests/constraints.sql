@@ -1,5 +1,5 @@
 -- ════════════════════════════════════════════════════════════════════════════════════════════
---  CollossusIQ — database rule tests. Run on a seeded database:
+--  ColossusIQ — database rule tests. Run on a seeded database:
 --    psql -v ON_ERROR_STOP=1 -f db/tests/constraints.sql
 --  Each check must be rejected by the database; the script raises if any slips through.
 --  Everything runs in a transaction that is rolled back.

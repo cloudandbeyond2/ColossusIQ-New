@@ -104,7 +104,7 @@ export function DepartmentDetail({
   const establishedYear = record.established ? String(record.established) : null;
   const status = String(record.status ?? "Active");
   const isActive = status.toLowerCase() === "active";
-  const collegeName = record.collegeName ? String(record.collegeName) : "CollossusIQ Campus";
+  const collegeName = record.collegeName ? String(record.collegeName) : "ColossusIQ Campus";
   const collegeType = record.collegeType ? String(record.collegeType) : "Academic Stream";
 
   // Dynamic metrics from record stats or sensible realistic values
@@ -464,7 +464,7 @@ export function DepartmentDetail({
                       <div className="min-w-0">
                         <p className="text-xs text-ink-3">Affiliated Institution</p>
                         <p className="truncate font-semibold text-ink">{collegeName}</p>
-                        <p className="text-[11px] text-ink-3">CollossusIQ Central Network</p>
+                        <p className="text-[11px] text-ink-3">ColossusIQ Central Network</p>
                       </div>
                     </div>
                   </div>

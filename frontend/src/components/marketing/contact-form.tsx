@@ -91,7 +91,7 @@ export function ContactForm() {
       <div className="sm:col-span-2">
         <label className="flex items-start gap-2 text-sm text-ink-2">
           <input type="checkbox" name="consent" className="mt-1 accent-[var(--brand)]" />
-          I agree to be contacted about CollossusIQ. We never share your details with third parties.
+          I agree to be contacted about ColossusIQ. We never share your details with third parties.
         </label>
         {errors.consent ? <p className="mt-1 text-xs text-rose">{errors.consent}</p> : null}
       </div>
