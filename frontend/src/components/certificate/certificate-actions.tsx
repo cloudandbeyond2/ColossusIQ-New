@@ -9,9 +9,22 @@ export function CertificateActions({ id, url, name, organisation, issuedAt, revo
   const [copied, setCopied] = useState(false);
   const d = new Date(issuedAt);
   const linkedIn = `https://www.linkedin.com/profile/add?${new URLSearchParams({ startTask: "CERTIFICATION_NAME", name, organizationName: organisation, issueYear: String(d.getFullYear()), issueMonth: String(d.getMonth() + 1), certUrl: url, certId: id })}`;
+  const handlePrint = () => {
+    const prev = typeof document !== "undefined" ? document.title : "";
+    if (typeof document !== "undefined") {
+      document.title = `${id} - ${name} - ${organisation}`;
+    }
+    window.print();
+    setTimeout(() => {
+      if (typeof document !== "undefined") {
+        document.title = prev;
+      }
+    }, 1000);
+  };
+
   return (
     <div className="flex flex-wrap gap-2">
-      <Button onClick={() => window.print()} aria-label="Print or save certificate as PDF">
+      <Button onClick={handlePrint} aria-label="Print or save certificate as PDF">
         <Fi name="print" /> Print / save PDF
       </Button>
       <Button

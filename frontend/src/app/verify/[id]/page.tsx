@@ -47,7 +47,65 @@ export default async function VerifyCertificatePage({ params }: { params: Promis
   const kind = KIND_INFO[sheet.kind];
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 print:max-w-none print:p-0">
+    <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 print:m-0 print:max-w-none print:p-0">
+      <style>{`
+        @page {
+          size: A4 landscape;
+          margin: 0;
+        }
+        @media print {
+          html, body {
+            margin: 0 !important;
+            padding: 0 !important;
+            width: 297mm !important;
+            height: 210mm !important;
+            max-width: 297mm !important;
+            max-height: 210mm !important;
+            overflow: hidden !important;
+            background: #ffffff !important;
+          }
+          .print-area.certificate-print {
+            position: fixed !important;
+            top: 0 !important;
+            left: 0 !important;
+            width: 297mm !important;
+            height: 210mm !important;
+            max-width: 297mm !important;
+            max-height: 210mm !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            box-shadow: none !important;
+            overflow: hidden !important;
+            page-break-after: avoid !important;
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+            break-after: avoid !important;
+          }
+          .print-area.certificate-print > div {
+            width: 297mm !important;
+            height: 210mm !important;
+            max-width: 297mm !important;
+            max-height: 210mm !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            border-radius: 0 !important;
+            overflow: hidden !important;
+            box-shadow: none !important;
+            border: 0 !important;
+          }
+          .print-area.certificate-print .certificate-sheet {
+            width: 297mm !important;
+            height: 210mm !important;
+            max-width: 297mm !important;
+            max-height: 210mm !important;
+            margin: 0 !important;
+            border-radius: 0 !important;
+            box-shadow: none !important;
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+          }
+        }
+      `}</style>
       <div className="mb-6 grid gap-4 lg:grid-cols-[1fr_auto] lg:items-center print:hidden">
         <div className={`flex items-start gap-3 rounded-2xl border p-4 ${revoked ? "border-rose/40 bg-rose-soft" : "border-teal/30 bg-teal-soft"}`}>
           <span className={`grid size-11 shrink-0 place-items-center rounded-xl text-xl ${revoked ? "bg-rose text-white" : "bg-teal text-white"}`}>

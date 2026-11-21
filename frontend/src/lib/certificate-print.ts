@@ -38,7 +38,7 @@ export function printCertificate(element: HTMLElement, title?: string) {
   <style>
     @page {
       size: A4 landscape;
-      margin: 8mm;
+      margin: 0;
     }
     *, *::before, *::after {
       visibility: visible !important;
@@ -50,15 +50,30 @@ export function printCertificate(element: HTMLElement, title?: string) {
       padding: 0 !important;
       background: #ffffff !important;
       color: #1b2233 !important;
-      width: 100% !important;
-      min-height: 100% !important;
+      width: 297mm !important;
+      height: 210mm !important;
+      max-width: 297mm !important;
+      max-height: 210mm !important;
+      overflow: hidden !important;
     }
     .print-sheet-wrapper {
-      width: 100% !important;
-      max-width: 980px !important;
-      margin: 10px auto !important;
+      width: 297mm !important;
+      height: 210mm !important;
+      max-width: 297mm !important;
+      max-height: 210mm !important;
+      margin: 0 !important;
       padding: 0 !important;
       box-sizing: border-box !important;
+      overflow: hidden !important;
+    }
+    .print-sheet-wrapper .certificate-sheet {
+      width: 297mm !important;
+      height: 210mm !important;
+      max-width: 297mm !important;
+      max-height: 210mm !important;
+      margin: 0 !important;
+      border-radius: 0 !important;
+      box-shadow: none !important;
     }
   </style>
 </head>
