@@ -76,7 +76,7 @@ describe("OSCE & Skills Simulation Lab API", () => {
         applicantRole: "Student",
         stationOrRoom: "Surgical Skills Cubicle 1",
         equipment: "Suture Pad & Kit",
-        date: "2026-10-30",
+        date: new Date(Date.now() + 7 * 86_400_000).toISOString().slice(0, 10),
         timeSlot: "16:00 - 17:30",
         purpose: "Independent Practice",
         notes: "Preparing for surgical rotation OSCE station.",

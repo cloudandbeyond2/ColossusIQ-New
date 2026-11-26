@@ -841,7 +841,7 @@ export async function dispatchCourses(method: string, segs: string[], rawBody: u
   const isStudent = session.role === "student";
   if (!isStaff && !isStudent) return err(403, "forbidden", "Not available for your role.");
   const stream = session.college === ALL_COLLEGES ? null : await collegeStream(session.college);
-  const canPublish = can(session.role, "courses:manage");
+  const canPublish = session.role !== "faculty" && can(session.role, "courses:manage");
   const inScope = (c: LearningCourse) => session.college === ALL_COLLEGES || c.collegeId === session.college;
   const auditOpts = (c: LearningCourse) => ({ collegeId: c.collegeId, actorSub: session.sub });
 

@@ -61,7 +61,13 @@ export function chatReply(agent: string, message: string): ChatReply {
     if (/principal|registrar|working hours|timing/.test(m))
       return inst(agent, "Principal Office: Admin Block A, 1st Floor, Room A-100 (visiting hours 15:00–17:00). Academic classes run 8:45–16:15; Admin offices operate 9:00–17:00.", ["Campus Directory 2026, §1"]);
     if (agent === "policy" || agent === "knowledge")
-      return inst(agent, "I am the **Campus Assistant** for Anna Institute of Technology. You can ask me about faculty leave and OD rules, examination procedures, lab bookings, hostel timings, bus routes, or visit the Registrar's office (Admin Block A, Room A-008).", ["Campus Directory 2026"]);
+      return {
+        agent,
+        message:
+          "I couldn't find this in the approved institutional documents, so I won't guess. Please contact the Registrar's office, or ask an administrator to add the relevant policy to the knowledge base.",
+        sources: [],
+        confidence: 0.4,
+      };
   }
 
   if (/what should i study|study today|today/.test(m))

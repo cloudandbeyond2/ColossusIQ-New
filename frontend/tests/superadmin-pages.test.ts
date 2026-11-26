@@ -73,10 +73,13 @@ const BESPOKE_API: Record<string, string[]> = {
   "placement-analytics": ["placement-analytics"],
   osce: ["osce"],
   students: ["students"],
+  "course-management": ["records/courses"],
+  "notifications-config": ["modules/notifications-config"],
+  "security-settings": ["modules/security-settings"],
 };
 /** Pages without a dispatcher GET (static, or served by the route handler itself, like the college website). */
 const UNIVERSITY_ONLY = new Set(["content-desk"]);
-const NO_API = new Set(["roles-permissions", "reports", "college-website", "class-analytics"]);
+const NO_API = new Set(["roles-permissions", "reports", "college-website", "class-analytics", "ai-observability", "audit-log"]);
 
 const adminModules = MODULES.filter((m) => m.roles.includes("admin"));
 

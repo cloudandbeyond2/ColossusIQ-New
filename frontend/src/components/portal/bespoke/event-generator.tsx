@@ -392,6 +392,8 @@ function buildInitialPlan(overrides?: Partial<EventPlan>): EventPlan {
 
 /* ── Main Bespoke Module Component ──────────────────── */
 
+const twoWeeksFromNowIso = () => new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10);
+
 export function EventGeneratorModule({ role }: { role: Role }) {
   const qc = useQueryClient();
 
@@ -769,7 +771,7 @@ export function EventGeneratorModule({ role }: { role: Role }) {
       department: preset.department,
       audience: preset.audience,
       duration: preset.duration,
-      date: inputDate || new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10),
+      date: inputDate || twoWeeksFromNowIso(),
       startTime: inputStartTime || "09:00",
       venue: preset.venue,
       budget: preset.budget,

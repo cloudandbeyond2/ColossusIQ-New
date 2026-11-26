@@ -27,7 +27,7 @@ export default async function PortalLayout({ children, params }: { children: Rea
 
   return (
     <>
-      {css ? <style id="tenant-brand" dangerouslySetInnerHTML={{ __html: css }} /> : null}
+      {css ? <style id="tenant-brand">{css}</style> : null}
       <AppShell
         role={role}
         roleLabel={ROLE_META[role].label}

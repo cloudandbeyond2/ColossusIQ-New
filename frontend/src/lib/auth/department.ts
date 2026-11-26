@@ -84,21 +84,26 @@ export async function resolveUserDepartment(session: SessionPayload): Promise<st
     }
   }
 
-  // Persona fallbacks for demo accounts
-  if (session.role === "hod") {
-    const persona = ROLE_META.hod.persona;
-    const parts = persona.split("·");
-    if (parts[1]?.includes("HOD,")) {
-      const parsed = parts[1].replace(/.*HOD,\s*/i, "").trim();
-      return parsed === "Computer Science" ? "Computer Science & Engineering" : parsed;
+  // Persona fallbacks for demo accounts only
+  if (session.sub.startsWith("demo-")) {
+    if (session.role === "hod") {
+      const persona = ROLE_META.hod.persona;
+      const parts = persona.split("·");
+      if (parts[1]?.includes("HOD,")) {
+        const parsed = parts[1].replace(/.*HOD,\s*/i, "").trim();
+        return parsed === "Computer Science" ? "Computer Science & Engineering" : parsed;
+      }
     }
-  }
-  if (session.role === "faculty") {
-    const persona = ROLE_META.faculty.persona;
-    const parts = persona.split("·");
-    if (parts[1]) {
-      const commaParts = parts[1].split(",");
-      if (commaParts[1]) return commaParts[1].trim();
+    if (session.role === "faculty") {
+      const persona = ROLE_META.faculty.persona;
+      const parts = persona.split("·");
+      if (parts[1]) {
+        const commaParts = parts[1].split(",");
+        if (commaParts[1]) {
+          const parsed = commaParts[1].trim();
+          return parsed === "CSE" ? "Computer Science & Engineering" : parsed;
+        }
+      }
     }
   }
 

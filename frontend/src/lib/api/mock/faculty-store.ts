@@ -30,7 +30,7 @@ const INITIAL_FACULTY: FacultyRecord[] = [
   { id: "fac-1", name: "Dr. Joseph Kumar", designation: "Professor", department: "CSE", load: 18, development: 95, ai: "Medium", email: "joseph.k@campus.edu", createdAt: "2026-08-01T09:00:00Z", updatedAt: "2026-08-01T09:00:00Z" },
 ];
 
-let facultyStore: FacultyRecord[] = [...INITIAL_FACULTY];
+const facultyStore: FacultyRecord[] = [...INITIAL_FACULTY];
 let nextFacultySeq = 2;
 
 import { dataBackend } from "@/lib/data";
