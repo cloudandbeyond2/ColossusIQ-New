@@ -125,7 +125,8 @@ describe("knowledge base API (memory backend)", () => {
   });
 
   it("uploads text, waits for approval, then grounds answers with citations", async () => {
-    const r = await call(principal, "POST", "knowledge/documents", doc({ title: "Academic Regulations 2021" }));
+    const freshCollege: SessionPayload = { ...principal, sub: "inst-COL-1003", college: "COL-1003" };
+    const r = await call(freshCollege, "POST", "knowledge/documents", doc({ title: "Academic Regulations 2021" }));
     expect(r.status).toBe(201);
     const created = (r.body as { document: D; notes: string[] }).document;
     expect(created.status).toBe("Pending approval");
@@ -133,21 +134,21 @@ describe("knowledge base API (memory backend)", () => {
     expect(created.indexing).toBe("keyword");
 
     // not approved yet → not used
-    let a = (await call(principal, "POST", "knowledge/ask", { question: "What is the minimum attendance for exams?" })).body as Ans;
+    let a = (await call(freshCollege, "POST", "knowledge/ask", { question: "What is the minimum attendance for exams?" })).body as Ans;
     expect(a.grounded).toBe(false);
     expect(a.mode).toBe("none");
 
-    const ap = await call(principal, "PATCH", `knowledge/documents/${created.id}`, { status: "Approved" });
+    const ap = await call(freshCollege, "PATCH", `knowledge/documents/${created.id}`, { status: "Approved" });
     expect((ap.body as D).status).toBe("Approved");
-    a = (await call(principal, "POST", "knowledge/ask", { question: "What is the minimum attendance for exams?" })).body as Ans;
+    a = (await call(freshCollege, "POST", "knowledge/ask", { question: "What is the minimum attendance for exams?" })).body as Ans;
     expect(a.grounded).toBe(true);
     expect(a.mode).toBe("extract");
     expect(a.answer).toContain("75% attendance");
     expect(a.citations[0]).toMatchObject({ docId: created.id, cited: true, basis: "keyword", section: "Clause 4.2 Attendance requirements" });
 
     // archive removes it from grounding again
-    await call(principal, "PATCH", `knowledge/documents/${created.id}`, { status: "Archived" });
-    a = (await call(principal, "POST", "knowledge/ask", { question: "What is the minimum attendance for exams?" })).body as Ans;
+    await call(freshCollege, "PATCH", `knowledge/documents/${created.id}`, { status: "Archived" });
+    a = (await call(freshCollege, "POST", "knowledge/ask", { question: "What is the minimum attendance for exams?" })).body as Ans;
     expect(a.grounded).toBe(false);
   });
 

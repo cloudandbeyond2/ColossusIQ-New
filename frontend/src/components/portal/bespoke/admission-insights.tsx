@@ -128,13 +128,18 @@ function DonutMini({ data }: { data: { name: string; value: number }[] }) {
   const total = data.reduce((s, d) => s + d.value, 0) || 1;
   const r = 36; const cx = 44; const cy = 44;
   const circumference = 2 * Math.PI * r;
-  let cum = 0;
-  const slices = data.map((d, i) => {
-    const pct = d.value / total;
-    const offset = -circumference * cum;
-    cum += pct;
-    return { ...d, pct, offset, dash: circumference * pct, color: DONUT_COLORS[i % DONUT_COLORS.length] ?? "#6366f1" };
-  });
+  const slices = data.reduce<{
+    cum: number;
+    items: Array<{ name: string; value: number; pct: number; offset: number; dash: number; color: string }>;
+  }>(
+    (acc, d, i) => {
+      const pct = d.value / total;
+      const offset = -circumference * acc.cum;
+      acc.items.push({ ...d, pct, offset, dash: circumference * pct, color: DONUT_COLORS[i % DONUT_COLORS.length] ?? "#6366f1" });
+      return { cum: acc.cum + pct, items: acc.items };
+    },
+    { cum: 0, items: [] },
+  ).items;
   return (
     <div className="flex items-center gap-4">
       <svg width={88} height={88} className="shrink-0">

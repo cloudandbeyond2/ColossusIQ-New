@@ -151,7 +151,7 @@ export function scopedRows(key: string, college: ResourceRecord, seedBase: numbe
     case "staff":
       if (stream === "medical" && college.status !== "Onboarding") {
         const medicalDoctors = [
-          { name: "Dr. R. Meenakshi, MD", dept: "General Medicine", desig: "Dean & Professor", qual: "MD (General Medicine)" },
+          { name: "Dr. R. Meenakshi, MD", dept: "General Medicine", desig: "Professor", qual: "MD (General Medicine)" },
           { name: "Dr. R. Prakash, MS", dept: "General Surgery", desig: "Professor", qual: "MS (General Surgery)" },
           { name: "Dr. S. Anbarasu", dept: "General Surgery", desig: "Senior Resident", qual: "MS (General Surgery)" },
           { name: "Dr. T. Arul, MD", dept: "General Medicine", desig: "Professor", qual: "MD (General Medicine)" },
