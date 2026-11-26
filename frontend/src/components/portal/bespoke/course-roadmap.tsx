@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { Fi } from "@/components/ui/icon";
 import { LoadError } from "@/components/ui/load-error";
+import { ConfirmDelete } from "@/components/crud/confirm-delete";
 import { Badge, Button, Card, CardBody, CardHeader, EmptyState, Field, inputClass, Skeleton, Spinner } from "@/components/ui/primitives";
 import { Segmented } from "@/components/ui/tabs";
 import { ApiError, apiFetch } from "@/lib/api/client";
@@ -258,6 +259,7 @@ function RoadmapView({ id, onBack }: { id: string; onBack: () => void }) {
   const q = useQuery({ queryKey: [...KEY, id], queryFn: () => apiFetch(`/api/v1/course-roadmap/${id}`, Roadmap) });
   const [shiftFrom, setShiftFrom] = useState(today());
   const [showShift, setShowShift] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const set = (r: Roadmap) => {
     qc.setQueryData([...KEY, id], r);
     void qc.invalidateQueries({ queryKey: KEY, exact: true });
@@ -314,7 +316,7 @@ function RoadmapView({ id, onBack }: { id: string; onBack: () => void }) {
               <Button size="sm" variant="secondary" onClick={() => window.print()}>
                 <Fi name="print" /> Print
               </Button>
-              <Button size="sm" variant="ghost" onClick={() => window.confirm("Delete this roadmap?") && remove.mutate()}>
+              <Button size="sm" variant="ghost" className="text-rose hover:bg-rose-soft" onClick={() => setConfirmDelete(true)} aria-label="Delete roadmap" title="Delete roadmap">
                 <Fi name="trash" />
               </Button>
             </div>
@@ -372,6 +374,24 @@ function RoadmapView({ id, onBack }: { id: string; onBack: () => void }) {
         ))}
         {!weeks.length ? <EmptyState title="No sessions" body="This roadmap has no sessions." /> : null}
       </div>
+
+      <ConfirmDelete
+        open={confirmDelete}
+        recordName={r.title}
+        recordId={r.courseCode || undefined}
+        singular="Roadmap"
+        title="Delete this roadmap?"
+        description={
+          <p>
+            The teaching plan for <span className="font-medium text-ink">{r.title}</span>
+            {[r.section, r.programme].filter(Boolean).length ? ` (${[r.section, r.programme].filter(Boolean).join(" · ")})` : ""} and all its scheduled sessions will be permanently removed.
+          </p>
+        }
+        busy={remove.isPending}
+        error={remove.error ? (remove.error instanceof ApiError ? remove.error.message : "Failed to delete roadmap") : null}
+        onCancel={() => setConfirmDelete(false)}
+        onConfirm={() => remove.mutate()}
+      />
     </div>
   );
 }
