@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Bot, Pencil, Plus, Sparkles, Trash2, X } from "lucide-react";
 import { useMemo, useState } from "react";
 import { z } from "zod";
+import { ConfirmDelete } from "@/components/crud/confirm-delete";
 import { LoadError } from "@/components/ui/load-error";
 import { Badge, Button, Card, CardBody, CardHeader, EmptyState, Field, inputClass, Skeleton, Spinner } from "@/components/ui/primitives";
 import { ApiError, apiFetch } from "@/lib/api/client";
@@ -90,6 +91,7 @@ const NEW = "__new__";
 function SetsPanel({ d, say }: { d: StudioOverview; say: (m: string | null) => void }) {
   const qc = useQueryClient();
   const [draft, setDraft] = useState<SetDraft | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; title: string } | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const save = useMutation({
     mutationFn: (x: SetDraft) =>
@@ -111,6 +113,7 @@ function SetsPanel({ d, say }: { d: StudioOverview; say: (m: string | null) => v
   const remove = useMutation({
     mutationFn: (id: string) => apiFetch(`/api/v1/prep-content/sets/${encodeURIComponent(id)}`, z.object({ ok: z.boolean() }), { method: "DELETE" }),
     onSuccess: () => {
+      setDeleteTarget(null);
       say("Deleted.");
       void qc.invalidateQueries({ queryKey: KEY });
     },
@@ -121,6 +124,7 @@ function SetsPanel({ d, say }: { d: StudioOverview; say: (m: string | null) => v
 
   if (draft) return <SetEditor d={d} draft={draft} setDraft={setDraft} errors={errors} busy={save.isPending} onSave={() => save.mutate(draft)} onCancel={() => setDraft(null)} say={say} />;
   return (
+    <>
     <Card>
       <CardHeader
         title="Question sets"
@@ -160,7 +164,7 @@ function SetsPanel({ d, say }: { d: StudioOverview; say: (m: string | null) => v
                     <Button size="sm" variant="ghost" aria-label={`Edit ${x.title}`} onClick={() => setDraft({ id: x.id, title: x.title, topicId: x.topicId, newTopic: x.topicId.startsWith("c-") ? x.topicTitle : "", examIds: x.examIds, section: x.section, status: x.status, questions: x.questions.map((q) => ({ prompt: q.prompt, options: [...q.options] as Q["options"], answer: q.answer, explanation: q.explanation })) })}>
                       <Pencil className="h-4 w-4" aria-hidden="true" />
                     </Button>
-                    <Button size="sm" variant="ghost" aria-label={`Delete ${x.title}`} onClick={() => window.confirm("Delete this question set? Its questions leave students' drills and mocks.") && remove.mutate(x.id)}>
+                    <Button size="sm" variant="ghost" aria-label={`Delete ${x.title}`} onClick={() => setDeleteTarget({ id: x.id, title: x.title })}>
                       <Trash2 className="h-4 w-4 text-rose" aria-hidden="true" />
                     </Button>
                   </div>
@@ -171,6 +175,20 @@ function SetsPanel({ d, say }: { d: StudioOverview; say: (m: string | null) => v
         )}
       </CardBody>
     </Card>
+    <ConfirmDelete
+      open={Boolean(deleteTarget)}
+      recordName={deleteTarget?.title ?? ""}
+      singular="Question set"
+      title="Delete this question set?"
+      description="Are you sure? These questions will be removed from students' practice drills and mock tests."
+      busy={remove.isPending}
+      error={remove.error ? (remove.error instanceof ApiError ? remove.error.message : "Could not delete question set.") : null}
+      onCancel={() => setDeleteTarget(null)}
+      onConfirm={() => {
+        if (deleteTarget) remove.mutate(deleteTarget.id);
+      }}
+    />
+    </>
   );
 }
 
@@ -472,6 +490,7 @@ const toDraft = (topicId: string, n: NoteContent, status: "Draft" | "Published" 
 function NotesPanel({ d, say }: { d: StudioOverview; say: (m: string | null) => void }) {
   const qc = useQueryClient();
   const [draft, setDraft] = useState<NoteDraft | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; title: string } | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const gen = useGenerate();
   const save = useMutation({
@@ -494,9 +513,11 @@ function NotesPanel({ d, say }: { d: StudioOverview; say: (m: string | null) => 
   const remove = useMutation({
     mutationFn: (id: string) => apiFetch(`/api/v1/prep-content/notes/${encodeURIComponent(id)}`, z.object({ ok: z.boolean() }), { method: "DELETE" }),
     onSuccess: () => {
+      setDeleteTarget(null);
       say("Deleted. Students see the built-in notes again.");
       void qc.invalidateQueries({ queryKey: KEY });
     },
+    onError: (e) => say(errorText(e, "Could not delete notes.")),
   });
   const startFrom = (topicId: string) =>
     gen.mutate(
@@ -597,7 +618,7 @@ function NotesPanel({ d, say }: { d: StudioOverview; say: (m: string | null) => 
                       <Button size="sm" variant={n.source === "ai" ? "primary" : "ghost"} onClick={() => setDraft(toDraft(n.topicId, n, n.status))}>
                         {n.source === "ai" ? "Review" : <Pencil className="h-4 w-4" aria-label={`Edit notes for ${n.topicTitle}`} />}
                       </Button>
-                      <Button size="sm" variant="ghost" aria-label={`Delete notes for ${n.topicTitle}`} onClick={() => window.confirm("Delete these notes?") && remove.mutate(n.id)}>
+                      <Button size="sm" variant="ghost" aria-label={`Delete notes for ${n.topicTitle}`} onClick={() => setDeleteTarget({ id: n.id, title: n.topicTitle })}>
                         <Trash2 className="h-4 w-4 text-rose" aria-hidden="true" />
                       </Button>
                     </div>
@@ -608,6 +629,19 @@ function NotesPanel({ d, say }: { d: StudioOverview; say: (m: string | null) => 
           )}
         </CardBody>
       </Card>
+      <ConfirmDelete
+        open={Boolean(deleteTarget)}
+        recordName={deleteTarget?.title ? `Study notes: ${deleteTarget.title}` : ""}
+        singular="Study note"
+        title="Delete study notes?"
+        description="Are you sure you want to delete these notes? Students will see the default study material instead."
+        busy={remove.isPending}
+        error={remove.error ? (remove.error instanceof ApiError ? remove.error.message : "Could not delete study notes.") : null}
+        onCancel={() => setDeleteTarget(null)}
+        onConfirm={() => {
+          if (deleteTarget) remove.mutate(deleteTarget.id);
+        }}
+      />
     </div>
   );
 }

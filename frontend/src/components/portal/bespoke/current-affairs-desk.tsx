@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ExternalLink, Pencil, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { z } from "zod";
+import { ConfirmDelete } from "@/components/crud/confirm-delete";
 import { LoadError } from "@/components/ui/load-error";
 import { Badge, Button, Card, CardBody, CardHeader, EmptyState, Field, inputClass, Skeleton, Spinner } from "@/components/ui/primitives";
 import { ApiError, apiFetch } from "@/lib/api/client";
@@ -65,6 +66,7 @@ export function CurrentAffairsDeskModule() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [message, setMessage] = useState<string | null>(null);
   const [filter, setFilter] = useState<"all" | "Published" | "Draft">("all");
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; headline: string } | null>(null);
 
   const save = useMutation({
     mutationFn: (v: { id: string | null; draft: Draft }) => apiFetch(v.id ? `/api/v1/current-affairs/${encodeURIComponent(v.id)}` : "/api/v1/current-affairs", CaItem, { method: v.id ? "PUT" : "POST", body: body(v.draft) }),
@@ -84,6 +86,7 @@ export function CurrentAffairsDeskModule() {
   const remove = useMutation({
     mutationFn: (id: string) => apiFetch(`/api/v1/current-affairs/${encodeURIComponent(id)}`, z.object({ ok: z.boolean() }), { method: "DELETE" }),
     onSuccess: () => {
+      setDeleteTarget(null);
       setMessage("Deleted.");
       void qc.invalidateQueries({ queryKey: KEY });
     },
@@ -191,7 +194,7 @@ export function CurrentAffairsDeskModule() {
                         >
                           <Pencil className="h-4 w-4" aria-hidden="true" />
                         </Button>
-                        <Button size="sm" variant="ghost" onClick={() => window.confirm("Delete this item? Students will no longer see it.") && remove.mutate(x.id)} aria-label={`Delete ${x.headline}`}>
+                        <Button size="sm" variant="ghost" onClick={() => setDeleteTarget({ id: x.id, headline: x.headline })} aria-label={`Delete ${x.headline}`}>
                           <Trash2 className="h-4 w-4 text-rose" aria-hidden="true" />
                         </Button>
                       </div>
@@ -203,6 +206,20 @@ export function CurrentAffairsDeskModule() {
           </CardBody>
         </Card>
       )}
+
+      <ConfirmDelete
+        open={Boolean(deleteTarget)}
+        recordName={deleteTarget?.headline ?? ""}
+        singular="Current affairs item"
+        title="Delete this item?"
+        description="Are you sure you want to delete this news item? Students will no longer see it in their current affairs feed."
+        busy={remove.isPending}
+        error={remove.error ? (remove.error instanceof ApiError ? remove.error.message : "Could not delete item.") : null}
+        onCancel={() => setDeleteTarget(null)}
+        onConfirm={() => {
+          if (deleteTarget) remove.mutate(deleteTarget.id);
+        }}
+      />
     </div>
   );
 }
