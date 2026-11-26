@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { apiFetch } from "@/lib/api/client";
 import type { Role } from "@/lib/auth/roles";
+import { ConfirmDelete } from "@/components/crud/confirm-delete";
 import { Button, Card, Field, Spinner, inputClass } from "@/components/ui/primitives";
 import { TemplateSkeleton } from "@/components/modules/shared";
 import { cn } from "@/lib/utils";
@@ -212,6 +213,7 @@ export function EventsModule({ role }: { role: Role }) {
   const [typeFilter, setTypeFilter] = useState<EventType | "All">("All");
   const [statusFilter, setStatusFilter] = useState<EventStatus | "All">("All");
   const [modal, setModal] = useState<{ open: boolean; editing: CalEvent | null }>({ open: false, editing: null });
+  const [deleteTarget, setDeleteTarget] = useState<CalEvent | null>(null);
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
   const [view, setView] = useState<"list" | "grid">("list");
 
@@ -280,6 +282,7 @@ export function EventsModule({ role }: { role: Role }) {
       }
     },
     onSuccess: (_, id) => {
+      setDeleteTarget(null);
       setLocalEvents((prev) => prev.filter((e) => e.id !== id));
       void qc.invalidateQueries({ queryKey: ["events"] });
       showToast("Event removed.");
@@ -418,7 +421,7 @@ export function EventsModule({ role }: { role: Role }) {
                 <button onClick={() => setModal({ open: true, editing: e })} className="p-1.5 rounded hover:bg-[var(--bg-subtle)] text-[var(--fg-muted)] hover:text-[var(--fg)]">
                   <Edit3 className="h-4 w-4" />
                 </button>
-                <button onClick={() => { if (confirm(`Remove "${e.title}"?`)) deleteMutation.mutate(e.id); }} className="p-1.5 rounded hover:bg-rose-50 dark:hover:bg-rose-900/20 text-[var(--fg-muted)] hover:text-rose-600">
+                <button onClick={() => setDeleteTarget(e)} aria-label={`Delete ${e.title}`} className="p-1.5 rounded hover:bg-rose-50 dark:hover:bg-rose-900/20 text-[var(--fg-muted)] hover:text-rose-600">
                   <Trash2 className="h-4 w-4" />
                 </button>
               </div>
@@ -440,6 +443,19 @@ export function EventsModule({ role }: { role: Role }) {
           saving={saveMutation.isPending}
         />
       )}
+
+      <ConfirmDelete
+        open={Boolean(deleteTarget)}
+        recordName={deleteTarget?.title ?? ""}
+        singular="Campus event"
+        title="Delete this event?"
+        description="Are you sure you want to remove this event? Students and staff will no longer see it on the campus events calendar."
+        busy={deleteMutation.isPending}
+        onCancel={() => setDeleteTarget(null)}
+        onConfirm={() => {
+          if (deleteTarget) deleteMutation.mutate(deleteTarget.id);
+        }}
+      />
     </div>
   );
 }
