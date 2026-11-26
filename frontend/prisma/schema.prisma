@@ -2741,3 +2741,25 @@ model QuestionPaper {
   @@index([createdAt(sort: Desc)])
   @@map("question_papers")
 }
+
+model DocumentHistory {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  publicId     String    @unique @map("public_id") @db.VarChar(120)
+  collegeId    String?   @map("college_id") @db.Uuid
+  module       String    @default("document-ai") @db.VarChar(100)
+  task         String    @default("Create flashcards") @db.VarChar(100)
+  title        String    @db.VarChar(255)
+  inputText    String    @map("input_text") @db.Text
+  markdown     String    @db.Text
+  authorName   String    @default("Faculty Member") @map("author_name") @db.VarChar(120)
+  authorSub    String    @default("USR-004") @map("author_sub") @db.VarChar(120)
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@index([collegeId])
+  @@index([authorSub])
+  @@index([module])
+  @@index([task])
+  @@index([createdAt(sort: Desc)])
+  @@map("document_history")
+}

@@ -1,8 +1,10 @@
 "use client";
 
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Check, CheckCircle2, ChevronLeft, ChevronRight, Circle, Copy, Download, Filter, Layers, RotateCw, Search, Sparkles, X } from "lucide-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Check, CheckCircle2, ChevronLeft, ChevronRight, Circle, Clock, Copy, Download, Eye, Filter, History, Layers, Printer, RotateCw, Search, Sparkles, Trash2, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { z } from "zod";
+import { ConfirmDelete } from "@/components/crud/confirm-delete";
 import type {
   CalendarData,
   ChatData,
@@ -336,7 +338,7 @@ export function WorkflowTemplate({ data }: { data: WorkflowData }) {
           <ol className="relative space-y-1">
             {data.stages.map((s, i) => (
               <li key={s.title} className="relative flex gap-4 pb-5 last:pb-0">
-                {i < data.stages.length - 1 ? <span className={cn("absolute left-[13px] top-7 h-[calc(100%-1.25rem)] w-0.5", s.status === "done" ? "bg-teal" : "bg-line")} aria-hidden /> : null}
+                {i < data.stages.length - 1 ? <span className={cn("absolute left-3.25 top-7 h-[calc(100%-1.25rem)] w-0.5", s.status === "done" ? "bg-teal" : "bg-line")} aria-hidden /> : null}
                 <span
                   className={cn(
                     "relative z-10 flex size-7 shrink-0 items-center justify-center rounded-full border-2",
@@ -418,7 +420,7 @@ export function ScorecardTemplate({ data }: { data: ScorecardData }) {
                 </div>
                 <div className="relative">
                   <Progress value={d.score} tone={d.score >= d.target ? "teal" : toneForScore(d.score)} label={d.name} />
-                  <span className="absolute top-[-2px] h-3 w-0.5 bg-ink" style={{ left: `${d.target}%` }} aria-hidden />
+                  <span className="absolute -top-0.5 h-3 w-0.5 bg-ink" style={{ left: `${d.target}%` }} aria-hidden />
                 </div>
               </div>
             ))}
@@ -577,7 +579,7 @@ export function SettingsTemplate({ data, mod }: { data: SettingsData; mod?: Modu
                     className={cn(
                       "group flex cursor-pointer items-center justify-between gap-4 rounded-xl border p-3.5 transition-all duration-200",
                       isChecked
-                        ? "border-emerald-500/30 bg-emerald-500/[0.03] shadow-sm hover:border-emerald-500/50 hover:bg-emerald-500/[0.06]"
+                        ? "border-emerald-500/30 bg-emerald-500/3 shadow-sm hover:border-emerald-500/50 hover:bg-emerald-500/6"
                         : "border-line/70 bg-surface hover:border-line hover:bg-surface-2/50",
                     )}
                     onClick={toggleValue}
@@ -751,7 +753,7 @@ export function GalleryTemplate({ data }: { data: GalleryData }) {
             </div>
           </div>
 
-          <div className="relative min-w-[200px] sm:w-60">
+          <div className="relative min-w-50 sm:w-60">
             <input
               type="text"
               placeholder="Search labs & practicals..."
@@ -818,7 +820,7 @@ export function ChatTemplate({ data, mod }: { data: ChatData; mod: ModuleDef }) 
   const agent = findAgent(mod.agent);
   return (
     <div className="grid gap-6 lg:grid-cols-[1fr_300px]">
-      <Card className="flex h-[70vh] min-h-[480px] flex-col overflow-hidden">
+      <Card className="flex h-[70vh] min-h-120 flex-col overflow-hidden">
         <ChatPanel agent={mod.agent ?? "mentor"} agentName={agent?.name ?? mod.title} intro={data.intro} suggestions={data.suggestions} context={data.context} className="flex-1" />
       </Card>
       <div className="space-y-4">
@@ -871,7 +873,275 @@ function extractFlashcards(md: string): ParsedFlashcard[] {
   return cards;
 }
 
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+function formatMarkdownForPrint(md: string): string {
+  return md
+    .split(/\n\n+/)
+    .map((block) => {
+      const b = block.trim();
+      if (!b) return "";
+      if (b.startsWith("#### ")) return `<h4>${escapeHtml(b.slice(5))}</h4>`;
+      if (b.startsWith("### ")) return `<h3>${escapeHtml(b.slice(4))}</h3>`;
+      if (b.startsWith("## ")) return `<h2>${escapeHtml(b.slice(3))}</h2>`;
+      if (b.startsWith("# ")) return `<h1>${escapeHtml(b.slice(2))}</h1>`;
+      if (/^[-*]\s+/m.test(b)) {
+        const items = b
+          .split("\n")
+          .filter((line) => line.trim().length > 0)
+          .map((line) => `<li>${formatInline(line.replace(/^[-*]\s+/, ""))}</li>`)
+          .join("");
+        return `<ul>${items}</ul>`;
+      }
+      return `<p>${formatInline(b)}</p>`;
+    })
+    .join("");
+}
+
+function formatInline(str: string): string {
+  return escapeHtml(str)
+    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+    .replace(/\*(.+?)\*/g, "<em>$1</em>")
+    .replace(/`([^`]+)`/g, "<code>$1</code>")
+    .replace(/\n/g, "<br/>");
+}
+
+function printDocumentDirect({
+  markdown,
+  flashcards,
+  taskName,
+  topic,
+  modTitle,
+}: {
+  markdown: string;
+  flashcards: ParsedFlashcard[];
+  taskName: string;
+  topic: string;
+  modTitle: string;
+}) {
+  if (!markdown) return;
+  const w = window.open("", "_blank");
+  if (!w) return;
+
+  let contentHtml = "";
+  if (flashcards.length > 0) {
+    contentHtml = `
+      <div class="cards-grid">
+        ${flashcards
+          .map(
+            (fc, i) => `
+          <div class="fc-card">
+            <div class="fc-header">
+              <span class="fc-badge">Card ${i + 1} of ${flashcards.length}</span>
+              <span class="fc-title">${escapeHtml(fc.title)}</span>
+            </div>
+            <div class="fc-section">
+              <div class="fc-label">Question / Prompt</div>
+              <div class="fc-front">${escapeHtml(fc.front)}</div>
+            </div>
+            <div class="fc-section" style="margin-top: 10px;">
+              <div class="fc-label">Answer / Explanation</div>
+              <div class="fc-back">${escapeHtml(fc.back)}</div>
+            </div>
+            ${
+              fc.hook
+                ? `<div class="fc-hook">
+                    <strong>💡 Key Takeaway / Memory Hook:</strong> ${escapeHtml(fc.hook)}
+                  </div>`
+                : ""
+            }
+          </div>
+        `,
+          )
+          .join("")}
+      </div>
+    `;
+  } else {
+    contentHtml = `<div class="notes-content">${formatMarkdownForPrint(markdown)}</div>`;
+  }
+
+  w.document.write(`
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <title>${escapeHtml(topic)} - ${escapeHtml(taskName)}</title>
+        <style>
+          @page { size: A4; margin: 15mm; }
+          * { box-sizing: border-box; }
+          body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            color: #0f172a;
+            line-height: 1.55;
+            margin: 0;
+            padding: 24px;
+            background: #fff;
+          }
+          .header {
+            border-bottom: 2px solid #2563eb;
+            padding-bottom: 12px;
+            margin-bottom: 20px;
+          }
+          .brand {
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+            color: #2563eb;
+          }
+          .title {
+            font-size: 20px;
+            font-weight: 700;
+            margin: 4px 0 6px;
+            color: #0f172a;
+          }
+          .meta {
+            font-size: 12px;
+            color: #64748b;
+          }
+          .cards-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+          }
+          .fc-card {
+            border: 1px solid #cbd5e1;
+            border-radius: 12px;
+            padding: 16px;
+            background: #f8fafc;
+            page-break-inside: avoid;
+          }
+          .fc-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid #e2e8f0;
+            padding-bottom: 8px;
+            margin-bottom: 10px;
+          }
+          .fc-badge {
+            font-size: 11px;
+            font-weight: 700;
+            color: #2563eb;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+          }
+          .fc-title {
+            font-size: 11px;
+            font-weight: 600;
+            color: #475569;
+            background: #fff;
+            border: 1px solid #e2e8f0;
+            border-radius: 9999px;
+            padding: 2px 8px;
+          }
+          .fc-section {
+            margin-bottom: 6px;
+          }
+          .fc-label {
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #64748b;
+            margin-bottom: 2px;
+          }
+          .fc-front {
+            font-size: 14px;
+            font-weight: 600;
+            color: #0f172a;
+          }
+          .fc-back {
+            font-size: 13px;
+            color: #1e293b;
+            white-space: pre-line;
+          }
+          .fc-hook {
+            margin-top: 10px;
+            background: #fef3c7;
+            border-left: 3px solid #f59e0b;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            color: #92400e;
+          }
+          .notes-content {
+            font-size: 14px;
+            line-height: 1.7;
+          }
+          .notes-content h1, .notes-content h2, .notes-content h3, .notes-content h4 {
+            color: #0f172a;
+            margin-top: 18px;
+            margin-bottom: 6px;
+          }
+          .notes-content ul {
+            padding-left: 20px;
+            margin: 8px 0;
+          }
+          .notes-content li {
+            margin-bottom: 4px;
+          }
+          code {
+            background: #f1f5f9;
+            padding: 2px 5px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-family: monospace;
+          }
+          @media print {
+            body { padding: 0; }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <div class="brand">ColossusIQ · ${escapeHtml(modTitle)}</div>
+          <h1 class="title">${escapeHtml(taskName)}</h1>
+          <div class="meta">Topic: <strong>${escapeHtml(topic)}</strong> · Generated on ${new Date().toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}</div>
+        </div>
+        ${contentHtml}
+        <script>
+          window.onload = function() {
+            setTimeout(function() {
+              window.print();
+            }, 250);
+          };
+        </script>
+      </body>
+    </html>
+  `);
+  w.document.close();
+}
+
+const DocumentHistoryItemSchema = z.object({
+  id: z.string(),
+  module: z.string(),
+  task: z.string(),
+  title: z.string(),
+  inputText: z.string().optional().default(""),
+  markdown: z.string(),
+  createdAt: z.string(),
+});
+type DocumentHistoryItem = z.infer<typeof DocumentHistoryItemSchema>;
+
+const DocumentHistoryResponseSchema = z.object({
+  ok: z.boolean(),
+  history: z.array(DocumentHistoryItemSchema),
+});
+
 export function GeneratorTemplate({ data, mod }: { data: GeneratorData; mod: ModuleDef }) {
+  const isDocumentAi = mod.slug === "document-ai";
+  const qc = useQueryClient();
+  const [activeTab, setActiveTab] = useState<"generate" | "history">("generate");
+  const [historySearch, setHistorySearch] = useState("");
+  const [toDelete, setToDelete] = useState<{ id: string; title: string } | null>(null);
+
   const [values, setValues] = useState<Record<string, string>>(() =>
     Object.fromEntries(data.fields.map((f) => [f.name, f.defaultValue ?? f.options?.[0] ?? ""])),
   );
@@ -879,263 +1149,646 @@ export function GeneratorTemplate({ data, mod }: { data: GeneratorData; mod: Mod
   const [activeCardIndex, setActiveCardIndex] = useState(0);
   const [isFlipped, setIsFlipped] = useState(false);
   const [viewMode, setViewMode] = useState<"interactive" | "all">("interactive");
+  const [currentOutput, setCurrentOutput] = useState<{ markdown: string; title: string; task: string } | null>(null);
 
-  const mutation = useMutation({
-    mutationFn: (inputs: Record<string, string>) => apiFetch("/api/v1/ai/generate", GenerateReply, { method: "POST", body: { module: mod.slug, inputs } }),
+  // Fetch document history (only active for Document AI)
+  const historyQuery = useQuery({
+    queryKey: ["document-ai-history", mod.slug],
+    queryFn: () =>
+      apiFetch(
+        `/api/v1/document-ai/history?module=${encodeURIComponent(mod.slug)}`,
+        DocumentHistoryResponseSchema,
+      ),
+    enabled: isDocumentAi,
   });
 
+  const saveToHistory = useMutation({
+    mutationFn: (body: { module: string; task: string; title: string; inputText: string; markdown: string }) =>
+      apiFetch("/api/v1/document-ai/history", z.object({ ok: z.boolean(), record: z.any() }), { method: "POST", body }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["document-ai-history", mod.slug] });
+    },
+  });
+
+  const deleteFromHistory = useMutation({
+    mutationFn: (id: string) =>
+      apiFetch(`/api/v1/document-ai/history/${encodeURIComponent(id)}`, z.object({ ok: z.boolean() }), { method: "DELETE" }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["document-ai-history", mod.slug] });
+      setToDelete(null);
+    },
+  });
+
+  const mutation = useMutation({
+    mutationFn: (inputs: Record<string, string>) =>
+      apiFetch("/api/v1/ai/generate", GenerateReply, { method: "POST", body: { module: mod.slug, inputs } }),
+    onSuccess: (res, inputs) => {
+      const title = inputs.text?.slice(0, 50) || inputs.prompt?.slice(0, 50) || inputs.topic?.slice(0, 50) || "Study Document";
+      const task = inputs.task || "Create flashcards";
+      setCurrentOutput({ markdown: res.markdown, title, task });
+      if (isDocumentAi) {
+        saveToHistory.mutate({
+          module: mod.slug,
+          task,
+          title,
+          inputText: inputs.text || inputs.prompt || "",
+          markdown: res.markdown,
+        });
+      }
+    },
+  });
+
+  const activeMarkdown = currentOutput?.markdown || mutation.data?.markdown || "";
+  const activeTask = currentOutput?.task || values.task || mod.title;
+  const activeTitle = currentOutput?.title || values.text?.slice(0, 50) || values.prompt?.slice(0, 50) || mod.title;
+
   const flashcards = useMemo(() => {
-    return mutation.data ? extractFlashcards(mutation.data.markdown) : [];
-  }, [mutation.data]);
+    return activeMarkdown ? extractFlashcards(activeMarkdown) : [];
+  }, [activeMarkdown]);
 
   useEffect(() => {
     setActiveCardIndex(0);
     setIsFlipped(false);
     setViewMode("interactive");
-  }, [mutation.data]);
+  }, [activeMarkdown]);
+
+  const downloadMarkdown = () => {
+    if (!activeMarkdown) return;
+    const topic = (activeTitle || "document")
+      .trim()
+      .slice(0, 30)
+      .replace(/[^a-zA-Z0-9_-]+/g, "-")
+      .toLowerCase() || "notes";
+    const filename = `${topic}-${Date.now().toString().slice(-4)}.md`;
+    const blob = new Blob([activeMarkdown], { type: "text/markdown;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const exportPdf = () => {
+    if (!activeMarkdown) return;
+    printDocumentDirect({
+      markdown: activeMarkdown,
+      flashcards,
+      taskName: activeTask,
+      topic: activeTitle,
+      modTitle: mod.title,
+    });
+  };
+
+  const viewHistoryItem = (item: DocumentHistoryItem) => {
+    setCurrentOutput({ markdown: item.markdown, title: item.title, task: item.task });
+    if (item.inputText) {
+      setValues((v) => ({ ...v, text: item.inputText, prompt: item.inputText, task: item.task }));
+    }
+    setActiveTab("generate");
+  };
+
+  const [historyPage, setHistoryPage] = useState<number>(1);
+  const [historyPageSize, setHistoryPageSize] = useState<number>(6);
+
+  useEffect(() => {
+    setHistoryPage(1);
+  }, [historySearch]);
+
+  const historyList: DocumentHistoryItem[] = historyQuery.data?.history || [];
+  const filteredHistory = historyList.filter((item: DocumentHistoryItem) => {
+    if (!historySearch.trim()) return true;
+    const q = historySearch.toLowerCase();
+    return (
+      item.title.toLowerCase().includes(q) ||
+      item.task.toLowerCase().includes(q) ||
+      Boolean(item.inputText && item.inputText.toLowerCase().includes(q))
+    );
+  });
+
+  const totalItems = filteredHistory.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / historyPageSize));
+  const currentPage = Math.min(historyPage, totalPages);
+  const paginatedHistory = filteredHistory.slice((currentPage - 1) * historyPageSize, currentPage * historyPageSize);
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[360px_1fr]">
-      <Card className="h-fit">
-        <CardHeader title="Inputs" subtitle={findAgent(mod.agent)?.name} />
-        <CardBody>
-          <form
-            className="space-y-4"
-            onSubmit={(e) => {
-              e.preventDefault();
-              const cleaned = Object.fromEntries(Object.entries(values).map(([k, v]) => [k, cleanText(v, 4000)]));
-              mutation.mutate(cleaned);
-            }}
-          >
-            {data.fields.map((f) => {
-              const id = `gen-${f.name}`;
-              return (
-                <Field key={f.name} label={f.label} htmlFor={id}>
-                  {f.type === "select" ? (
-                    <select id={id} className={inputClass} value={values[f.name]} onChange={(e) => setValues((p) => ({ ...p, [f.name]: e.target.value }))}>
-                      {f.options?.map((o) => (
-                        <option key={o}>{o}</option>
-                      ))}
-                    </select>
-                  ) : f.type === "textarea" ? (
-                    <textarea
-                      id={id}
-                      rows={5}
-                      maxLength={4000}
-                      className={inputClass}
-                      placeholder={f.placeholder}
-                      value={values[f.name]}
-                      onChange={(e) => setValues((p) => ({ ...p, [f.name]: e.target.value }))}
-                    />
-                  ) : (
-                    <input
-                      id={id}
-                      type={f.type === "number" ? "number" : "text"}
-                      min={f.type === "number" ? 0 : undefined}
-                      max={f.type === "number" ? 10_000_000 : undefined}
-                      maxLength={200}
-                      className={inputClass}
-                      placeholder={f.placeholder}
-                      value={values[f.name]}
-                      onChange={(e) => setValues((p) => ({ ...p, [f.name]: e.target.value }))}
-                    />
+    <div className="space-y-6">
+      {/* ── Top Tabs: Generate vs History (Document AI only) ── */}
+      {isDocumentAi ? (
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-line pb-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setActiveTab("generate")}
+              className={cn(
+                "flex items-center gap-2 rounded-xl px-3 sm:px-4 py-2 text-xs sm:text-sm font-semibold transition-all",
+                activeTab === "generate"
+                  ? "bg-brand text-white shadow-xs"
+                  : "bg-surface-2 text-ink-2 hover:bg-surface-3 hover:text-ink",
+              )}
+            >
+              <Sparkles className="size-3.5 sm:size-4" />
+              <span>Generate</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab("history")}
+              className={cn(
+                "flex items-center gap-2 rounded-xl px-3 sm:px-4 py-2 text-xs sm:text-sm font-semibold transition-all",
+                activeTab === "history"
+                  ? "bg-brand text-white shadow-xs"
+                  : "bg-surface-2 text-ink-2 hover:bg-surface-3 hover:text-ink",
+              )}
+            >
+              <History className="size-3.5 sm:size-4" />
+              <span>History</span>
+              {historyList.length > 0 ? (
+                <span
+                  className={cn(
+                    "rounded-full px-2 py-0.5 text-[10px] font-bold",
+                    activeTab === "history" ? "bg-white/20 text-white" : "bg-brand/10 text-brand",
                   )}
-                </Field>
-              );
-            })}
-            <Button type="submit" className="w-full" disabled={mutation.isPending}>
-              {mutation.isPending ? <Spinner /> : <Sparkles className="size-4" />}
-              {data.cta}
-            </Button>
-          </form>
-        </CardBody>
-      </Card>
+                >
+                  {historyList.length}
+                </span>
+              ) : null}
+            </button>
+          </div>
 
-      <Card className="min-h-80">
-        <CardHeader
-          title="Output"
-          action={
-            mutation.data ? (
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => {
-                  void navigator.clipboard?.writeText(mutation.data.markdown).then(() => {
-                    setCopied(true);
-                    setTimeout(() => setCopied(false), 1500);
-                  });
-                }}
-              >
-                {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
-                {copied ? "Copied" : "Copy"}
-              </Button>
-            ) : null
-          }
-        />
-        <CardBody>
-          {mutation.isError ? (
-            <p className="text-sm text-rose" role="alert">
-              {mutation.error instanceof ApiError ? mutation.error.message : "Generation failed."}
-            </p>
-          ) : mutation.isPending ? (
-            <div className="flex items-center gap-2 text-sm text-ink-3">
-              <Spinner /> Generating…
-            </div>
-          ) : mutation.data ? (
-            flashcards.length > 0 ? (
-              <div className="space-y-4">
-                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line pb-2.5">
-                  <div className="flex items-center gap-1.5 rounded-lg bg-surface-2 p-1 text-xs font-semibold">
-                    <button
-                      type="button"
-                      onClick={() => setViewMode("interactive")}
-                      className={cn(
-                        "flex items-center gap-1.5 rounded-md px-3 py-1 transition-colors",
-                        viewMode === "interactive" ? "bg-surface text-brand shadow-xs" : "text-ink-2 hover:text-ink",
-                      )}
-                    >
-                      <Layers className="size-3.5" />
-                      <span>Interactive Cards ({flashcards.length})</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setViewMode("all")}
-                      className={cn(
-                        "rounded-md px-3 py-1 transition-colors",
-                        viewMode === "all" ? "bg-surface text-brand shadow-xs" : "text-ink-2 hover:text-ink",
-                      )}
-                    >
-                      <span>Full Notes View</span>
-                    </button>
-                  </div>
-                  <span className="text-xs font-medium text-ink-3">
-                    Card {activeCardIndex + 1} of {flashcards.length}
-                  </span>
-                </div>
+          {saveToHistory.isPending ? (
+            <span className="flex items-center gap-1.5 text-xs text-brand font-medium">
+              <Spinner /> Saving to history…
+            </span>
+          ) : null}
+        </div>
+      ) : null}
 
-                {viewMode === "interactive" && flashcards[activeCardIndex] ? (
-                  (() => {
-                    const card = flashcards[activeCardIndex]!;
-                    return (
-                      <div className="space-y-4">
-                        {/* Active Flashcard Face */}
-                        <div
-                          onClick={() => setIsFlipped((f) => !f)}
-                          className={cn(
-                            "group relative flex min-h-[260px] cursor-pointer select-none flex-col justify-between rounded-2xl border-2 p-6 transition-all duration-300 shadow-xs",
-                            isFlipped
-                              ? "border-teal-500/50 bg-teal-500/5 hover:border-teal-500/70 dark:bg-teal-950/20"
-                              : "border-brand/40 bg-brand/5 hover:border-brand/60 dark:bg-brand/10",
-                          )}
-                        >
-                          <div>
-                            <div className="mb-3 flex items-center justify-between text-xs font-bold uppercase tracking-wider">
-                              <span className={cn("flex items-center gap-1.5", isFlipped ? "text-teal-600 dark:text-teal-400" : "text-brand")}>
-                                {isFlipped ? "Answer / Explanation" : "Question / Prompt"}
-                              </span>
-                              <span className="rounded-full bg-surface px-2.5 py-0.5 text-[11px] font-semibold text-ink-2 shadow-2xs">
-                                {card.title}
-                              </span>
-                            </div>
-
-                            <div className="py-2 text-ink">
-                              {isFlipped ? (
-                                <div className="space-y-3">
-                                  <div className="whitespace-pre-line text-sm leading-relaxed sm:text-base font-normal">
-                                    {card.back}
-                                  </div>
-                                  {card.hook ? (
-                                    <div className="mt-3 flex items-start gap-2.5 rounded-xl border border-amber/30 bg-gold-soft p-3 text-xs text-amber font-medium">
-                                      <span className="text-base leading-none">💡</span>
-                                      <div>
-                                        <strong className="mb-0.5 block font-semibold text-ink">Key Takeaway / Memory Hook:</strong>
-                                        {card.hook}
-                                      </div>
-                                    </div>
-                                  ) : null}
-                                </div>
-                              ) : (
-                                <div className="pt-2 text-base font-semibold leading-relaxed text-ink sm:text-lg">
-                                  {card.front}
-                                </div>
-                              )}
-                            </div>
-                          </div>
-
-                          <div className="mt-4 flex items-center justify-between border-t border-line/60 pt-3.5 text-xs text-ink-3">
-                            <span className="flex items-center gap-1.5 font-medium text-brand group-hover:underline">
-                              <RotateCw className="size-3.5" />
-                              {isFlipped ? "Click card to flip back to question" : "Click anywhere on card to reveal answer"}
-                            </span>
-                            <span className="font-semibold text-ink-2">
-                              {activeCardIndex + 1} / {flashcards.length}
-                            </span>
-                          </div>
-                        </div>
-
-                        {/* Navigation Controls */}
-                        <div className="flex items-center justify-between pt-1">
-                          <Button
-                            type="button"
-                            variant="secondary"
-                            size="sm"
-                            disabled={activeCardIndex === 0}
-                            onClick={() => {
-                              setIsFlipped(false);
-                              setActiveCardIndex((i) => Math.max(0, i - 1));
-                            }}
-                            className="flex items-center gap-1 text-xs"
-                          >
-                            <ChevronLeft className="size-4" /> Previous
-                          </Button>
-
-                          <Button
-                            type="button"
-                            variant="primary"
-                            size="sm"
-                            onClick={() => setIsFlipped((f) => !f)}
-                            className="flex items-center gap-1.5 text-xs font-semibold"
-                          >
-                            <RotateCw className="size-3.5" />
-                            {isFlipped ? "Show Question" : "Flip to Answer"}
-                          </Button>
-
-                          <Button
-                            type="button"
-                            variant="secondary"
-                            size="sm"
-                            disabled={activeCardIndex === flashcards.length - 1}
-                            onClick={() => {
-                              setIsFlipped(false);
-                              setActiveCardIndex((i) => Math.min(flashcards.length - 1, i + 1));
-                            }}
-                            className="flex items-center gap-1 text-xs"
-                          >
-                            Next <ChevronRight className="size-4" />
-                          </Button>
-                        </div>
-                      </div>
-                    );
-                  })()
-                ) : (
-                  <div className="space-y-4">
-                    <SafeMarkdown>{mutation.data.markdown}</SafeMarkdown>
-                  </div>
-                )}
-
-                <AiLabel />
+      {isDocumentAi && activeTab === "history" ? (
+        <Card>
+          <CardHeader
+            title="Saved Document History"
+            subtitle="View, study, export, or delete previous AI-generated documents"
+            action={
+              <div className="relative w-48 sm:w-64">
+                <Search className="absolute left-3 top-2.5 size-3.5 text-ink-3" />
+                <input
+                  type="text"
+                  placeholder="Search history…"
+                  value={historySearch}
+                  onChange={(e) => setHistorySearch(e.target.value)}
+                  className={cn(inputClass, "pl-8 text-xs")}
+                />
               </div>
+            }
+          />
+          <CardBody>
+            {historyQuery.isLoading ? (
+              <div className="flex items-center justify-center py-12 text-ink-3">
+                <Spinner />
+                <span className="ml-2 text-sm">Loading history…</span>
+              </div>
+            ) : filteredHistory.length === 0 ? (
+              <EmptyState
+                title="No saved documents found"
+                body={
+                  historySearch
+                    ? "No history matches your search filter."
+                    : "Documents you generate will be automatically saved here for quick review, study, and printing."
+                }
+              />
             ) : (
               <div className="space-y-4">
-                <SafeMarkdown>{mutation.data.markdown}</SafeMarkdown>
-                <AiLabel />
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  {paginatedHistory.map((item: DocumentHistoryItem) => (
+                    <div
+                      key={item.id}
+                      className="flex flex-col justify-between rounded-2xl border border-line bg-surface p-4 shadow-2xs hover:border-brand/40 transition-all"
+                    >
+                      <div>
+                        <div className="flex items-center justify-between gap-2 mb-2">
+                          <Badge tone="brand">{item.task}</Badge>
+                          <span className="text-[11px] text-ink-3 flex items-center gap-1">
+                            <Clock className="size-3" />
+                            {new Date(item.createdAt).toLocaleDateString("en-IN", {
+                              day: "numeric",
+                              month: "short",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}
+                          </span>
+                        </div>
+                        <h4 className="font-semibold text-sm text-ink line-clamp-1">{item.title}</h4>
+                        <p className="mt-1.5 text-xs text-ink-3 line-clamp-3 leading-relaxed">
+                          {item.inputText || item.markdown.slice(0, 150)}
+                        </p>
+                      </div>
+
+                      <div className="mt-4 flex items-center justify-between border-t border-line/60 pt-3">
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          onClick={() => viewHistoryItem(item)}
+                          className="text-xs font-semibold gap-1.5 px-3"
+                        >
+                          <Eye className="size-4 stroke-[2.2]" /> View
+                        </Button>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            onClick={() => {
+                              const fc = extractFlashcards(item.markdown);
+                              printDocumentDirect({
+                                markdown: item.markdown,
+                                flashcards: fc,
+                                taskName: item.task,
+                                topic: item.title,
+                                modTitle: mod.title,
+                              });
+                            }}
+                            title="Export as PDF"
+                            className="text-xs font-semibold gap-1.5 px-2.5 hover:border-brand hover:text-brand"
+                          >
+                            <Printer className="size-4 stroke-[2.2]" />
+                            <span>PDF</span>
+                          </Button>
+                          <button
+                            type="button"
+                            onClick={() => setToDelete({ id: item.id, title: item.title })}
+                            title="Delete from history"
+                            className="flex size-8 items-center justify-center rounded-lg border border-rose/30 bg-rose-soft/60 text-rose font-bold hover:bg-rose hover:text-white transition-all shadow-2xs"
+                            aria-label="Delete document"
+                          >
+                            <Trash2 className="size-4 stroke-[2.2]" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* ── Pagination Footer ── */}
+                {totalItems > 0 ? (
+                  <div className="flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-line/70 pt-4 mt-6">
+                    <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 text-xs text-ink-3">
+                      <span>
+                        Showing{" "}
+                        <strong className="text-ink font-semibold">
+                          {(currentPage - 1) * historyPageSize + 1}
+                        </strong>{" "}
+                        to{" "}
+                        <strong className="text-ink font-semibold">
+                          {Math.min(currentPage * historyPageSize, totalItems)}
+                        </strong>{" "}
+                        of <strong className="text-ink font-semibold">{totalItems}</strong> documents
+                      </span>
+
+                      <span className="text-ink-4 hidden sm:inline">·</span>
+
+                      <label className="flex items-center gap-1.5 text-ink-3">
+                        <span>Per page:</span>
+                        <select
+                          value={historyPageSize}
+                          onChange={(e) => {
+                            setHistoryPageSize(Number(e.target.value));
+                            setHistoryPage(1);
+                          }}
+                          className="rounded-lg border border-line bg-surface px-2 py-1 text-xs text-ink"
+                        >
+                          <option value={6}>6</option>
+                          <option value={9}>9</option>
+                          <option value={18}>18</option>
+                          <option value={30}>30</option>
+                        </select>
+                      </label>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => setHistoryPage((p) => Math.max(1, p - 1))}
+                        disabled={currentPage <= 1}
+                        className="text-xs gap-1"
+                      >
+                        <ChevronLeft className="size-3.5" /> Previous
+                      </Button>
+                      <span className="text-xs text-ink-2 font-medium px-2">
+                        Page {currentPage} of {totalPages}
+                      </span>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => setHistoryPage((p) => Math.min(totalPages, p + 1))}
+                        disabled={currentPage >= totalPages}
+                        className="text-xs gap-1"
+                      >
+                        Next <ChevronRight className="size-3.5" />
+                      </Button>
+                    </div>
+                  </div>
+                ) : null}
               </div>
-            )
-          ) : (
-            <EmptyState title="Nothing generated yet" body="Fill in the inputs and generate. Output is a draft for you to review and edit." />
-          )}
-        </CardBody>
-      </Card>
+            )}
+          </CardBody>
+        </Card>
+      ) : (
+        <div className="grid gap-6 lg:grid-cols-[360px_1fr]">
+          <Card className="h-fit">
+            <CardHeader title="Inputs" subtitle={findAgent(mod.agent)?.name} />
+            <CardBody>
+              <form
+                className="space-y-4"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const cleaned = Object.fromEntries(Object.entries(values).map(([k, v]) => [k, cleanText(v, 4000)]));
+                  mutation.mutate(cleaned);
+                }}
+              >
+                {data.fields.map((f) => {
+                  const id = `gen-${f.name}`;
+                  return (
+                    <Field key={f.name} label={f.label} htmlFor={id}>
+                      {f.type === "select" ? (
+                        <select id={id} className={inputClass} value={values[f.name]} onChange={(e) => setValues((p) => ({ ...p, [f.name]: e.target.value }))}>
+                          {f.options?.map((o) => (
+                            <option key={o}>{o}</option>
+                          ))}
+                        </select>
+                      ) : f.type === "textarea" ? (
+                        <textarea
+                          id={id}
+                          rows={5}
+                          maxLength={4000}
+                          className={inputClass}
+                          placeholder={f.placeholder}
+                          value={values[f.name]}
+                          onChange={(e) => setValues((p) => ({ ...p, [f.name]: e.target.value }))}
+                        />
+                      ) : (
+                        <input
+                          id={id}
+                          type={f.type === "number" ? "number" : "text"}
+                          min={f.type === "number" ? 0 : undefined}
+                          max={f.type === "number" ? 10_000_000 : undefined}
+                          maxLength={200}
+                          className={inputClass}
+                          placeholder={f.placeholder}
+                          value={values[f.name]}
+                          onChange={(e) => setValues((p) => ({ ...p, [f.name]: e.target.value }))}
+                        />
+                      )}
+                    </Field>
+                  );
+                })}
+                <Button type="submit" className="w-full" disabled={mutation.isPending}>
+                  {mutation.isPending ? <Spinner /> : <Sparkles className="size-4" />}
+                  {data.cta}
+                </Button>
+              </form>
+            </CardBody>
+          </Card>
+
+          <Card className="min-h-80">
+            <CardHeader
+              title={currentOutput?.title ? `Output: ${currentOutput.title}` : "Output"}
+              action={
+                activeMarkdown ? (
+                  <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={exportPdf}
+                      title="Export as PDF"
+                      className="font-semibold gap-1.5"
+                    >
+                      <Printer className="size-4 stroke-[2.2]" />
+                      <span className="hidden sm:inline">Export PDF</span>
+                      <span className="sm:hidden">PDF</span>
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={downloadMarkdown}
+                      title="Download Markdown (.md)"
+                      className="font-semibold gap-1.5"
+                    >
+                      <Download className="size-4 stroke-[2.2]" />
+                      <span className="hidden sm:inline">Download .md</span>
+                      <span className="sm:hidden">.md</span>
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => {
+                        void navigator.clipboard?.writeText(activeMarkdown).then(() => {
+                          setCopied(true);
+                          setTimeout(() => setCopied(false), 1500);
+                        });
+                      }}
+                      title="Copy to clipboard"
+                      className="font-semibold gap-1.5"
+                    >
+                      {copied ? <Check className="size-4 stroke-[2.2]" /> : <Copy className="size-4 stroke-[2.2]" />}
+                      {copied ? "Copied" : "Copy"}
+                    </Button>
+                  </div>
+                ) : null
+              }
+            />
+            <CardBody>
+              {mutation.isError ? (
+                <p className="text-sm text-rose" role="alert">
+                  {mutation.error instanceof ApiError ? mutation.error.message : "Generation failed."}
+                </p>
+              ) : mutation.isPending ? (
+                <div className="flex items-center gap-2 text-sm text-ink-3">
+                  <Spinner /> Generating…
+                </div>
+              ) : activeMarkdown ? (
+                flashcards.length > 0 ? (
+                  <div className="space-y-4">
+                    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line pb-2.5">
+                      <div className="flex items-center gap-1.5 rounded-lg bg-surface-2 p-1 text-xs font-semibold">
+                        <button
+                          type="button"
+                          onClick={() => setViewMode("interactive")}
+                          className={cn(
+                            "flex items-center gap-1.5 rounded-md px-3 py-1 transition-colors",
+                            viewMode === "interactive" ? "bg-surface text-brand shadow-xs" : "text-ink-2 hover:text-ink",
+                          )}
+                        >
+                          <Layers className="size-3.5" />
+                          <span>Interactive Cards ({flashcards.length})</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setViewMode("all")}
+                          className={cn(
+                            "rounded-md px-3 py-1 transition-colors",
+                            viewMode === "all" ? "bg-surface text-brand shadow-xs" : "text-ink-2 hover:text-ink",
+                          )}
+                        >
+                          <span>Full Notes View</span>
+                        </button>
+                      </div>
+                      <span className="text-xs font-medium text-ink-3">
+                        Card {activeCardIndex + 1} of {flashcards.length}
+                      </span>
+                    </div>
+
+                    {viewMode === "interactive" && flashcards[activeCardIndex] ? (
+                      (() => {
+                        const card = flashcards[activeCardIndex]!;
+                        return (
+                          <div className="space-y-4">
+                            {/* Active Flashcard Face */}
+                            <div
+                              onClick={() => setIsFlipped((f) => !f)}
+                              className={cn(
+                                "group relative flex min-h-65 cursor-pointer select-none flex-col justify-between rounded-2xl border-2 p-6 transition-all duration-300 shadow-xs",
+                                isFlipped
+                                  ? "border-teal-500/50 bg-teal-500/5 hover:border-teal-500/70 dark:bg-teal-950/20"
+                                  : "border-brand/40 bg-brand/5 hover:border-brand/60 dark:bg-brand/10",
+                              )}
+                            >
+                              <div>
+                                <div className="mb-3 flex items-center justify-between text-xs font-bold uppercase tracking-wider">
+                                  <span className={cn("flex items-center gap-1.5", isFlipped ? "text-teal-600 dark:text-teal-400" : "text-brand")}>
+                                    {isFlipped ? "Answer / Explanation" : "Question / Prompt"}
+                                  </span>
+                                  <span className="rounded-full bg-surface px-2.5 py-0.5 text-[11px] font-semibold text-ink-2 shadow-2xs">
+                                    {card.title}
+                                  </span>
+                                </div>
+
+                                <div className="py-2 text-ink">
+                                  {isFlipped ? (
+                                    <div className="space-y-3">
+                                      <div className="whitespace-pre-line text-sm leading-relaxed sm:text-base font-normal">
+                                        {card.back}
+                                      </div>
+                                      {card.hook ? (
+                                        <div className="mt-3 flex items-start gap-2.5 rounded-xl border border-amber/30 bg-gold-soft p-3 text-xs text-amber font-medium">
+                                          <span className="text-base leading-none">💡</span>
+                                          <div>
+                                            <strong className="mb-0.5 block font-semibold text-ink">Key Takeaway / Memory Hook:</strong>
+                                            {card.hook}
+                                          </div>
+                                        </div>
+                                      ) : null}
+                                    </div>
+                                  ) : (
+                                    <div className="pt-2 text-base font-semibold leading-relaxed text-ink sm:text-lg">
+                                      {card.front}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+
+                              <div className="mt-4 flex items-center justify-between border-t border-line/60 pt-3.5 text-xs text-ink-3">
+                                <span className="flex items-center gap-1.5 font-medium text-brand group-hover:underline">
+                                  <RotateCw className="size-3.5" />
+                                  {isFlipped ? "Click card to flip back to question" : "Click anywhere on card to reveal answer"}
+                                </span>
+                                <span className="font-semibold text-ink-2">
+                                  {activeCardIndex + 1} / {flashcards.length}
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Navigation Controls */}
+                            <div className="flex items-center justify-between pt-1">
+                              <Button
+                                type="button"
+                                variant="secondary"
+                                size="sm"
+                                disabled={activeCardIndex === 0}
+                                onClick={() => {
+                                  setIsFlipped(false);
+                                  setActiveCardIndex((i) => Math.max(0, i - 1));
+                                }}
+                                className="flex items-center gap-1 text-xs"
+                              >
+                                <ChevronLeft className="size-4" /> Previous
+                              </Button>
+
+                              <Button
+                                type="button"
+                                variant="primary"
+                                size="sm"
+                                onClick={() => setIsFlipped((f) => !f)}
+                                className="flex items-center gap-1.5 text-xs font-semibold"
+                              >
+                                <RotateCw className="size-3.5" />
+                                {isFlipped ? "Show Question" : "Flip to Answer"}
+                              </Button>
+
+                              <Button
+                                type="button"
+                                variant="secondary"
+                                size="sm"
+                                disabled={activeCardIndex === flashcards.length - 1}
+                                onClick={() => {
+                                  setIsFlipped(false);
+                                  setActiveCardIndex((i) => Math.min(flashcards.length - 1, i + 1));
+                                }}
+                                className="flex items-center gap-1 text-xs"
+                              >
+                                Next <ChevronRight className="size-4" />
+                              </Button>
+                            </div>
+                          </div>
+                        );
+                      })()
+                    ) : (
+                      <div className="space-y-4">
+                        <SafeMarkdown>{activeMarkdown}</SafeMarkdown>
+                      </div>
+                    )}
+
+                    <AiLabel />
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <SafeMarkdown>{activeMarkdown}</SafeMarkdown>
+                    <AiLabel />
+                  </div>
+                )
+              ) : (
+                <EmptyState title="Nothing generated yet" body="Fill in the inputs and generate. Output is a draft for you to review and edit." />
+              )}
+            </CardBody>
+          </Card>
+        </div>
+      )}
+
+      {/* ── Center Delete Confirmation Modal (Document AI only) ── */}
+      {isDocumentAi ? (
+        <ConfirmDelete
+          open={Boolean(toDelete)}
+          recordName={toDelete?.title || "Document"}
+          singular="Document"
+          title="Delete saved document?"
+          description={
+            <p>
+              <span className="font-medium text-ink">{toDelete?.title}</span> will be permanently deleted from your saved history.
+            </p>
+          }
+          busy={deleteFromHistory.isPending}
+          error={
+            deleteFromHistory.error
+              ? deleteFromHistory.error instanceof Error
+                ? deleteFromHistory.error.message
+                : "Failed to delete document"
+              : null
+          }
+          onCancel={() => setToDelete(null)}
+          onConfirm={() => toDelete && deleteFromHistory.mutate(toDelete.id)}
+        />
+      ) : null}
     </div>
   );
 }

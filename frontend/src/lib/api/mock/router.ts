@@ -238,6 +238,7 @@ import { dispatchNotices, noticeNotifications } from "./notices";
 import { dispatchContentDesk } from "./content-desk";
 import { dispatchCurriculum } from "./curriculum";
 import { dispatchCourseRoadmap } from "./course-roadmap";
+import { dispatchDocumentAiHistory } from "./document-history";
 import { dispatchIntegrations } from "./integrations";
 import { dispatchBilling } from "./billing";
 import { feeNotifications } from "@/lib/billing/reminders";
@@ -604,6 +605,9 @@ export async function dispatch(method: string, segs: string[], rawBody: unknown,
   if (segs[0] === "content-desk") return dispatchContentDesk(method, segs, rawBody, session);
   if (segs[0] === "curriculum") return dispatchCurriculum(method, segs, rawBody, session);
   if (segs[0] === "course-roadmap") return dispatchCourseRoadmap(method, segs, rawBody, session);
+  if (segs[0] === "document-ai" || (segs[0] === "faculty" && segs[1] === "document-ai")) {
+    return dispatchDocumentAiHistory(method, segs, rawBody, session, query);
+  }
   if (segs[0] === "integrations") return dispatchIntegrations(method, segs, rawBody, session);
   if (segs[0] === "fees" || segs[0] === "billing") return dispatchBilling(method, segs, rawBody, session, query);
   if (segs[0] === "platform-health") {
