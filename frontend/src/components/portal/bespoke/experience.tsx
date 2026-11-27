@@ -81,7 +81,7 @@ function Mine({ data }: { data: ExperienceOverview }) {
       <Tiles s={data.summary} labels={["Activities", "Verified", "Waiting", "Need changes"]} />
       <Card>
         <div className="flex flex-wrap items-center gap-3 border-b border-line p-4">
-          <div className="relative min-w-[200px] flex-1">
+          <div className="relative min-w-50 flex-1">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-3" aria-hidden="true" />
             <input aria-label="Search activities" className={cn(inputClass, "pl-9")} placeholder="Search your activities…" value={text} onChange={(e) => setText(e.target.value)} />
           </div>
@@ -253,7 +253,7 @@ function ActivityDialog({ item, onClose }: { item: ExperienceItem | null; onClos
           </Field>
         </div>
         <label className="flex items-center gap-2 text-sm text-ink-2">
-          <input type="checkbox" className="accent-[var(--brand)]" checked={f.ongoing} onChange={(e) => set("ongoing", e.target.checked)} /> I am still doing this
+          <input type="checkbox" className="accent-brand" checked={f.ongoing} onChange={(e) => set("ongoing", e.target.checked)} /> I am still doing this
         </label>
         <Field label="What did you achieve? (optional)" htmlFor="ex-desc" error={fields.description} hint="Numbers help: people reached, funds raised, position won.">
           <textarea id="ex-desc" rows={3} maxLength={1000} className={inputClass} value={f.description} onChange={(e) => set("description", e.target.value)} />
@@ -335,7 +335,7 @@ function Review({ data }: { data: ExperienceOverview }) {
           </div>
 
           <div className="flex flex-1 flex-wrap items-center gap-2">
-            <div className="relative min-w-[200px] flex-1">
+            <div className="relative min-w-50 flex-1">
               <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ink-3" aria-hidden="true" />
               <input
                 aria-label="Search"
@@ -582,7 +582,7 @@ function EvidenceCertificateModal({ item, onClose }: { item: ExperienceItem; onC
         {/* Certificate Display Sheet */}
         <div
           ref={certRef}
-          className="print-area relative overflow-hidden rounded-2xl border-2 border-amber-500/30 bg-gradient-to-br from-amber-50/70 via-surface to-amber-100/40 p-6 sm:p-8 shadow-inner print:m-0 print:w-full print:border-2 print:border-amber-600/40 print:rounded-2xl print:p-8"
+          className="print-area relative overflow-hidden rounded-2xl border-2 border-amber-500/30 bg-linear-to-br from-amber-50/70 via-surface to-amber-100/40 p-6 sm:p-8 shadow-inner print:m-0 print:w-full print:border-2 print:border-amber-600/40 print:rounded-2xl print:p-8"
         >
           {/* Decorative Corner Borders */}
           <div className="pointer-events-none absolute inset-2.5 rounded-xl border border-amber-600/20" />

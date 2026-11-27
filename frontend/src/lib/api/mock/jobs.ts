@@ -27,7 +27,7 @@ import { studentStateStore } from "./student-state-store";
 import { sharedState } from "./global-state";
 import type { MockResult } from "./router";
 
-const STATE_KEY = "jobs_state";
+const STATE_KEY = "jobs-state";
 
 interface CustomJobRecord {
   id: string;
@@ -71,7 +71,7 @@ interface StoredStudentJobsData {
 }
 
 async function loadStudentJobsData(s: SessionPayload): Promise<StoredStudentJobsData> {
-  const raw = await studentStateStore().get(s.sub, STATE_KEY);
+  const raw = (await studentStateStore().get(s.sub, STATE_KEY)) ?? (await studentStateStore().get(s.sub, "jobs_state"));
   if (!raw || typeof raw !== "object") {
     // Initial sample applications if brand new to showcase rich tracking immediately
     return {

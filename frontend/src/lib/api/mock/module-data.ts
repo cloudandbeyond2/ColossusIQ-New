@@ -1244,13 +1244,18 @@ const DATA: Record<string, (collegeScope: string, live: ScopeData) => ModuleData
           for (let i = 0; i < colCourses.length; i++) {
             const c = colCourses[i]!;
             const tone = tones[i % tones.length]!;
-            items.push([
-              `${c.title} Practical Lab`,
-              `Interactive practical problems, lab assignments and exercises for ${c.code}`,
-              c.department.name,
-              "Active",
-              tone,
-            ]);
+            const baseTitle = `${c.title} Practical Lab`;
+            const duplicate = items.some((it) => it[0] === baseTitle);
+            const labTitle = duplicate ? `${c.title} (${c.code}) Practical Lab` : baseTitle;
+            if (!items.some((it) => it[0] === labTitle)) {
+              items.push([
+                labTitle,
+                `Interactive practical problems, lab assignments and exercises for ${c.code}`,
+                c.department.name,
+                "Active",
+                tone,
+              ]);
+            }
           }
 
           // Department lab specializations mapped to real departments

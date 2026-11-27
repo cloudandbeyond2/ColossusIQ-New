@@ -195,7 +195,7 @@ export async function getTeamFinderOverview(
   // Fetch campus requests from persistent store or shared state
   let requests = sharedRequests;
   try {
-    const saved = await studentStateStore().get(session.sub, "team_requests");
+    const saved = (await studentStateStore().get(session.sub, "team-requests")) ?? (await studentStateStore().get(session.sub, "team_requests"));
     if (Array.isArray(saved) && saved.length > 0) {
       requests = saved as TeamRequestItem[];
     }
@@ -261,9 +261,9 @@ export async function createTeamRequest(
   sharedRequests.unshift(newItem);
 
   try {
-    const existing = (await studentStateStore().get(session.sub, "team_requests")) as TeamRequestItem[] | undefined;
+    const existing = ((await studentStateStore().get(session.sub, "team-requests")) ?? (await studentStateStore().get(session.sub, "team_requests"))) as TeamRequestItem[] | undefined;
     const updated = [newItem, ...(Array.isArray(existing) ? existing : [])];
-    await studentStateStore().save(session.college, session.sub, "team_requests", updated);
+    await studentStateStore().save(session.college, session.sub, "team-requests", updated);
   } catch {}
 
   return newItem;

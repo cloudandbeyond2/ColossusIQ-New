@@ -794,8 +794,8 @@ export function GalleryTemplate({ data }: { data: GalleryData }) {
         </Card>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {filteredItems.map((it) => (
-            <Card key={it.title} className="flex flex-col p-5 transition-all hover:shadow-lg hover:border-brand/30">
+          {filteredItems.map((it, idx) => (
+            <Card key={`${it.title}-${it.tag}-${idx}`} className="flex flex-col p-5 transition-all hover:shadow-lg hover:border-brand/30">
               <div className="flex items-start justify-between gap-2">
                 <Badge tone={it.tone}>{it.tag}</Badge>
                 {it.meta ? (
